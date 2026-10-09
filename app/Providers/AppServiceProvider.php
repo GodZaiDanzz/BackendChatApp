@@ -19,6 +19,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        if (is_dir(resource_path('FrontEndChatApp'))) {
+            \Illuminate\Support\Facades\View::addLocation(resource_path('FrontEndChatApp'));
+            \Illuminate\Support\Facades\View::addNamespace('chat', resource_path('FrontEndChatApp'));
+        }
     }
 }

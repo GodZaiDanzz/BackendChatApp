@@ -76,8 +76,12 @@ class ContactController extends Controller
             'status'     => 'pending',
         ]);
 
-        // Broadcast real-time friend request event to receiver
-        broadcast(new FriendRequestSent($request->user(), $targetId))->toOthers();
+        // Broadcast real-time friend request event to receiver (failsafe if Reverb is offline)
+        try {
+            broadcast(new FriendRequestSent($request->user(), $targetId))->toOthers();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('WebSocket broadcast failed (FriendRequestSent): ' . $e->getMessage());
+        }
 
         return response()->json(['message' => 'Permintaan pertemanan berhasil dikirim', 'contact' => $contact], 201);
     }
@@ -105,8 +109,12 @@ class ContactController extends Controller
 
         $contact->update(['status' => 'accepted']);
 
-        // Broadcast real-time friend accepted event to requester
-        broadcast(new FriendRequestAccepted($request->user(), $requesterId))->toOthers();
+        // Broadcast real-time friend accepted event to requester (failsafe if Reverb is offline)
+        try {
+            broadcast(new FriendRequestAccepted($request->user(), $requesterId))->toOthers();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('WebSocket broadcast failed (FriendRequestAccepted): ' . $e->getMessage());
+        }
 
         return response()->json(['message' => 'Permintaan pertemanan diterima']);
     }

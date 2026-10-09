@@ -23,6 +23,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/contacts/reject', [ContactController::class, 'reject']);
     Route::post('/devices', [DeviceController::class, 'store']);
     Route::post('/messages', [MessageController::class, 'store'])->middleware('throttle:60,1');
+    Route::put('/messages/{id}', [MessageController::class, 'update']);
+    Route::delete('/messages/{id}', [MessageController::class, 'destroy']);
     Route::get('/messages/pending', [MessageController::class, 'pending']);
+    Route::get('/messages/statuses', [MessageController::class, 'statuses']);
     Route::post('/messages/ack', [MessageController::class, 'ack']);
 });

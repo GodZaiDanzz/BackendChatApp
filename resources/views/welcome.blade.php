@@ -183,7 +183,10 @@
         </div>
 
         <div class="actions">
-            <a href="/download/chat.apk" class="btn-primary">
+            <a href="/chat" class="btn-primary" style="background: #2563eb;">
+                Buka ZChat Web Client
+            </a>
+            <a href="/download/chat.apk" class="btn-primary" style="background: #27272a; border: 1px solid #3f3f46;">
                 Unduh Aplikasi Android (.APK)
             </a>
         </div>

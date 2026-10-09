@@ -12,6 +12,8 @@ class Message extends Model
         'receiver_id',
         'body',
         'status',
+        'is_edited',
+        'is_deleted',
     ];
 
     public function sender()
