@@ -31,4 +31,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/messages/pending', [MessageController::class, 'pending']);
     Route::get('/messages/statuses', [MessageController::class, 'statuses']);
     Route::post('/messages/ack', [MessageController::class, 'ack']);
+    Route::post('/typing', [MessageController::class, 'typing']);
+    Route::get('/typing-status', [MessageController::class, 'typingStatus']);
 });

@@ -34,6 +34,10 @@
                         <span id="activeChatUsername" class="chat-subtitle" style="margin: 0;">@username</span>
                         <span style="color: var(--text-muted); font-size: 0.65rem;">•</span>
                         <span id="activeUserOnlineStatus" class="user-status-text offline">Offline</span>
+                        <span id="activeTypingStatus" class="typing-indicator-badge" style="display: none;" aria-live="polite">
+                            <span>sedang mengetik</span>
+                            <span class="typing-dots"><span>.</span><span>.</span><span>.</span></span>
+                        </span>
                     </div>
                 </div>
             </div>
@@ -104,6 +108,7 @@
                     placeholder="Tulis pesan... (Tekan Enter untuk mengirim)"
                     rows="1"
                     onkeydown="handleMessageKeydown(event)"
+                    oninput="handleMessageInput(event)"
                 ></textarea>
 
                 <button type="submit" id="btnSendMessage" class="btn-send" aria-label="Kirim pesan">

@@ -6,6 +6,167 @@
 (function () {
     'use strict';
 
+    // ==========================================
+    // Local Client Database (IndexedDB / SQLite-like)
+    // ==========================================
+    const AppDB = (function () {
+        const DB_NAME = 'ZChat_Client_Storage';
+        const DB_VERSION = 1;
+        const STORE_MESSAGES = 'messages';
+        let dbPromise = null;
+
+        function open() {
+            if (dbPromise) return dbPromise;
+            if (typeof indexedDB === 'undefined') {
+                console.warn('IndexedDB tidak didukung pada browser ini.');
+                return Promise.resolve(null);
+            }
+
+            dbPromise = new Promise((resolve) => {
+                const req = indexedDB.open(DB_NAME, DB_VERSION);
+
+                req.onupgradeneeded = function (e) {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(STORE_MESSAGES)) {
+                        const store = db.createObjectStore(STORE_MESSAGES, { keyPath: 'client_uuid' });
+                        store.createIndex('partner_id', 'partner_id', { unique: false });
+                        store.createIndex('sender_id', 'sender_id', { unique: false });
+                        store.createIndex('receiver_id', 'receiver_id', { unique: false });
+                        store.createIndex('created_at', 'created_at', { unique: false });
+                    }
+                };
+
+                req.onsuccess = function (e) {
+                    resolve(e.target.result);
+                };
+
+                req.onerror = function (e) {
+                    console.error('IndexedDB error:', e.target.error);
+                    resolve(null);
+                };
+            });
+
+            return dbPromise;
+        }
+
+        async function saveMessage(msg, currentUserId) {
+            if (!msg || !msg.client_uuid) return;
+            const partnerId = Number(msg.sender_id) === Number(currentUserId)
+                ? Number(msg.receiver_id)
+                : Number(msg.sender_id);
+
+            const record = {
+                ...msg,
+                partner_id: partnerId
+            };
+
+            const db = await open();
+            if (!db) return;
+
+            return new Promise((resolve) => {
+                try {
+                    const tx = db.transaction(STORE_MESSAGES, 'readwrite');
+                    const store = tx.objectStore(STORE_MESSAGES);
+                    store.put(record);
+                    tx.oncomplete = () => resolve(record);
+                    tx.onerror = () => resolve(null);
+                } catch (e) {
+                    resolve(null);
+                }
+            });
+        }
+
+        async function saveMessagesBatch(messages, currentUserId) {
+            if (!messages || !messages.length) return;
+            const db = await open();
+            if (!db) return;
+
+            return new Promise((resolve) => {
+                try {
+                    const tx = db.transaction(STORE_MESSAGES, 'readwrite');
+                    const store = tx.objectStore(STORE_MESSAGES);
+                    messages.forEach(msg => {
+                        if (msg && msg.client_uuid) {
+                            const partnerId = Number(msg.sender_id) === Number(currentUserId)
+                                ? Number(msg.receiver_id)
+                                : Number(msg.sender_id);
+                            store.put({ ...msg, partner_id: partnerId });
+                        }
+                    });
+                    tx.oncomplete = () => resolve(true);
+                    tx.onerror = () => resolve(false);
+                } catch (e) {
+                    resolve(false);
+                }
+            });
+        }
+
+        async function getAllChats(currentUserId) {
+            const db = await open();
+            if (!db) return null;
+
+            return new Promise((resolve) => {
+                try {
+                    const tx = db.transaction(STORE_MESSAGES, 'readonly');
+                    const store = tx.objectStore(STORE_MESSAGES);
+                    const req = store.getAll();
+
+                    req.onsuccess = function () {
+                        const items = req.result || [];
+                        const grouped = {};
+                        items.forEach(msg => {
+                            const partnerId = msg.partner_id || (Number(msg.sender_id) === Number(currentUserId) ? Number(msg.receiver_id) : Number(msg.sender_id));
+                            if (!grouped[partnerId]) grouped[partnerId] = [];
+                            grouped[partnerId].push(msg);
+                        });
+                        for (const pid in grouped) {
+                            grouped[pid].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+                        }
+                        resolve(grouped);
+                    };
+
+                    req.onerror = () => resolve(null);
+                } catch (e) {
+                    resolve(null);
+                }
+            });
+        }
+
+        async function clearContactChat(partnerId) {
+            const db = await open();
+            if (!db) return;
+
+            return new Promise((resolve) => {
+                try {
+                    const tx = db.transaction(STORE_MESSAGES, 'readwrite');
+                    const store = tx.objectStore(STORE_MESSAGES);
+                    const req = store.getAll();
+
+                    req.onsuccess = function () {
+                        const items = req.result || [];
+                        items.forEach(item => {
+                            if (Number(item.partner_id) === Number(partnerId)) {
+                                store.delete(item.client_uuid);
+                            }
+                        });
+                    };
+                    tx.oncomplete = () => resolve(true);
+                    tx.onerror = () => resolve(false);
+                } catch (e) {
+                    resolve(false);
+                }
+            });
+        }
+
+        return {
+            open,
+            saveMessage,
+            saveMessagesBatch,
+            getAllChats,
+            clearContactChat
+        };
+    })();
+
     // Application Global State
     const state = {
         token: localStorage.getItem('zchat_token') || null,
@@ -19,15 +180,58 @@
         heartbeatInterval: null,
         activeTab: 'chats',
         reverbSocket: null,
-        editingMessageId: null
+        editingMessageId: null,
+        typingUsers: {},
+        typingTimers: {},
+        isCurrentlyTyping: false,
+        lastTypingSentAt: 0,
+        myTypingTimeout: null
     };
 
-    // Helper: Save messages to localStorage for seamless persistence
+    // Helper: Save messages to IndexedDB (local storage) and localStorage
     function persistMessages() {
         try {
             localStorage.setItem('zchat_messages', JSON.stringify(state.chats));
         } catch (e) {
             console.warn('Gagal menyimpan riwayat pesan ke localStorage:', e);
+        }
+
+        if (state.user && state.user.id) {
+            const allFlat = [];
+            for (const pid in state.chats) {
+                if (Array.isArray(state.chats[pid])) {
+                    allFlat.push(...state.chats[pid]);
+                }
+            }
+            if (allFlat.length > 0) {
+                AppDB.saveMessagesBatch(allFlat, state.user.id);
+            }
+        }
+    }
+
+    async function loadClientDatabase() {
+        if (!state.user || !state.user.id) return;
+        try {
+            const dbChats = await AppDB.getAllChats(state.user.id);
+            if (dbChats && Object.keys(dbChats).length > 0) {
+                for (const pid in dbChats) {
+                    if (!state.chats[pid]) {
+                        state.chats[pid] = dbChats[pid];
+                    } else {
+                        const existingUuids = new Set(state.chats[pid].map(m => m.client_uuid));
+                        dbChats[pid].forEach(msg => {
+                            if (!existingUuids.has(msg.client_uuid)) {
+                                state.chats[pid].push(msg);
+                            }
+                        });
+                        state.chats[pid].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+                    }
+                }
+            } else {
+                persistMessages();
+            }
+        } catch (e) {
+            console.warn('Gagal memuat client IndexedDB:', e);
         }
     }
 
@@ -137,13 +341,15 @@
     // Autentikasi & Inisialisasi
     // ==========================================
 
-    function initAuth() {
+    async function initAuth() {
         const authModal = document.getElementById('authModal');
         if (!state.token || !state.user) {
             if (authModal) authModal.classList.add('active');
         } else {
             if (authModal) authModal.classList.remove('active');
             updateCurrentUserUI();
+            await loadClientDatabase();
+            renderChatsList();
             startDataSync();
         }
     }
@@ -286,6 +492,8 @@
 
             document.getElementById('authModal').classList.remove('active');
             updateCurrentUserUI();
+            await loadClientDatabase();
+            renderChatsList();
             showToast(`Selamat datang kembali, ${res.user.display_name}!`, 'success');
             startDataSync();
         } catch (err) {
@@ -375,6 +583,8 @@
 
             document.getElementById('authModal').classList.remove('active');
             updateCurrentUserUI();
+            await loadClientDatabase();
+            renderChatsList();
             showToast('Akun berhasil diverifikasi! Selamat datang di ZChat.', 'success');
             startDataSync();
         } catch (err) {
@@ -637,10 +847,13 @@
         });
 
         container.innerHTML = filtered.map(contact => {
+            const isTyping = Boolean(state.typingUsers && state.typingUsers[contact.id]);
             const msgs = state.chats[contact.id] || [];
             const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
             const isLastDeleted = lastMsg && (lastMsg.is_deleted || lastMsg.body === 'Pesan ini telah dihapus');
-            const previewText = lastMsg ? (isLastDeleted ? '🚫 Pesan telah dihapus' : escapeHtml(lastMsg.body)) : 'Belum ada pesan';
+            const previewText = isTyping
+                ? '<span class="typing-preview-text">sedang mengetik...</span>'
+                : (lastMsg ? (isLastDeleted ? '🚫 Pesan telah dihapus' : escapeHtml(lastMsg.body)) : 'Belum ada pesan');
             const timeText = lastMsg ? formatTime(lastMsg.created_at) : '';
             const unreadCount = state.unread[contact.id] || 0;
             const initial = (contact.display_name || contact.username).charAt(0).toUpperCase();
@@ -874,8 +1087,11 @@
         document.getElementById('activeAvatarCircle').textContent = (contact.display_name || contact.username).charAt(0).toUpperCase();
 
         const isOnline = Boolean(contact.is_online);
+        const isTyping = Boolean(state.typingUsers && state.typingUsers[contact.id]);
         const dot = document.getElementById('activeStatusDot');
         const statusLabel = document.getElementById('activeUserOnlineStatus');
+        const typingBadge = document.getElementById('activeTypingStatus');
+
         if (dot) {
             dot.className = `status-indicator-dot ${isOnline ? 'online' : 'offline'}`;
             dot.title = isOnline ? 'Online' : 'Offline';
@@ -883,6 +1099,10 @@
         if (statusLabel) {
             statusLabel.className = `user-status-text ${isOnline ? 'online' : 'offline'}`;
             statusLabel.textContent = isOnline ? 'Online' : 'Offline';
+            statusLabel.style.display = isTyping ? 'none' : 'inline';
+        }
+        if (typingBadge) {
+            typingBadge.style.display = isTyping ? 'inline-flex' : 'none';
         }
 
         // Responsive mobile view
@@ -902,6 +1122,7 @@
 
     window.closeActiveChat = function () {
         window.closeChatDropdown();
+        clearMyTypingState();
         state.activeContact = null;
 
         const activeWindow = document.getElementById('activeChatWindow');
@@ -1028,6 +1249,7 @@
         if (!confirmed) return;
 
         state.chats[state.activeContact.id] = [];
+        AppDB.clearContactChat(state.activeContact.id);
         persistMessages();
         renderActiveMessages();
         renderChatsList();
@@ -1132,6 +1354,80 @@
         }
     };
 
+    function clearMyTypingState() {
+        clearTimeout(state.myTypingTimeout);
+        if (state.isCurrentlyTyping && state.activeContact) {
+            state.isCurrentlyTyping = false;
+            apiRequest('/typing', {
+                method: 'POST',
+                body: JSON.stringify({ receiver_id: state.activeContact.id, is_typing: false })
+            }).catch(() => {});
+        }
+    }
+
+    window.handleMessageInput = function (e) {
+        if (!state.activeContact) return;
+
+        const now = Date.now();
+        if (now - state.lastTypingSentAt > 2000) {
+            state.lastTypingSentAt = now;
+            state.isCurrentlyTyping = true;
+            apiRequest('/typing', {
+                method: 'POST',
+                body: JSON.stringify({ receiver_id: state.activeContact.id, is_typing: true })
+            }).catch(() => {});
+        }
+
+        clearTimeout(state.myTypingTimeout);
+        state.myTypingTimeout = setTimeout(() => {
+            if (state.isCurrentlyTyping && state.activeContact) {
+                state.isCurrentlyTyping = false;
+                apiRequest('/typing', {
+                    method: 'POST',
+                    body: JSON.stringify({ receiver_id: state.activeContact.id, is_typing: false })
+                }).catch(() => {});
+            }
+        }, 2500);
+    };
+
+    function setContactTyping(contactId, isTyping) {
+        contactId = Number(contactId);
+        if (!state.typingUsers) state.typingUsers = {};
+        if (!state.typingTimers) state.typingTimers = {};
+
+        state.typingUsers[contactId] = Boolean(isTyping);
+
+        if (state.activeContact && Number(state.activeContact.id) === contactId) {
+            const typingBadge = document.getElementById('activeTypingStatus');
+            const statusLabel = document.getElementById('activeUserOnlineStatus');
+            if (typingBadge) {
+                typingBadge.style.display = isTyping ? 'inline-flex' : 'none';
+            }
+            if (statusLabel) {
+                statusLabel.style.display = isTyping ? 'none' : 'inline';
+            }
+        }
+
+        renderChatsList();
+
+        if (state.typingTimers[contactId]) {
+            clearTimeout(state.typingTimers[contactId]);
+        }
+
+        if (isTyping) {
+            state.typingTimers[contactId] = setTimeout(() => {
+                state.typingUsers[contactId] = false;
+                if (state.activeContact && Number(state.activeContact.id) === contactId) {
+                    const typingBadge = document.getElementById('activeTypingStatus');
+                    const statusLabel = document.getElementById('activeUserOnlineStatus');
+                    if (typingBadge) typingBadge.style.display = 'none';
+                    if (statusLabel) statusLabel.style.display = 'inline';
+                }
+                renderChatsList();
+            }, 3500);
+        }
+    }
+
     window.handleSendMessage = async function (e) {
         if (e) e.preventDefault();
         if (!state.activeContact) return;
@@ -1139,6 +1435,9 @@
         const textarea = document.getElementById('messageInput');
         const body = (textarea ? textarea.value : '').trim();
         if (!body) return;
+
+        // Segera reset status mengetik saat pesan dikirim
+        clearMyTypingState();
 
         // Jika sedang dalam mode edit pesan
         if (state.editingMessageId) {
@@ -1277,7 +1576,11 @@
             const idToCall = target.id || target.client_uuid;
             const res = await apiRequest(`/messages/${idToCall}`, {
                 method: 'PUT',
-                body: JSON.stringify({ body: newBody })
+                body: JSON.stringify({
+                    body: newBody,
+                    receiver_id: state.activeContact.id,
+                    client_uuid: target.client_uuid
+                })
             });
 
             if (res) {
@@ -1333,7 +1636,11 @@
         try {
             const idToCall = target.id || target.client_uuid;
             await apiRequest(`/messages/${idToCall}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                body: JSON.stringify({
+                    receiver_id: state.activeContact.id,
+                    client_uuid: target.client_uuid
+                })
             });
             showToast('Pesan berhasil dihapus.', 'info');
         } catch (err) {
@@ -1563,6 +1870,16 @@
         }
     }
 
+    async function checkActiveContactTyping() {
+        if (!state.token || !state.activeContact) return;
+        try {
+            const res = await apiRequest(`/typing-status?contact_id=${state.activeContact.id}`);
+            if (res && res.contact_id) {
+                setContactTyping(res.contact_id, res.is_typing);
+            }
+        } catch (e) {}
+    }
+
     function startDataSync() {
         if (state.syncInterval) clearInterval(state.syncInterval);
         if (state.heartbeatInterval) clearInterval(state.heartbeatInterval);
@@ -1580,18 +1897,22 @@
         }, 20000);
 
         let syncTick = 0;
-        // Polling setiap 2.5 detik untuk sinkronisasi pesan, status ceklis, dan permohonan
+        // Polling setiap 2 detik untuk sinkronisasi pesan, status ceklis, dan status mengetik
         state.syncInterval = setInterval(() => {
             syncTick++;
             syncPendingMessages();
             syncMessageStatuses();
             fetchRequests();
 
-            // Perbarui status online/offline kontak setiap 5 detik (setiap 2 tick)
+            if (state.activeContact) {
+                checkActiveContactTyping();
+            }
+
+            // Perbarui status online/offline kontak setiap 5 detik (setiap 2-3 tick)
             if (syncTick % 2 === 0) {
                 fetchContacts();
             }
-        }, 2500);
+        }, 2000);
     }
 
     window.handleLocalFilter = function (query) {

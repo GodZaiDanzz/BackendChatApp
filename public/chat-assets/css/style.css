@@ -1271,3 +1271,60 @@ html, body {
     display: inline-flex;
   }
 }
+
+/* Typing Indicator Animation & Styles */
+.typing-indicator-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--status-online, #22c55e);
+  letter-spacing: 0.01em;
+}
+
+.typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.5px;
+}
+
+.typing-dots span {
+  animation: typingPulse 1.4s infinite ease-in-out both;
+  font-size: 0.95rem;
+  line-height: 0.7;
+  color: var(--status-online, #22c55e);
+}
+
+.typing-dots span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typingPulse {
+  0%, 80%, 100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+.typing-preview-text {
+  color: var(--status-online, #22c55e) !important;
+  font-weight: 600 !important;
+  font-style: italic;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
