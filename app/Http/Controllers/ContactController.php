@@ -15,15 +15,55 @@ class ContactController extends Controller
      */
     public function index(Request $request)
     {
-        $userId = $request->user()->id;
+        $user = $request->user();
+        if (\Illuminate\Support\Facades\Schema::hasColumn('users', 'last_seen_at')) {
+            $user->update(['last_seen_at' => now()]);
+        }
+
+        $userId = $user->id;
 
         $idsAsUser = Contact::where('user_id', $userId)->where('status', 'accepted')->pluck('contact_id')->toArray();
         $idsAsContact = Contact::where('contact_id', $userId)->where('status', 'accepted')->pluck('user_id')->toArray();
 
         $allFriendIds = array_unique(array_merge($idsAsUser, $idsAsContact));
-        $contacts = User::whereIn('id', $allFriendIds)->get(['id', 'username', 'display_name']);
+
+        $columns = ['id', 'username', 'display_name', 'created_at'];
+        if (\Illuminate\Support\Facades\Schema::hasColumn('users', 'last_seen_at')) {
+            $columns[] = 'last_seen_at';
+        }
+
+        $contacts = User::whereIn('id', $allFriendIds)->get($columns)->map(function ($u) {
+            $isOnline = false;
+            if (!empty($u->last_seen_at)) {
+                $isOnline = $u->last_seen_at->gt(now()->subSeconds(45));
+            }
+
+            return [
+                'id'           => $u->id,
+                'username'     => $u->username,
+                'display_name' => $u->display_name,
+                'created_at'   => $u->created_at ? $u->created_at->toISOString() : null,
+                'last_seen_at' => $u->last_seen_at ? $u->last_seen_at->toISOString() : null,
+                'is_online'    => $isOnline,
+            ];
+        });
 
         return response()->json($contacts);
+    }
+
+    /**
+     * Keep user online status refreshed.
+     */
+    public function heartbeat(Request $request)
+    {
+        if (\Illuminate\Support\Facades\Schema::hasColumn('users', 'last_seen_at')) {
+            $request->user()->update(['last_seen_at' => now()]);
+        }
+
+        return response()->json([
+            'status'    => 'ok',
+            'is_online' => true,
+        ]);
     }
 
     /**

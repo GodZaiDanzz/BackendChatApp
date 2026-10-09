@@ -20,18 +20,24 @@ class User extends Authenticatable
         'display_name',
         'email',
         'password',
+        'last_seen_at',
+        'otp_code',
+        'otp_expires_at',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+        'otp_code',
     ];
 
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'last_seen_at'      => 'datetime',
+            'otp_expires_at'    => 'datetime',
+            'password'          => 'hashed',
         ];
     }
 

@@ -159,25 +159,100 @@
         if (avatarEl) avatarEl.textContent = (state.user.display_name || state.user.username).charAt(0).toUpperCase();
     }
 
+    let pendingOtpEmail = '';
+    let otpCountdownInterval = null;
+
+    function startOtpCountdown(seconds = 60) {
+        const btn = document.getElementById('btnResendOtp');
+        if (!btn) return;
+
+        clearInterval(otpCountdownInterval);
+        let timeLeft = seconds;
+        btn.disabled = true;
+        btn.innerHTML = `Kirim Ulang (<span id="otpCountdownTimer">${timeLeft}</span>s)`;
+
+        otpCountdownInterval = setInterval(() => {
+            timeLeft--;
+            const timerSpan = document.getElementById('otpCountdownTimer');
+            if (timeLeft <= 0) {
+                clearInterval(otpCountdownInterval);
+                btn.disabled = false;
+                btn.textContent = 'Kirim Ulang Kode';
+            } else if (timerSpan) {
+                timerSpan.textContent = timeLeft;
+            }
+        }, 1000);
+    }
+
+    function showOtpStep(email) {
+        pendingOtpEmail = email;
+        const tabContainer = document.getElementById('authTabContainer');
+        const formLogin = document.getElementById('loginForm');
+        const formReg = document.getElementById('registerForm');
+        const formOtp = document.getElementById('otpForm');
+        const title = document.getElementById('authTitle');
+        const subtitle = document.getElementById('authSubtitle');
+        const emailDisplay = document.getElementById('otpDisplayEmail');
+        const otpInput = document.getElementById('otpCodeInput');
+
+        if (tabContainer) tabContainer.style.display = 'none';
+        if (formLogin) formLogin.style.display = 'none';
+        if (formReg) formReg.style.display = 'none';
+        if (formOtp) formOtp.style.display = 'flex';
+
+        if (title) title.textContent = 'Verifikasi Alamat Email';
+        if (subtitle) subtitle.textContent = 'Langkah 2 dari 2: Konfirmasi keamanan akun Anda';
+        if (emailDisplay) emailDisplay.textContent = email;
+
+        if (otpInput) {
+            otpInput.value = '';
+            setTimeout(() => otpInput.focus(), 100);
+        }
+
+        startOtpCountdown(60);
+    }
+
+    window.backToRegister = function () {
+        clearInterval(otpCountdownInterval);
+        const tabContainer = document.getElementById('authTabContainer');
+        const formOtp = document.getElementById('otpForm');
+        const subtitle = document.getElementById('authSubtitle');
+
+        if (tabContainer) tabContainer.style.display = 'flex';
+        if (formOtp) formOtp.style.display = 'none';
+        if (subtitle) subtitle.textContent = 'Aplikasi pesan instan aman & real-time';
+
+        window.switchAuthTab('register');
+    };
+
     window.switchAuthTab = function (tab) {
+        clearInterval(otpCountdownInterval);
+        const tabContainer = document.getElementById('authTabContainer');
         const tabLogin = document.getElementById('authTabLogin');
         const tabReg = document.getElementById('authTabRegister');
         const formLogin = document.getElementById('loginForm');
         const formReg = document.getElementById('registerForm');
+        const formOtp = document.getElementById('otpForm');
         const title = document.getElementById('authTitle');
+        const subtitle = document.getElementById('authSubtitle');
+
+        if (tabContainer) tabContainer.style.display = 'flex';
+        if (formOtp) formOtp.style.display = 'none';
 
         if (tab === 'login') {
-            tabLogin.classList.add('active');
-            tabReg.classList.remove('active');
-            formLogin.style.display = 'flex';
-            formReg.style.display = 'none';
+            if (tabLogin) tabLogin.classList.add('active');
+            if (tabReg) tabReg.classList.remove('active');
+            if (formLogin) formLogin.style.display = 'flex';
+            if (formReg) formReg.style.display = 'none';
             if (title) title.textContent = 'Masuk ke ZChat';
+            if (subtitle) subtitle.textContent = 'Aplikasi pesan instan aman & real-time';
         } else {
-            tabLogin.classList.remove('active');
-            tabReg.classList.add('active');
-            formLogin.style.display = 'none';
-            formReg.style.display = 'flex';
+            if (tabLogin) tabLogin.classList.remove('active');
+            if (tabReg) tabReg.classList.add('active');
+            if (formLogin) formLogin.style.display = 'none';
+            if (formReg) formReg.style.display = 'flex';
             if (title) title.textContent = 'Daftar Akun ZChat';
+            if (subtitle) subtitle.textContent = 'Lengkapi formulir untuk membuat akun baru';
         }
     };
 
@@ -198,6 +273,12 @@
                 body: JSON.stringify({ username, password })
             });
 
+            if (res.status === 'unverified') {
+                showToast(res.message, 'info');
+                showOtpStep(res.email);
+                return;
+            }
+
             state.token = res.token;
             state.user = res.user;
             localStorage.setItem('zchat_token', res.token);
@@ -217,28 +298,76 @@
 
     window.handleRegisterSubmit = async function (e) {
         e.preventDefault();
-        const username = document.getElementById('regUsername').value.trim();
         const displayName = document.getElementById('regDisplayName').value.trim();
+        const username = document.getElementById('regUsername').value.trim();
+        const email = document.getElementById('regEmail').value.trim();
         const password = document.getElementById('regPassword').value;
-        const inviteCode = document.getElementById('regInviteCode').value.trim();
         const btn = document.getElementById('registerBtn');
 
-        if (!username || !displayName || !password || !inviteCode) return;
+        if (!displayName || !username || !email || !password) {
+            showToast('Semua kolom formulir pendaftaran wajib diisi.', 'error');
+            return;
+        }
 
         btn.disabled = true;
-        btn.textContent = 'Mendaftarkan...';
+        btn.textContent = 'Mengirim kode OTP...';
 
         try {
             const res = await apiRequest('/register', {
                 method: 'POST',
                 body: JSON.stringify({
-                    username,
                     display_name: displayName,
-                    password,
-                    invite_code: inviteCode
+                    username,
+                    email,
+                    password
                 })
             });
 
+            if (res.status === 'verification_required') {
+                showToast(res.message, 'success');
+                showOtpStep(res.email || email);
+            } else if (res.token) {
+                state.token = res.token;
+                state.user = res.user;
+                localStorage.setItem('zchat_token', res.token);
+                localStorage.setItem('zchat_user', JSON.stringify(res.user));
+
+                document.getElementById('authModal').classList.remove('active');
+                updateCurrentUserUI();
+                showToast('Akun berhasil dibuat. Selamat datang di ZChat!', 'success');
+                startDataSync();
+            }
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Lanjut & Kirim Kode Verifikasi';
+        }
+    };
+
+    window.handleOtpSubmit = async function (e) {
+        e.preventDefault();
+        const otp = document.getElementById('otpCodeInput').value.trim();
+        const btn = document.getElementById('verifyOtpBtn');
+
+        if (!otp || otp.length !== 6) {
+            showToast('Masukkan 6 digit kode OTP yang valid.', 'error');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Memverifikasi...';
+
+        try {
+            const res = await apiRequest('/verify-otp', {
+                method: 'POST',
+                body: JSON.stringify({
+                    email: pendingOtpEmail,
+                    otp
+                })
+            });
+
+            clearInterval(otpCountdownInterval);
             state.token = res.token;
             state.user = res.user;
             localStorage.setItem('zchat_token', res.token);
@@ -246,13 +375,32 @@
 
             document.getElementById('authModal').classList.remove('active');
             updateCurrentUserUI();
-            showToast('Akun berhasil dibuat. Selamat datang di ZChat!', 'success');
+            showToast('Akun berhasil diverifikasi! Selamat datang di ZChat.', 'success');
             startDataSync();
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
             btn.disabled = false;
-            btn.textContent = 'Daftar Akun';
+            btn.textContent = 'Verifikasi & Mulai Mengobrol';
+        }
+    };
+
+    window.handleResendOtp = async function () {
+        if (!pendingOtpEmail) return;
+        const btn = document.getElementById('btnResendOtp');
+        if (btn) btn.disabled = true;
+
+        try {
+            const res = await apiRequest('/resend-otp', {
+                method: 'POST',
+                body: JSON.stringify({ email: pendingOtpEmail })
+            });
+
+            showToast(res.message || 'Kode verifikasi baru telah dikirimkan ke email Anda.', 'info');
+            startOtpCountdown(60);
+        } catch (err) {
+            showToast(err.message, 'error');
+            if (btn) btn.disabled = false;
         }
     };
 
