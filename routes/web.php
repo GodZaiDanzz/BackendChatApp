@@ -2,12 +2,18 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
+Route::get('/', function (\Illuminate\Http\Request $request) {
+    if (str_contains($request->getHost(), 'chat.') || $request->getHost() === 'chat.ismc.my.id') {
+        return view('index');
+    }
     return view('welcome');
 });
 
-Route::get('/chat', function () {
-    return view('index');
+Route::get('/chat', function (\Illuminate\Http\Request $request) {
+    if (str_contains($request->getHost(), 'api.')) {
+        return redirect('https://chat.ismc.my.id/');
+    }
+    return redirect('/');
 });
 
 Route::get('/chat-assets/{type}/{file}', function (string $type, string $file) {
