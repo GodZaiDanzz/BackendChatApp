@@ -471,7 +471,7 @@
         if (!username || !password) return;
 
         btn.disabled = true;
-        btn.textContent = 'Memproses...';
+        btn.innerHTML = '<span class="btn-spinner"></span> Memproses...';
 
         try {
             const res = await apiRequest('/login', {
@@ -518,7 +518,7 @@
         }
 
         btn.disabled = true;
-        btn.textContent = 'Mengirim kode OTP...';
+        btn.innerHTML = '<span class="btn-spinner"></span> Mengirim kode OTP...';
 
         try {
             const res = await apiRequest('/register', {
@@ -564,7 +564,7 @@
         }
 
         btn.disabled = true;
-        btn.textContent = 'Memverifikasi...';
+        btn.innerHTML = '<span class="btn-spinner"></span> Memverifikasi...';
 
         try {
             const res = await apiRequest('/verify-otp', {
@@ -1111,9 +1111,25 @@
         // Tandai semua pesan dari orang ini sebagai telah dibaca
         acknowledgeMessagesForContact(contact.id);
 
+        // Tampilkan state loading skeleton sejenak saat berpindah obrolan
+        const skeleton = document.getElementById('chatLoadingSkeleton');
+        const msgsContainer = document.getElementById('messagesContainer');
+        if (skeleton && msgsContainer) {
+            skeleton.style.display = 'flex';
+            msgsContainer.style.display = 'none';
+        }
+
         renderActiveMessages();
         renderContactsList();
         renderChatsList();
+
+        if (skeleton && msgsContainer) {
+            setTimeout(() => {
+                skeleton.style.display = 'none';
+                msgsContainer.style.display = 'flex';
+                msgsContainer.scrollTop = msgsContainer.scrollHeight;
+            }, 60);
+        }
 
         // Focus message input
         const input = document.getElementById('messageInput');
@@ -1944,13 +1960,48 @@
         }
     });
 
-    // Tutup modal atau dropdown dengan tombol Escape
+    // Aksesibilitas Keyboard: Escape dan Focus Trap (R-32 & R-26)
     document.addEventListener('keydown', (e) => {
+        // Tombol Escape menutup dialog aktif atau dropdown
         if (e.key === 'Escape') {
             window.closeChatDropdown();
+
             const infoModal = document.getElementById('contactInfoModal');
             if (infoModal && infoModal.classList.contains('active')) {
                 window.closeContactInfoModal();
+            }
+
+            const addModal = document.getElementById('addFriendModal');
+            if (addModal && addModal.classList.contains('active')) {
+                window.closeAddFriendModal();
+            }
+
+            if (state.editingMessageId) {
+                window.cancelEditMessage();
+            }
+        }
+
+        // Focus Trap pada Modal Aktif saat menekan Tab / Shift+Tab
+        if (e.key === 'Tab') {
+            const activeModal = document.querySelector('.modal-overlay.active');
+            if (activeModal) {
+                const focusableEls = activeModal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
+                if (focusableEls && focusableEls.length > 0) {
+                    const firstEl = focusableEls[0];
+                    const lastEl = focusableEls[focusableEls.length - 1];
+
+                    if (e.shiftKey) {
+                        if (document.activeElement === firstEl) {
+                            e.preventDefault();
+                            lastEl.focus();
+                        }
+                    } else {
+                        if (document.activeElement === lastEl) {
+                            e.preventDefault();
+                            firstEl.focus();
+                        }
+                    }
+                }
             }
         }
     });

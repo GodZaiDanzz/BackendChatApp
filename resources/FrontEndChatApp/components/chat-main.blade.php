@@ -78,6 +78,22 @@
             </div>
         </header>
 
+        {{-- Message Stream Loading Skeleton (R-27 UI State) --}}
+        <div id="chatLoadingSkeleton" class="chat-skeleton-container" style="display: none;" aria-hidden="true">
+            <div class="skeleton-row other">
+                <div class="skeleton-bubble"></div>
+                <div class="skeleton-meta"></div>
+            </div>
+            <div class="skeleton-row me">
+                <div class="skeleton-bubble"></div>
+                <div class="skeleton-meta"></div>
+            </div>
+            <div class="skeleton-row other">
+                <div class="skeleton-bubble" style="width: 160px;"></div>
+                <div class="skeleton-meta"></div>
+            </div>
+        </div>
+
         {{-- Messages Stream Container --}}
         <div id="messagesContainer" class="messages-container" aria-live="polite">
             {{-- Messages will be injected here via JavaScript --}}

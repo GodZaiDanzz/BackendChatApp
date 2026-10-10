@@ -5,32 +5,38 @@
    ========================================================================== */
 
 :root {
-  --bg-canvas: #09090b;
-  --bg-sidebar: #121215;
-  --bg-surface: #18181b;
-  --bg-surface-elevated: #202024;
-  --bg-input: #141418;
-  --border-subtle: #27272a;
-  --border-focus: #3b82f6;
+  /* Surface Tokens (Zinc Architecture per DESIGN.md) */
+  --bg-canvas: #09090b;           /* Deep canvas base */
+  --bg-sidebar: #121215;          /* Elevated sidebar container */
+  --bg-surface: #18181b;          /* Main panel surface */
+  --bg-surface-elevated: #202024; /* Elevated card & hover state */
+  --bg-input: #141418;            /* Recessed input box */
+  --border-subtle: #27272a;       /* Clean boundary divider */
+  --border-focus: #3b82f6;        /* High-contrast accessible focus ring */
 
-  --text-primary: #f4f4f5;
-  --text-secondary: #a1a1aa;
-  --text-muted: #71717a;
+  /* Text & Contrast Tokens (WCAG AA Compliant) */
+  --text-primary: #f4f4f5;        /* High contrast primary text */
+  --text-secondary: #a1a1aa;      /* Accessible secondary metadata */
+  --text-muted: #94a3b8;          /* Slate-400 (>4.5:1 ratio against dark surfaces) */
 
-  --accent-primary: #2563eb;
-  --accent-hover: #1d4ed8;
-  --accent-active: #1e40af;
+  /* Accent & Action Tokens */
+  --accent-primary: #2563eb;      /* Primary CTA brand blue */
+  --accent-hover: #1d4ed8;        /* Hover transition */
+  --accent-active: #1e40af;       /* Active pressed */
   --accent-subtle: rgba(37, 99, 235, 0.15);
 
-  --status-online: #10b981;
-  --status-danger: #ef4444;
+  /* Status Tokens */
+  --status-online: #10b981;       /* Emerald read receipt & online presence */
+  --status-danger: #ef4444;       /* Destructive action / reject */
   --status-danger-hover: #dc2626;
 
-  --bubble-me: #1e3a8a;
+  /* Bubble Tokens */
+  --bubble-me: #1e3a8a;           /* Indigo-900 user bubble */
   --bubble-me-text: #eff6ff;
-  --bubble-other: #27272a;
+  --bubble-other: #27272a;        /* Zinc-800 partner bubble */
   --bubble-other-text: #f4f4f5;
 
+  /* Typography & Radius */
   --font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -271,6 +277,7 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
+  min-height: 44px;
   transition: color var(--transition-fast), border-color var(--transition-fast);
 }
 
@@ -343,6 +350,8 @@ html, body {
 .list-item.active {
   background-color: var(--bg-surface-elevated);
   border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--accent-primary);
+  padding-left: calc(0.75rem - 2px);
 }
 
 .list-item-content {
@@ -562,10 +571,19 @@ html, body {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
+  font-weight: 500;
   color: var(--text-muted);
   margin-top: 0.25rem;
   padding: 0 0.25rem;
+}
+
+.message-row.other .message-meta {
+  color: #cbd5e1;
+}
+
+.message-row.me .message-meta {
+  color: #bfdbfe;
 }
 
 .status-check {
@@ -694,6 +712,7 @@ html, body {
 
 .chat-input-form:focus-within {
   border-color: var(--border-focus);
+  box-shadow: 0 0 0 1px var(--border-focus);
 }
 
 .chat-textarea {
@@ -708,6 +727,12 @@ html, body {
   max-height: 120px;
   min-height: 24px;
   outline: none;
+}
+
+.chat-textarea:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .chat-textarea::placeholder {
@@ -790,7 +815,7 @@ html, body {
   z-index: 100;
   opacity: 0;
   pointer-events: none;
-  transition: opacity var(--transition-fast);
+  transition: opacity 0.15s ease;
 }
 
 .modal-overlay.active {
@@ -810,6 +835,14 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  transform: scale(0.96);
+  opacity: 0;
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.15s ease;
+}
+
+.modal-overlay.active .modal-card {
+  transform: scale(1);
+  opacity: 1;
 }
 
 .modal-header {
@@ -870,6 +903,94 @@ html, body {
   transition: background-color var(--transition-fast);
   margin-top: 0.5rem;
   min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Button Loading Spinner */
+.btn-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #ffffff;
+  animation: spinnerRotate 0.6s linear infinite;
+  vertical-align: middle;
+  margin-right: 0.5rem;
+  flex-shrink: 0;
+}
+
+@keyframes spinnerRotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Chat Message Loading Skeleton */
+.chat-skeleton-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+  width: 100%;
+}
+
+.skeleton-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-width: 65%;
+}
+
+.skeleton-row.me {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.skeleton-row.other {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.skeleton-bubble {
+  height: 38px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(90deg, #18181b 25%, #27272a 50%, #18181b 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s infinite;
+}
+
+.skeleton-row.me .skeleton-bubble {
+  width: 180px;
+  background: linear-gradient(90deg, #1e3a8a 25%, #2563eb 50%, #1e3a8a 75%);
+  background-size: 200% 100%;
+}
+
+.skeleton-row.other .skeleton-bubble {
+  width: 220px;
+}
+
+.skeleton-meta {
+  width: 60px;
+  height: 10px;
+  border-radius: var(--radius-sm);
+  background-color: #27272a;
+}
+
+@keyframes skeletonShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 .btn-submit:hover {
@@ -1269,6 +1390,24 @@ html, body {
 
   .chat-back-btn {
     display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .btn-icon {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .tab-btn {
+    min-height: 44px;
+    padding: 0.75rem 0.5rem;
+  }
+
+  .btn-action-primary {
+    min-height: 44px;
   }
 }
 
