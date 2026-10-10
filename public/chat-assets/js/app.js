@@ -263,6 +263,34 @@
         return pastelColorClasses[index];
     }
 
+    // Helper: Render SVG Checkmarks (Ceklis 1, Ceklis 2, Ceklis 2 Putih)
+    function renderStatusCheck(status) {
+        if (status === 'read') {
+            // Ceklis 2 Putih (Pesan telah dibaca)
+            return `<span class="status-check read" title="Dibaca">
+                <svg width="16" height="13" viewBox="0 0 28 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 6L7 17l-5-5"></path>
+                    <path d="M26 6l-11 11-2-2"></path>
+                </svg>
+            </span>`;
+        } else if (status === 'delivered') {
+            // Ceklis 2 (Pesan tersampaikan)
+            return `<span class="status-check delivered" title="Tersampaikan">
+                <svg width="16" height="13" viewBox="0 0 28 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 6L7 17l-5-5"></path>
+                    <path d="M26 6l-11 11-2-2"></path>
+                </svg>
+            </span>`;
+        } else {
+            // Ceklis 1 (Pesan terkirim ke server)
+            return `<span class="status-check sent" title="Terkirim ke server">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+            </span>`;
+        }
+    }
+
     // Toast Notification System
     window.showToast = function (message, type = 'info') {
         const container = document.getElementById('toastContainer');
@@ -1215,16 +1243,20 @@
             msgsContainer.style.display = 'none';
         }
 
-        renderActiveMessages();
-        renderContactsList();
-        renderChatsList();
-
-        if (skeleton && msgsContainer) {
-            setTimeout(() => {
-                skeleton.style.display = 'none';
-                msgsContainer.style.display = 'flex';
-                msgsContainer.scrollTop = msgsContainer.scrollHeight;
-            }, 60);
+        try {
+            renderActiveMessages();
+            renderContactsList();
+            renderChatsList();
+        } catch (err) {
+            console.error('Error rendering active chat messages:', err);
+        } finally {
+            if (skeleton && msgsContainer) {
+                setTimeout(() => {
+                    skeleton.style.display = 'none';
+                    msgsContainer.style.display = 'flex';
+                    msgsContainer.scrollTop = msgsContainer.scrollHeight;
+                }, 40);
+            }
         }
 
         // Focus message input
@@ -1396,7 +1428,7 @@
         `;
 
         container.innerHTML = dateDividerHtml + messages.map(msg => {
-            const isMe = msg.sender_id === state.user.id;
+            const isMe = Boolean(state.user && msg.sender_id === state.user.id);
             const rowClass = isMe ? 'me' : 'other';
             const timeText = formatTime(msg.created_at);
             const statusMarker = isMe ? renderStatusCheck(msg.status) : '';
