@@ -242,32 +242,25 @@
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
 
-    // Helper: Render SVG Checkmarks (Ceklis 1, Ceklis 2, Ceklis 2 Biru)
-    function renderStatusCheck(status) {
-        if (status === 'read') {
-            // Ceklis 2 Biru (Pesan telah dibaca)
-            return `<span class="status-check read" title="Dibaca">
-                <svg width="18" height="15" viewBox="0 0 28 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M18 6L7 17l-5-5"></path>
-                    <path d="M26 6l-11 11-2-2"></path>
-                </svg>
-            </span>`;
-        } else if (status === 'delivered') {
-            // Ceklis 2 Abu-abu (Pesan tersampaikan ke perangkat lawan bicara)
-            return `<span class="status-check delivered" title="Tersampaikan">
-                <svg width="18" height="15" viewBox="0 0 28 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M18 6L7 17l-5-5"></path>
-                    <path d="M26 6l-11 11-2-2"></path>
-                </svg>
-            </span>`;
-        } else {
-            // Ceklis 1 Abu-abu (Pesan berhasil terkirim ke server)
-            return `<span class="status-check sent" title="Terkirim ke server">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-            </span>`;
+    // Helper: Pastel Avatar Colors matching reference
+    const pastelColorClasses = [
+        'avatar-pastel-pink',
+        'avatar-pastel-blue',
+        'avatar-pastel-amber',
+        'avatar-pastel-cyan',
+        'avatar-pastel-green'
+    ];
+
+    function getPastelColorClass(str) {
+        if (!str) return pastelColorClasses[0];
+        let hash = 0;
+        const s = String(str);
+        for (let i = 0; i < s.length; i++) {
+            hash = (hash << 5) - hash + s.charCodeAt(i);
+            hash |= 0;
         }
+        const index = Math.abs(hash) % pastelColorClasses.length;
+        return pastelColorClasses[index];
     }
 
     // Toast Notification System
@@ -362,7 +355,13 @@
 
         if (nameEl) nameEl.textContent = state.user.display_name;
         if (userEl) userEl.textContent = `@${state.user.username}`;
-        if (avatarEl) avatarEl.textContent = (state.user.display_name || state.user.username).charAt(0).toUpperCase();
+        if (avatarEl) {
+            const initials = state.user.display_name
+                ? state.user.display_name.split(' ').map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase()
+                : (state.user.username || 'RA').substring(0, 2).toUpperCase();
+            avatarEl.textContent = initials;
+            avatarEl.title = `Profil: ${state.user.display_name} (@${state.user.username}) - Klik untuk info / keluar`;
+        }
     }
 
     let pendingOtpEmail = '';
@@ -805,15 +804,21 @@
             }
         });
 
-        // Update badge total unread di tab "Pesan"
+        // Update badge total unread di tab "Pesan" & Nav Rail
         const chatsBadge = document.getElementById('chatsCounterBadge');
-        if (chatsBadge) {
-            if (totalUnread > 0) {
+        const railBadge = document.getElementById('railChatsBadge');
+        if (totalUnread > 0) {
+            if (chatsBadge) {
                 chatsBadge.style.display = 'inline-block';
                 chatsBadge.textContent = totalUnread;
-            } else {
-                chatsBadge.style.display = 'none';
             }
+            if (railBadge) {
+                railBadge.style.display = 'inline-block';
+                railBadge.textContent = totalUnread;
+            }
+        } else {
+            if (chatsBadge) chatsBadge.style.display = 'none';
+            if (railBadge) railBadge.style.display = 'none';
         }
     }
 
@@ -856,14 +861,15 @@
                 : (lastMsg ? (isLastDeleted ? '🚫 Pesan telah dihapus' : escapeHtml(lastMsg.body)) : 'Belum ada pesan');
             const timeText = lastMsg ? formatTime(lastMsg.created_at) : '';
             const unreadCount = state.unread[contact.id] || 0;
-            const initial = (contact.display_name || contact.username).charAt(0).toUpperCase();
+            const pastelClass = getPastelColorClass(contact.display_name || contact.username);
+            const initials = (contact.display_name || contact.username).split(' ').map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase() || 'U';
             const isActive = state.activeContact && state.activeContact.id === contact.id ? 'active' : '';
             const isOnline = Boolean(contact.is_online);
 
             return `
                 <div class="list-item ${isActive}" onclick="selectContact(${contact.id})" role="button" tabindex="0">
                     <div class="avatar-container">
-                        <div class="avatar-circle">${initial}</div>
+                        <div class="avatar-circle ${pastelClass}">${initials}</div>
                         <span class="status-indicator-dot ${isOnline ? 'online' : 'offline'}" title="${isOnline ? 'Online' : 'Offline'}"></span>
                     </div>
                     <div class="list-item-content">
@@ -945,9 +951,74 @@
         }
     };
 
-    // ==========================================
-    // Cari & Tambah Teman Modal
-    // ==========================================
+    // Navigation Rail Tab Switching & Controls
+    window.switchRailTab = function (tab) {
+        state.activeTab = tab;
+        const btnChats = document.getElementById('railBtnChats');
+        const btnContacts = document.getElementById('railBtnContacts');
+        const btnRequests = document.getElementById('railBtnRequests');
+        const panelChats = document.getElementById('panelChats');
+        const panelContacts = document.getElementById('panelContacts');
+        const panelRequests = document.getElementById('panelRequests');
+        const sectionLabel = document.getElementById('sidebarSectionLabel');
+
+        [btnChats, btnContacts, btnRequests].forEach(b => { if (b) b.classList.remove('active'); });
+
+        if (panelChats) panelChats.style.display = 'none';
+        if (panelContacts) panelContacts.style.display = 'none';
+        if (panelRequests) panelRequests.style.display = 'none';
+
+        if (tab === 'chats') {
+            if (btnChats) btnChats.classList.add('active');
+            if (panelChats) panelChats.style.display = 'block';
+            if (sectionLabel) sectionLabel.textContent = 'TERBARU';
+            renderChatsList();
+        } else if (tab === 'contacts') {
+            if (btnContacts) btnContacts.classList.add('active');
+            if (panelContacts) panelContacts.style.display = 'block';
+            if (sectionLabel) sectionLabel.textContent = 'SEMUA KONTAK';
+            renderContactsList();
+        } else if (tab === 'requests') {
+            if (btnRequests) btnRequests.classList.add('active');
+            if (panelRequests) panelRequests.style.display = 'block';
+            if (sectionLabel) sectionLabel.textContent = 'PERMINTAAN PERTEMANAN';
+            renderRequestsList();
+        }
+    };
+
+    window.switchSidebarTab = window.switchRailTab;
+
+    window.handleMarkAllRead = function () {
+        if (!state.contacts || state.contacts.length === 0) return;
+        state.contacts.forEach(c => {
+            state.unread[c.id] = 0;
+        });
+        updateUnreadBadges();
+        renderChatsList();
+        showToast('Semua percakapan telah ditandai dibaca.', 'success');
+    };
+
+    window.toggleRightInfoPanel = function (openOnly = false) {
+        const panel = document.getElementById('chatInfoPanel');
+        if (!panel) return;
+        if (openOnly) {
+            panel.classList.add('open');
+        } else {
+            panel.classList.toggle('open');
+        }
+    };
+
+    window.handleSimulatedAction = function (name) {
+        showToast(`Fitur "${name}" siap digunakan!`, 'info');
+    };
+
+    window.openUserProfileModal = function () {
+        if (!state.user) return;
+        const confirmed = window.confirm(`Profil Akun:\nNama: ${state.user.display_name}\nUsername: @${state.user.username}\nEmail: ${state.user.email || '-'}\n\nApakah Anda ingin keluar dari akun?`);
+        if (confirmed) {
+            handleLogout();
+        }
+    };
 
     window.openAddFriendModal = function () {
         const modal = document.getElementById('addFriendModal');
@@ -1082,13 +1153,21 @@
         const chatWindow = document.getElementById('activeChatWindow');
         chatWindow.style.display = 'flex';
 
-        document.getElementById('activeChatDisplayName').textContent = contact.display_name;
-        document.getElementById('activeChatUsername').textContent = `@${contact.username}`;
-        document.getElementById('activeAvatarCircle').textContent = (contact.display_name || contact.username).charAt(0).toUpperCase();
-
+        const pastelClass = getPastelColorClass(contact.display_name || contact.username);
+        const initials = (contact.display_name || contact.username).split(' ').map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase() || 'U';
         const isOnline = Boolean(contact.is_online);
         const isTyping = Boolean(state.typingUsers && state.typingUsers[contact.id]);
+
+        document.getElementById('activeChatDisplayName').textContent = contact.display_name;
+        document.getElementById('activeChatUsername').textContent = `@${contact.username}`;
+        const activeAvatarEl = document.getElementById('activeAvatarCircle');
+        if (activeAvatarEl) {
+            activeAvatarEl.className = `avatar-circle ${pastelClass}`;
+            activeAvatarEl.textContent = initials;
+        }
+
         const dot = document.getElementById('activeStatusDot');
+        const smallDot = document.getElementById('activeStatusSmallDot');
         const statusLabel = document.getElementById('activeUserOnlineStatus');
         const typingBadge = document.getElementById('activeTypingStatus');
 
@@ -1096,13 +1175,30 @@
             dot.className = `status-indicator-dot ${isOnline ? 'online' : 'offline'}`;
             dot.title = isOnline ? 'Online' : 'Offline';
         }
+        if (smallDot) {
+            smallDot.className = `presence-dot ${isOnline ? 'online' : 'offline'}`;
+        }
         if (statusLabel) {
             statusLabel.className = `user-status-text ${isOnline ? 'online' : 'offline'}`;
-            statusLabel.textContent = isOnline ? 'Online' : 'Offline';
-            statusLabel.style.display = isTyping ? 'none' : 'inline';
+            statusLabel.textContent = isOnline ? 'Aktif sekarang' : 'Offline';
         }
         if (typingBadge) {
-            typingBadge.style.display = isTyping ? 'inline-flex' : 'none';
+            typingBadge.style.display = isTyping ? 'flex' : 'none';
+        }
+
+        // Sinkronisasi Right Contact Info Panel
+        const infoAvatar = document.getElementById('infoAvatarCircle');
+        const infoName = document.getElementById('infoDisplayName');
+        const infoUser = document.getElementById('infoUsername');
+        const infoDot = document.getElementById('infoStatusDot');
+        if (infoAvatar) {
+            infoAvatar.className = `avatar-circle info-avatar-large ${pastelClass}`;
+            infoAvatar.textContent = initials;
+        }
+        if (infoName) infoName.textContent = contact.display_name;
+        if (infoUser) infoUser.textContent = contact.email || `@${contact.username}`;
+        if (infoDot) {
+            infoDot.className = `status-indicator-dot ${isOnline ? 'online' : 'offline'}`;
         }
 
         // Responsive mobile view
@@ -1293,7 +1389,13 @@
             return;
         }
 
-        container.innerHTML = messages.map(msg => {
+        const dateDividerHtml = `
+            <div class="date-divider">
+                <span class="date-divider-text">HARI INI</span>
+            </div>
+        `;
+
+        container.innerHTML = dateDividerHtml + messages.map(msg => {
             const isMe = msg.sender_id === state.user.id;
             const rowClass = isMe ? 'me' : 'other';
             const timeText = formatTime(msg.created_at);

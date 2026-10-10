@@ -1,81 +1,78 @@
-{{-- Chat Sidebar Component --}}
+{{-- Chat Sidebar Component (Second Column: Chat List) --}}
 <aside class="sidebar">
-    {{-- Sidebar Top: Current User Profile --}}
-    <div class="sidebar-header">
-        <div class="user-profile-badge">
-            <div class="avatar-container">
-                <div id="myAvatarCircle" class="avatar-circle">?</div>
-                <span class="status-indicator-dot online" title="Online"></span>
-            </div>
-            <div class="user-details">
-                <span id="myDisplayName" class="user-display-name">Memuat...</span>
-                <span id="myUsername" class="user-username">@username</span>
-            </div>
+    {{-- Sidebar Top: Ruang Obrolan & Pesan Title with Compose Button --}}
+    <div class="sidebar-header-row">
+        <div class="sidebar-title-group">
+            <span class="sidebar-eyebrow">RUANG OBROLAN</span>
+            <h1 class="sidebar-main-title">Pesan</h1>
         </div>
 
-        <button type="button" class="btn-icon" onclick="handleLogout()" title="Keluar dari akun" aria-label="Keluar dari akun">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                <polyline points="16 17 21 12 16 7"></polyline>
-                <line x1="21" y1="12" x2="9" y2="12"></line>
+        {{-- Dark Circle Compose Button (Pencil Icon) --}}
+        <button
+            type="button"
+            class="btn-compose-circle"
+            onclick="openAddFriendModal()"
+            title="Mulai Obrolan / Tambah Teman Baru"
+            aria-label="Tambah Teman Baru"
+        >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
             </svg>
         </button>
     </div>
 
-    {{-- Action Bar: Tambah Teman --}}
-    <div class="sidebar-action-bar">
-        <button type="button" class="btn-action-primary" onclick="openAddFriendModal()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                <circle cx="8.5" cy="7" r="4"></circle>
-                <line x1="20" y1="8" x2="20" y2="14"></line>
-                <line x1="23" y1="11" x2="17" y2="11"></line>
+    {{-- Search Bar: Cari percakapan... --}}
+    <div class="search-box-wrapper">
+        <div class="search-box-inner">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="search-icon">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-            <span>Tambah Teman Baru</span>
+            <input
+                id="localFilterInput"
+                type="text"
+                class="search-input-field"
+                placeholder="Cari percakapan..."
+                oninput="handleLocalFilter(this.value)"
+            >
+        </div>
+    </div>
+
+    {{-- Category Row: TERBARU + Tandai dibaca --}}
+    <div class="sidebar-category-row">
+        <span id="sidebarSectionLabel" class="sidebar-section-tag">TERBARU</span>
+        <button
+            type="button"
+            class="btn-mark-read"
+            onclick="handleMarkAllRead()"
+            title="Tandai semua pesan telah dibaca"
+        >
+            Tandai dibaca
         </button>
     </div>
 
-    {{-- Tabs --}}
-    <nav class="sidebar-tabs" aria-label="Kategori Percakapan">
-        <button id="tabBtnChats" type="button" class="tab-btn active" onclick="switchSidebarTab('chats')">
-            <span>Pesan</span>
-            <span id="chatsCounterBadge" class="tab-counter" style="display: none;">0</span>
-        </button>
-        <button id="tabBtnContacts" type="button" class="tab-btn" onclick="switchSidebarTab('contacts')">
-            <span>Kontak</span>
-        </button>
-        <button id="tabBtnRequests" type="button" class="tab-btn" onclick="switchSidebarTab('requests')">
-            <span>Permintaan</span>
-            <span id="requestCounterBadge" class="tab-counter" style="display: none;">0</span>
-        </button>
-    </nav>
-
-    {{-- Filter Input --}}
-    <div class="search-wrapper">
-        <input id="localFilterInput" type="text" class="search-input-box" placeholder="Saring kontak atau percakapan..." oninput="handleLocalFilter(this.value)">
-    </div>
-
-    {{-- Scrollable Tab Contents --}}
+    {{-- Scrollable List Area --}}
     <div class="sidebar-list">
-        {{-- List Chats Panel --}}
+        {{-- Panel 1: Active Conversations List --}}
         <div id="panelChats">
             <div id="chatsContainer">
                 <div class="empty-state">
-                    <p class="empty-state-desc">Belum ada percakapan aktif. Mulai kirim pesan ke salah satu kontak Anda.</p>
+                    <p class="empty-state-desc">Belum ada percakapan aktif. Mulai obrolan baru dengan teman Anda.</p>
                 </div>
             </div>
         </div>
 
-        {{-- List Contacts Panel --}}
+        {{-- Panel 2: Contacts List (Switched from Rail) --}}
         <div id="panelContacts" style="display: none;">
             <div id="contactsContainer">
                 <div class="empty-state">
-                    <p class="empty-state-desc">Belum ada teman dalam kontak Anda. Klik tombol "Tambah Teman Baru".</p>
+                    <p class="empty-state-desc">Belum ada teman terhubung. Klik tombol pensil di atas untuk menambah teman.</p>
                 </div>
             </div>
         </div>
 
-        {{-- List Friend Requests Panel --}}
+        {{-- Panel 3: Friend Requests List (Switched from Rail) --}}
         <div id="panelRequests" style="display: none;">
             <div id="requestsContainer">
                 <div class="empty-state">
