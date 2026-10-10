@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class MessageController extends Controller
 {
@@ -157,17 +158,23 @@ class MessageController extends Controller
         } else {
             // Jika pesan di MySQL sudah dihapus karena telah terkirim sebelumnya,
             // buat ephemeral action message jika penerima sedang offline, atau broadcast langsung
-            $clientUuid = $request->input('client_uuid', $id);
+            $clientUuid = $request->input('client_uuid') ?: (!is_numeric($id) ? $id : null);
 
-            if ($receiverId) {
-                $actionMsg = Message::create([
-                    'client_uuid' => 'edit-' . substr(md5($clientUuid . time()), 0, 8) . '-' . $clientUuid,
-                    'sender_id'   => $request->user()->id,
-                    'receiver_id' => $receiverId,
-                    'body'        => $data['body'],
-                    'status'      => 'sent',
-                    'is_edited'   => true,
-                ]);
+            if ($receiverId && $clientUuid) {
+                $safeUuid = (is_string($clientUuid) && strlen($clientUuid) <= 36)
+                    ? $clientUuid
+                    : Str::uuid()->toString();
+
+                $actionMsg = Message::updateOrCreate(
+                    ['client_uuid' => $safeUuid],
+                    [
+                        'sender_id'   => $request->user()->id,
+                        'receiver_id' => $receiverId,
+                        'body'        => $data['body'],
+                        'status'      => 'sent',
+                        'is_edited'   => true,
+                    ]
+                );
 
                 try {
                     broadcast(new MessageSent($actionMsg));
@@ -187,17 +194,21 @@ class MessageController extends Controller
      */
     public function destroy(Request $request, $id)
     {
+        $clientUuid = $request->input('client_uuid') ?: (!is_numeric($id) ? $id : null);
+        $receiverId = $request->input('receiver_id');
+
         $msg = Message::where('sender_id', $request->user()->id)
-            ->where(function ($q) use ($id) {
+            ->where(function ($q) use ($id, $clientUuid) {
                 if (is_numeric($id)) {
-                    $q->where('id', (int) $id)->orWhere('client_uuid', $id);
+                    $q->where('id', (int) $id);
                 } else {
                     $q->where('client_uuid', $id);
                 }
+                if ($clientUuid) {
+                    $q->orWhere('client_uuid', $clientUuid);
+                }
             })
             ->first();
-
-        $receiverId = $request->input('receiver_id');
 
         if ($msg) {
             $msg->body = 'Pesan ini telah dihapus';
@@ -220,17 +231,21 @@ class MessageController extends Controller
                 'is_deleted'  => true,
             ]);
         } else {
-            $clientUuid = $request->input('client_uuid', $id);
+            if ($receiverId && $clientUuid) {
+                $safeUuid = (is_string($clientUuid) && strlen($clientUuid) <= 36)
+                    ? $clientUuid
+                    : Str::uuid()->toString();
 
-            if ($receiverId) {
-                $actionMsg = Message::create([
-                    'client_uuid' => 'del-' . substr(md5($clientUuid . time()), 0, 8) . '-' . $clientUuid,
-                    'sender_id'   => $request->user()->id,
-                    'receiver_id' => $receiverId,
-                    'body'        => 'Pesan ini telah dihapus',
-                    'status'      => 'sent',
-                    'is_deleted'  => true,
-                ]);
+                $actionMsg = Message::updateOrCreate(
+                    ['client_uuid' => $safeUuid],
+                    [
+                        'sender_id'   => $request->user()->id,
+                        'receiver_id' => $receiverId,
+                        'body'        => 'Pesan ini telah dihapus',
+                        'status'      => 'sent',
+                        'is_deleted'  => true,
+                    ]
+                );
 
                 try {
                     broadcast(new MessageSent($actionMsg));
