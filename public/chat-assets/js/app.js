@@ -4010,8 +4010,25 @@
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' }
-        ]
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:openrelay.metered.ca:80' },
+            {
+                urls: 'turn:openrelay.metered.ca:80',
+                username: 'openrelay',
+                credential: 'openrelay'
+            },
+            {
+                urls: 'turn:openrelay.metered.ca:443',
+                username: 'openrelay',
+                credential: 'openrelay'
+            },
+            {
+                urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                username: 'openrelay',
+                credential: 'openrelay'
+            }
+        ],
+        iceCandidatePoolSize: 10
     };
 
     let ringtoneAudioContext = null;
@@ -4237,9 +4254,21 @@
         };
 
         pc.ontrack = (event) => {
-            const remoteStream = event.streams[0];
+            let remoteStream = (event.streams && event.streams[0]) ? event.streams[0] : null;
+            if (!remoteStream) {
+                remoteStream = new MediaStream([event.track]);
+            }
             state.voice.remoteStreams[peerId] = remoteStream;
             attachRemoteAudio(peerId, remoteStream);
+        };
+
+        pc.oniceconnectionstatechange = () => {
+            if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+                const audioEl = state.voice.audioElements[peerId];
+                if (audioEl && audioEl.paused) {
+                    audioEl.play().catch(() => {});
+                }
+            }
         };
 
         pc.onconnectionstatechange = () => {
@@ -4252,25 +4281,42 @@
     }
 
     function attachRemoteAudio(peerId, stream) {
+        if (!stream) return;
         let audioEl = state.voice.audioElements[peerId];
         if (!audioEl) {
             audioEl = document.createElement('audio');
             audioEl.id = 'remoteAudio_' + peerId;
             audioEl.autoplay = true;
+            audioEl.playsInline = true;
             const container = document.getElementById('voiceAudioElements');
-            if (container) container.appendChild(audioEl);
+            if (container) {
+                container.appendChild(audioEl);
+            } else {
+                document.body.appendChild(audioEl);
+            }
             state.voice.audioElements[peerId] = audioEl;
         }
+
         audioEl.srcObject = stream;
-        audioEl.muted = state.voice.isDeafened;
-        try {
+        audioEl.muted = state.voice.isDeafened || false;
+        audioEl.volume = 1.0;
+
+        const tryPlay = () => {
             const playPromise = audioEl.play();
             if (playPromise !== undefined) {
                 playPromise.catch(err => {
-                    console.warn('Autoplay audio policy:', err);
+                    console.warn('Autoplay audio blocked, listening for user click to resume:', err);
+                    const unlock = () => {
+                        audioEl.play().catch(() => {});
+                        document.removeEventListener('click', unlock);
+                        document.removeEventListener('keydown', unlock);
+                    };
+                    document.addEventListener('click', unlock, { once: true });
+                    document.addEventListener('keydown', unlock, { once: true });
                 });
             }
-        } catch (e) { }
+        };
+        tryPlay();
     }
 
     function removePeer(peerId) {
@@ -4572,7 +4618,10 @@
 
         try {
             const pc = createPeerConnection(targetId);
-            const offer = await pc.createOffer();
+            const offer = await pc.createOffer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: false
+            });
             await pc.setLocalDescription(offer);
             await sendVoiceSignal(targetId, 'call-offer', {
                 type: offer.type,
@@ -4636,7 +4685,10 @@
             await pc.setRemoteDescription(offerDesc);
             await drainPendingIceCandidates(callerId);
 
-            const answer = await pc.createAnswer();
+            const answer = await pc.createAnswer({
+                offerToReceiveAudio: true,
+                offerToReceiveVideo: false
+            });
             await pc.setLocalDescription(answer);
 
             await sendVoiceSignal(callerId, 'call-answer', {

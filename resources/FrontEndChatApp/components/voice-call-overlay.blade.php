@@ -157,7 +157,7 @@
 </div>
 
 {{-- Dynamic Audio Stream Mount --}}
-<div id="voiceAudioElements" style="display: none;" aria-hidden="true"></div>
+<div id="voiceAudioElements" style="position: fixed; top: -9999px; left: -9999px; width: 1px; height: 1px; opacity: 0; pointer-events: none; overflow: hidden;" aria-hidden="true"></div>
 
 <style>
 #voiceStageModal {
