@@ -3,10 +3,16 @@
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function (\Illuminate\Http\Request $request) {
-    if (str_contains($request->getHost(), 'chat.') || $request->getHost() === 'chat.ismc.my.id') {
-        return view('index');
-    }
+    return view('index');
+})->name('home');
+
+Route::get('/login', function () {
+    return view('auth');
 })->name('login');
+
+Route::get('/register', function () {
+    return view('auth');
+})->name('register');
 
 Route::get('/chat', function (\Illuminate\Http\Request $request) {
     if (str_contains($request->getHost(), 'api.')) {

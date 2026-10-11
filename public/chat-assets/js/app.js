@@ -540,16 +540,14 @@
     // ==========================================
 
     async function initAuth() {
-        const authModal = document.getElementById('authModal');
         if (!state.token || !state.user) {
-            if (authModal) authModal.classList.add('active');
-        } else {
-            if (authModal) authModal.classList.remove('active');
-            updateCurrentUserUI();
-            await loadClientDatabase();
-            renderChatsList();
-            startDataSync();
+            window.location.replace('/login');
+            return;
         }
+        updateCurrentUserUI();
+        await loadClientDatabase();
+        renderChatsList();
+        startDataSync();
     }
 
     function updateCurrentUserUI() {
@@ -854,10 +852,10 @@
         localStorage.removeItem('zchat_token');
         localStorage.removeItem('zchat_user');
 
-        document.getElementById('noChatSelected').style.display = 'flex';
-        document.getElementById('activeChatWindow').style.display = 'none';
-        document.getElementById('authModal').classList.add('active');
         showToast('Anda telah keluar dari ZChat.', 'info');
+        setTimeout(() => {
+            window.location.replace('/login');
+        }, 300);
     };
 
     // ==========================================

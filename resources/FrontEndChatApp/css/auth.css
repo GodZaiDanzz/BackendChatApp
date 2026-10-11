@@ -1,0 +1,555 @@
+/* ==========================================================================
+   ZChat - Dedicated Split-Screen Authentication Stylesheet
+   Aesthetic: Deep Cosmic Obsidian, Fluid Luminous Waves, Vibrant Violet & Cyan
+   ========================================================================== */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  background-color: #080a12;
+  color: #f8fafc;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Background Atmosphere */
+.auth-page-viewport {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: radial-gradient(circle at 10% 20%, rgba(30, 27, 75, 0.6) 0%, rgba(8, 10, 18, 1) 90%);
+  position: relative;
+}
+
+/* Split Card Container */
+.auth-split-card {
+  width: 100%;
+  max-width: 1020px;
+  min-height: 600px;
+  background: #0d111d;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 30px 70px -15px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  display: flex;
+  overflow: hidden;
+  position: relative;
+  z-index: 10;
+}
+
+/* ----------------------------------------------------
+   Left Column: Form Controls Area
+   ---------------------------------------------------- */
+.auth-form-column {
+  flex: 1 1 48%;
+  max-width: 490px;
+  padding: 3rem 2.85rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background-color: #0d111d;
+  position: relative;
+  z-index: 2;
+}
+
+/* Back Arrow Button */
+.auth-back-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 2rem;
+  text-decoration: none;
+}
+
+.auth-back-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  transform: translateX(-2px);
+}
+
+/* Titles */
+.auth-title-heading {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.025em;
+  margin-bottom: 0.65rem;
+  line-height: 1.2;
+}
+
+.auth-subtitle-text {
+  font-size: 0.95rem;
+  color: #94a3b8;
+  line-height: 1.5;
+  margin-bottom: 2.25rem;
+}
+
+.auth-switch-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  color: #38bdf8;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s ease;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-switch-link:hover {
+  color: #7dd3fc;
+}
+
+/* Form Groups & Inputs (Minimalist Underline Style matching reference) */
+.auth-input-group {
+  margin-bottom: 1.5rem;
+  position: relative;
+}
+
+.auth-input-label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #94a3b8;
+  margin-bottom: 0.4rem;
+}
+
+.auth-text-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 0.5rem 0.1rem 0.6rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  outline: none;
+}
+
+.auth-text-input::placeholder {
+  color: rgba(148, 163, 184, 0.4);
+  font-size: 0.925rem;
+}
+
+.auth-text-input:focus {
+  border-bottom-color: #8b5cf6;
+  box-shadow: 0 1px 0 0 #8b5cf6;
+}
+
+.auth-input-helper {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 0.35rem;
+  display: block;
+}
+
+/* Remember Me Checkbox */
+.auth-remember-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  margin-bottom: 2rem;
+  user-select: none;
+}
+
+.auth-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.875rem;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.auth-checkbox-input {
+  appearance: none;
+  width: 17px;
+  height: 17px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s ease;
+}
+
+.auth-checkbox-input:checked {
+  background-color: #7c3aed;
+  border-color: #7c3aed;
+}
+
+.auth-checkbox-input:checked::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 4px;
+  height: 8px;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* Submit Gradient Pill Button */
+.auth-submit-btn {
+  width: 100%;
+  padding: 0.95rem 1.5rem;
+  border-radius: 9999px;
+  border: none;
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  box-shadow: 0 4px 18px rgba(124, 58, 237, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.auth-submit-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(124, 58, 237, 0.5);
+}
+
+.auth-submit-btn:active {
+  transform: translateY(1px);
+}
+
+.auth-submit-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* OTP Specific Card */
+.auth-otp-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  font-size: 0.85rem;
+  color: #94a3b8;
+  margin-bottom: 1.5rem;
+}
+
+.auth-otp-input {
+  font-size: 1.75rem !important;
+  font-weight: 700;
+  letter-spacing: 0.5rem;
+  text-align: center;
+  padding: 0.5rem !important;
+}
+
+/* ----------------------------------------------------
+   Right Column: Fluid Waves Art & Animated Logo Area
+   ---------------------------------------------------- */
+.auth-showcase-column {
+  flex: 1 1 52%;
+  position: relative;
+  background: #090c16;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Ambient Fluid Wave Art matching reference image */
+.auth-fluid-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.auth-wave-layer-1 {
+  position: absolute;
+  width: 140%;
+  height: 140%;
+  top: -20%;
+  left: -20%;
+  background: radial-gradient(ellipse at center, rgba(124, 58, 237, 0.45) 0%, rgba(99, 102, 241, 0.25) 45%, transparent 70%);
+  filter: blur(50px);
+  animation: waveFloat1 18s ease-in-out infinite alternate;
+}
+
+.auth-wave-layer-2 {
+  position: absolute;
+  width: 120%;
+  height: 120%;
+  top: 10%;
+  left: 0%;
+  background: radial-gradient(ellipse at center, rgba(6, 182, 212, 0.35) 0%, rgba(147, 51, 234, 0.3) 50%, transparent 70%);
+  filter: blur(60px);
+  animation: waveFloat2 14s ease-in-out infinite alternate;
+}
+
+.auth-wave-ribbon {
+  position: absolute;
+  width: 150%;
+  height: 220px;
+  top: 40%;
+  left: -25%;
+  background: linear-gradient(90deg, rgba(6, 182, 212, 0.7) 0%, rgba(168, 85, 247, 0.8) 50%, rgba(236, 72, 153, 0.7) 100%);
+  border-radius: 50%;
+  filter: blur(36px);
+  transform: rotate(-18deg);
+  opacity: 0.65;
+  animation: ribbonDrift 10s ease-in-out infinite alternate;
+}
+
+@keyframes waveFloat1 {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(40px, -30px) scale(1.1); }
+}
+
+@keyframes waveFloat2 {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-30px, 40px) scale(1.08); }
+}
+
+@keyframes ribbonDrift {
+  0% { transform: rotate(-22deg) scale(0.95); opacity: 0.55; }
+  100% { transform: rotate(-14deg) scale(1.05); opacity: 0.75; }
+}
+
+/* Centered Showcase Content Box */
+.auth-showcase-content {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 2.5rem;
+}
+
+/* ----------------------------------------------------
+   Animated Logo Badge
+   ---------------------------------------------------- */
+.auth-logo-stage {
+  position: relative;
+  width: 130px;
+  height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.75rem;
+}
+
+/* Expanding ripple circles */
+.auth-logo-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  animation: ripplePulse 3s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+}
+
+.auth-logo-ripple:nth-child(2) {
+  animation-delay: 1.5s;
+}
+
+/* Ambient glow orb behind badge */
+.auth-logo-glow {
+  position: absolute;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.85) 0%, rgba(99, 102, 241, 0.4) 60%, transparent 80%);
+  filter: blur(28px);
+  animation: auraPulse 4s ease-in-out infinite alternate;
+}
+
+/* Glassmorphic Logo Card */
+.auth-logo-badge {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  border-radius: 26px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  animation: logoFloat 4.5s ease-in-out infinite;
+}
+
+/* SVG Logo Elements Animation */
+.auth-logo-svg {
+  width: 52px;
+  height: 52px;
+  transition: transform 0.3s ease;
+}
+
+.auth-logo-z-stroke {
+  animation: zStrokeGlow 3s ease-in-out infinite alternate;
+}
+
+@keyframes logoFloat {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-9px) scale(1.02);
+  }
+}
+
+@keyframes auraPulse {
+  0%, 100% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.9;
+  }
+}
+
+@keyframes ripplePulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+
+@keyframes zStrokeGlow {
+  0%, 100% {
+    stroke: #7c3aed;
+    filter: drop-shadow(0 0 2px rgba(124, 58, 237, 0.4));
+  }
+  50% {
+    stroke: #9333ea;
+    filter: drop-shadow(0 0 10px rgba(167, 139, 250, 0.9));
+  }
+}
+
+/* Showcase Branding Typography */
+.auth-brand-name {
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #ffffff;
+  margin-bottom: 0.45rem;
+}
+
+.auth-brand-tagline {
+  font-size: 0.925rem;
+  color: #cbd5e1;
+  max-width: 280px;
+  line-height: 1.45;
+  margin-bottom: 1.75rem;
+  opacity: 0.9;
+}
+
+/* Feature Badges */
+.auth-feature-pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  max-width: 320px;
+}
+
+.auth-pill-item {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+  backdrop-filter: blur(8px);
+}
+
+/* Toast Message */
+.auth-toast-alert {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: #181c2b;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  padding: 0.75rem 1.35rem;
+  border-radius: 12px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 1000;
+}
+
+.auth-toast-alert.show {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+.auth-toast-alert.error {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(40, 15, 20, 0.95);
+  color: #fca5a5;
+}
+
+.auth-toast-alert.success {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(10, 35, 25, 0.95);
+  color: #6ee7b7;
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 860px) {
+  .auth-split-card {
+    flex-direction: column;
+    max-width: 480px;
+    min-height: auto;
+  }
+
+  .auth-form-column {
+    max-width: 100%;
+    padding: 2.25rem 1.75rem;
+  }
+
+  .auth-showcase-column {
+    display: none;
+  }
+}
