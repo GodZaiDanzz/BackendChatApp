@@ -3654,9 +3654,19 @@
                 await handleIncomingDirectMessage(msg);
             });
 
-            channel.bind('voice.signal', async (signal) => {
+            const onVoiceSignal = async (rawSignal) => {
+                let signal = rawSignal;
+                if (typeof signal === 'string') {
+                    try { signal = JSON.parse(signal); } catch (e) { }
+                }
+                if (signal && typeof signal.data === 'string') {
+                    try { signal.data = JSON.parse(signal.data); } catch (e) { }
+                }
                 await handleIncomingVoiceSignal(signal);
-            });
+            };
+
+            channel.bind('voice.signal', onVoiceSignal);
+            channel.bind('.voice.signal', onVoiceSignal);
         } catch (e) {
             console.warn('Reverb WebSocket initialization error:', e);
         }
@@ -3949,6 +3959,26 @@
 
     let ringtoneAudioContext = null;
     let ringtoneInterval = null;
+    let callTitleFlashInterval = null;
+    let originalDocTitle = document.title || 'ZChat';
+
+    function startCallTitleFlash(callerName) {
+        if (callTitleFlashInterval) clearInterval(callTitleFlashInterval);
+        originalDocTitle = document.title || 'ZChat';
+        let toggle = false;
+        callTitleFlashInterval = setInterval(() => {
+            document.title = toggle ? `📞 Panggilan Masuk dari ${callerName}!` : `🔔 Dering Panggilan...`;
+            toggle = !toggle;
+        }, 1000);
+    }
+
+    function stopCallTitleFlash() {
+        if (callTitleFlashInterval) {
+            clearInterval(callTitleFlashInterval);
+            callTitleFlashInterval = null;
+            document.title = originalDocTitle || 'ZChat';
+        }
+    }
 
     function playIncomingRingtone() {
         stopIncomingRingtone();
@@ -3956,10 +3986,16 @@
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
             if (!AudioCtx) return;
             ringtoneAudioContext = new AudioCtx();
+            if (ringtoneAudioContext.state === 'suspended') {
+                ringtoneAudioContext.resume().catch(() => {});
+            }
 
             const playTone = () => {
                 if (!ringtoneAudioContext) return;
                 try {
+                    if (ringtoneAudioContext.state === 'suspended') {
+                        ringtoneAudioContext.resume().catch(() => {});
+                    }
                     const osc1 = ringtoneAudioContext.createOscillator();
                     const osc2 = ringtoneAudioContext.createOscillator();
                     const gain = ringtoneAudioContext.createGain();
@@ -4170,7 +4206,15 @@
         }
     }
 
-    async function handleIncomingVoiceSignal(signal) {
+    async function handleIncomingVoiceSignal(rawSignal) {
+        let signal = rawSignal;
+        if (typeof signal === 'string') {
+            try { signal = JSON.parse(signal); } catch (e) { }
+        }
+        if (signal && typeof signal.data === 'string') {
+            try { signal.data = JSON.parse(signal.data); } catch (e) { }
+        }
+
         if (!signal || !signal.signal_type) return;
 
         const senderId = Number(signal.sender_id);
@@ -4186,7 +4230,11 @@
 
                 if (signal.room_type === 'group') {
                     const pc = createPeerConnection(senderId);
-                    await pc.setRemoteDescription(new RTCSessionDescription(signal.data));
+                    let sdpOffer = signal.data;
+                    if (typeof sdpOffer === 'string') {
+                        try { sdpOffer = JSON.parse(sdpOffer); } catch (e) { }
+                    }
+                    await pc.setRemoteDescription(new RTCSessionDescription(sdpOffer));
                     const answer = await pc.createAnswer();
                     await pc.setLocalDescription(answer);
                     sendVoiceSignal(senderId, 'call-answer', answer);
@@ -4194,22 +4242,52 @@
                 }
 
                 state.voice.incomingCall = signal;
-                document.getElementById('incomingCallerName').textContent = `${signal.sender_name} memanggil Anda...`;
+                const callerName = signal.sender_name || 'Seseorang';
+                const callerNameEl = document.getElementById('incomingCallerName');
+                if (callerNameEl) {
+                    callerNameEl.textContent = `${callerName} memanggil Anda...`;
+                }
                 const avatarEl = document.getElementById('incomingCallAvatar');
                 if (avatarEl) {
-                    avatarEl.textContent = (signal.sender_name || 'U').substring(0, 2).toUpperCase();
+                    avatarEl.textContent = callerName.substring(0, 2).toUpperCase();
                 }
                 const modal = document.getElementById('incomingCallModal');
-                if (modal) modal.style.display = 'flex';
+                if (modal) {
+                    modal.classList.add('active');
+                    modal.style.display = 'flex';
+                }
+
+                showToast(`Panggilan suara masuk dari ${callerName}`, 'info');
+
+                if (typeof Notification !== 'undefined') {
+                    if (Notification.permission === 'granted') {
+                        try {
+                            new Notification('Panggilan Suara Masuk', {
+                                body: `${callerName} sedang memanggil Anda...`,
+                                icon: '/chat-assets/images/logo.svg'
+                            });
+                        } catch (e) { }
+                    } else if (Notification.permission === 'default') {
+                        try { Notification.requestPermission(); } catch (e) { }
+                    }
+                }
+
+                startCallTitleFlash(callerName);
+                playMessageChime();
                 playIncomingRingtone();
                 break;
             }
 
             case 'call-answer': {
+                stopCallTitleFlash();
+                stopIncomingRingtone();
                 const pc = state.voice.peerConnections[senderId];
                 if (pc) {
-                    await pc.setRemoteDescription(new RTCSessionDescription(signal.data));
-                    stopIncomingRingtone();
+                    let sdpAnswer = signal.data;
+                    if (typeof sdpAnswer === 'string') {
+                        try { sdpAnswer = JSON.parse(sdpAnswer); } catch (e) { }
+                    }
+                    await pc.setRemoteDescription(new RTCSessionDescription(sdpAnswer));
                     startCallDurationTimer();
                     updateVoiceDockInfo();
                     showToast(`Terhubung dengan ${state.voice.targetName}`, 'success');
@@ -4221,13 +4299,18 @@
                 const pc = state.voice.peerConnections[senderId];
                 if (pc && signal.data) {
                     try {
-                        await pc.addIceCandidate(new RTCIceCandidate(signal.data));
+                        let candData = signal.data;
+                        if (typeof candData === 'string') {
+                            try { candData = JSON.parse(candData); } catch (e) { }
+                        }
+                        await pc.addIceCandidate(new RTCIceCandidate(candData));
                     } catch (e) { }
                 }
                 break;
             }
 
             case 'call-rejected': {
+                stopCallTitleFlash();
                 stopIncomingRingtone();
                 handleDisconnectVoiceCall();
                 showToast(`${signal.sender_name || 'Kontak'} menolak panggilan suara.`, 'info');
@@ -4235,6 +4318,7 @@
             }
 
             case 'call-busy': {
+                stopCallTitleFlash();
                 stopIncomingRingtone();
                 handleDisconnectVoiceCall();
                 showToast(`${signal.sender_name || 'Kontak'} sedang dalam panggilan lain.`, 'info');
@@ -4242,8 +4326,14 @@
             }
 
             case 'call-ended': {
+                stopCallTitleFlash();
                 stopIncomingRingtone();
                 handleDisconnectVoiceCall();
+                const incomingModal = document.getElementById('incomingCallModal');
+                if (incomingModal) {
+                    incomingModal.classList.remove('active');
+                    incomingModal.style.display = 'none';
+                }
                 showToast('Panggilan suara telah diakhiri.', 'info');
                 break;
             }
@@ -4346,10 +4436,14 @@
     };
 
     window.handleAcceptIncomingCall = async function () {
+        stopCallTitleFlash();
         stopIncomingRingtone();
         const incoming = state.voice.incomingCall;
         const modal = document.getElementById('incomingCallModal');
-        if (modal) modal.style.display = 'none';
+        if (modal) {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
         if (!incoming) return;
 
         const stream = await getMediaStream();
@@ -4374,8 +4468,13 @@
         renderVoiceParticipantsGrid();
         window.openVoiceStage();
 
+        let sdpOffer = incoming.data;
+        if (typeof sdpOffer === 'string') {
+            try { sdpOffer = JSON.parse(sdpOffer); } catch (e) { }
+        }
+
         const pc = createPeerConnection(callerId);
-        await pc.setRemoteDescription(new RTCSessionDescription(incoming.data));
+        await pc.setRemoteDescription(new RTCSessionDescription(sdpOffer));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         await sendVoiceSignal(callerId, 'call-answer', answer);
@@ -4386,10 +4485,14 @@
     };
 
     window.handleDeclineIncomingCall = function () {
+        stopCallTitleFlash();
         stopIncomingRingtone();
         const incoming = state.voice.incomingCall;
         const modal = document.getElementById('incomingCallModal');
-        if (modal) modal.style.display = 'none';
+        if (modal) {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
         if (incoming) {
             sendVoiceSignal(incoming.sender_id, 'call-rejected', {});
             state.voice.incomingCall = null;
@@ -4437,7 +4540,18 @@
     };
 
     window.handleDisconnectVoiceCall = function () {
+        stopCallTitleFlash();
         stopIncomingRingtone();
+        const incomingModal = document.getElementById('incomingCallModal');
+        if (incomingModal) {
+            incomingModal.classList.remove('active');
+            incomingModal.style.display = 'none';
+        }
+        const stageModal = document.getElementById('voiceStageModal');
+        if (stageModal) {
+            stageModal.classList.remove('active');
+            stageModal.style.display = 'none';
+        }
         if (!state.voice.active) return;
 
         if (state.voice.roomType === 'group' && state.voice.groupId) {
@@ -4526,6 +4640,7 @@
     window.openVoiceStage = function () {
         const modal = document.getElementById('voiceStageModal');
         if (modal) {
+            modal.classList.add('active');
             modal.style.display = 'flex';
             renderVoiceParticipantsGrid();
         }
@@ -4533,7 +4648,10 @@
 
     window.minimizeVoiceStage = function () {
         const modal = document.getElementById('voiceStageModal');
-        if (modal) modal.style.display = 'none';
+        if (modal) {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
     };
 
     function showVoiceDock() {

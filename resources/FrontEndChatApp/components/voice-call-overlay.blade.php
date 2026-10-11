@@ -160,6 +160,22 @@
 <div id="voiceAudioElements" style="display: none;" aria-hidden="true"></div>
 
 <style>
+#incomingCallModal.active,
+#voiceStageModal.active {
+    display: flex !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    visibility: visible !important;
+}
+
+#incomingCallModal.active .modal-card,
+#voiceStageModal.active .modal-card {
+    opacity: 1 !important;
+    transform: scale(1) !important;
+    pointer-events: auto !important;
+    visibility: visible !important;
+}
+
 @keyframes pulseRing {
     0% { transform: scale(0.95); opacity: 0.8; }
     50% { transform: scale(1.05); opacity: 1; }
