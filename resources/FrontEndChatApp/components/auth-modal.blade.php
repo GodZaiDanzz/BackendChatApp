@@ -1,7 +1,13 @@
 {{-- Auth Modal (Login, Register & Email OTP Verification) --}}
 <div id="authModal" class="modal-overlay active" role="dialog" aria-modal="true" aria-labelledby="authTitle">
     <div class="modal-card">
-        <div class="modal-header">
+        <div class="modal-header" style="display: flex; align-items: center; gap: 0.85rem;">
+            <div class="rail-brand-avatar" style="width: 44px; height: 44px; flex-shrink: 0; cursor: default;">
+                <svg class="rail-brand-logo" width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" fill="#ffffff" stroke="#ffffff" stroke-width="1.2" stroke-linejoin="round"/>
+                    <path d="M8 8.5H16L8 15.5H16" stroke="#7c3aed" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
             <div>
                 <h2 id="authTitle" class="modal-title">Masuk ke ZChat</h2>
                 <p id="authSubtitle" class="modal-subtitle">Aplikasi pesan instan aman & real-time</p>

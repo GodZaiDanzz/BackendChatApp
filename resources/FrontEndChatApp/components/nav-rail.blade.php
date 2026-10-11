@@ -1,9 +1,12 @@
 {{-- Left-most Navigation Rail (64px Icon Column) --}}
 <aside class="nav-rail" aria-label="Navigasi Utama">
     <div class="nav-rail-top">
-        {{-- Brand / App Initial (Top Purple Circle) --}}
-        <div class="rail-brand-avatar" title="ZChat Application">
-            <span>N</span>
+        {{-- Brand / App Logo --}}
+        <div class="rail-brand-avatar" title="ZChat Application" onclick="switchRailTab('chats')">
+            <svg class="rail-brand-logo" width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" fill="#ffffff" stroke="#ffffff" stroke-width="1.2" stroke-linejoin="round"/>
+                <path d="M8 8.5H16L8 15.5H16" stroke="#7c3aed" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
         </div>
 
         {{-- Main Navigation Buttons --}}

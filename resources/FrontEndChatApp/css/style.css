@@ -169,15 +169,29 @@ html, body {
   width: 40px;
   height: 40px;
   border-radius: var(--radius-full);
-  background-color: var(--accent-primary);
+  background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
-  font-size: 1.15rem;
-  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
-  cursor: default;
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35);
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  user-select: none;
+}
+
+.rail-brand-avatar:hover {
+  transform: scale(1.06);
+  box-shadow: 0 6px 18px rgba(124, 58, 237, 0.45);
+}
+
+.rail-brand-avatar:active {
+  transform: scale(0.95);
+}
+
+.rail-brand-logo {
+  display: block;
+  flex-shrink: 0;
 }
 
 .rail-nav-group {
