@@ -23,6 +23,8 @@ class VoiceCallController extends Controller
         $sender = $request->user();
         $targetId = (int) $data['target_id'];
 
+        \Illuminate\Support\Facades\Log::info('VOICE_SIGNAL: from=' . $sender->id . ' (' . $sender->username . ') to=' . $targetId . ' type=' . $data['signal_type']);
+
         broadcast(new VoiceSignalSent(
             sender: $sender,
             recipientId: $targetId,
