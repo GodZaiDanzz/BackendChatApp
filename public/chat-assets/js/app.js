@@ -440,6 +440,34 @@
         }
     }
 
+    // Helper: Render Checkmarks di luar chat (Daftar Chat Sidebar di bawah jam)
+    function renderListStatusCheck(status) {
+        if (status === 'read') {
+            // Ceklis 2 Biru/Cyan (Dibaca)
+            return `<span class="list-item-status-check read" title="Dibaca" style="display: inline-flex; align-items: center; color: #38bdf8; margin-left: 0.5rem; flex-shrink: 0;">
+                <svg width="15" height="13" viewBox="0 0 28 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 6L7 17l-5-5"></path>
+                    <path d="M26 6l-11 11-2-2"></path>
+                </svg>
+            </span>`;
+        } else if (status === 'delivered') {
+            // Ceklis 2 Abu-abu (Tersampaikan)
+            return `<span class="list-item-status-check delivered" title="Tersampaikan" style="display: inline-flex; align-items: center; color: var(--text-muted, #9ca3af); margin-left: 0.5rem; flex-shrink: 0;">
+                <svg width="15" height="13" viewBox="0 0 28 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 6L7 17l-5-5"></path>
+                    <path d="M26 6l-11 11-2-2"></path>
+                </svg>
+            </span>`;
+        } else {
+            // Ceklis 1 Abu-abu (Terkirim)
+            return `<span class="list-item-status-check sent" title="Terkirim" style="display: inline-flex; align-items: center; color: var(--text-muted, #9ca3af); margin-left: 0.5rem; flex-shrink: 0;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+            </span>`;
+        }
+    }
+
     // Toast Notification System
     window.showToast = function (message, type = 'info') {
         const container = document.getElementById('toastContainer');
@@ -1106,6 +1134,8 @@
                 const timeText = lastMsg ? formatTime(lastMsg.created_at) : '';
                 const unreadCount = item.unread;
                 const isActive = state.activeContact && state.activeContact.is_group && Number(state.activeContact.group_id) === Number(group.id) ? 'active' : '';
+                const isMeLastMsg = Boolean(lastMsg && state.user && Number(lastMsg.sender_id) === Number(state.user.id));
+                const statusCheckHtml = isMeLastMsg ? renderListStatusCheck(lastMsg.status) : '';
 
                 return `
                     <div class="list-item ${isActive}" onclick="selectGroup(${group.id})" role="button" tabindex="0">
@@ -1127,8 +1157,8 @@
                                 <span class="list-item-time">${timeText}</span>
                             </div>
                             <div class="list-item-preview">
-                                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; ${isLastDeleted ? 'font-style: italic; color: var(--text-muted);' : ''}">${previewText}</span>
-                                ${unreadCount > 0 ? `<span class="unread-badge" title="${unreadCount} pesan belum dibaca">${unreadCount}</span>` : ''}
+                                <span class="list-preview-text" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; ${isLastDeleted ? 'font-style: italic; color: var(--text-muted);' : ''}">${previewText}</span>
+                                ${unreadCount > 0 ? `<span class="unread-badge" title="${unreadCount} pesan belum dibaca">${unreadCount}</span>` : statusCheckHtml}
                             </div>
                         </div>
                     </div>
@@ -1148,6 +1178,8 @@
             const initials = (contact.display_name || contact.username).split(' ').map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase() || 'U';
             const isActive = state.activeContact && !state.activeContact.is_group && Number(state.activeContact.id) === Number(contact.id) ? 'active' : '';
             const isOnline = Boolean(contact.is_online);
+            const isMeLastMsg = Boolean(lastMsg && state.user && Number(lastMsg.sender_id) === Number(state.user.id));
+            const statusCheckHtml = isMeLastMsg ? renderListStatusCheck(lastMsg.status) : '';
 
             return `
                 <div class="list-item ${isActive}" onclick="selectContact(${contact.id})" role="button" tabindex="0">
@@ -1161,8 +1193,8 @@
                             <span class="list-item-time">${timeText}</span>
                         </div>
                         <div class="list-item-preview">
-                            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; ${isLastDeleted ? 'font-style: italic; color: var(--text-muted);' : ''}">${previewText}</span>
-                            ${unreadCount > 0 ? `<span class="unread-badge" title="${unreadCount} pesan belum dibaca">${unreadCount}</span>` : ''}
+                            <span class="list-preview-text" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; ${isLastDeleted ? 'font-style: italic; color: var(--text-muted);' : ''}">${previewText}</span>
+                            ${unreadCount > 0 ? `<span class="unread-badge" title="${unreadCount} pesan belum dibaca">${unreadCount}</span>` : statusCheckHtml}
                         </div>
                     </div>
                 </div>
@@ -5311,9 +5343,56 @@
         }
     }
 
+    // ==========================================
+    // Mode Streamer (Privasi Layar & Live Stream)
+    // ==========================================
+    window.initStreamerMode = function () {
+        const saved = localStorage.getItem('zchat_streamer_mode') === 'true';
+        applyStreamerMode(saved);
+    };
+
+    window.toggleStreamerMode = function () {
+        const isCurrent = document.body.classList.contains('streamer-mode');
+        const next = !isCurrent;
+        applyStreamerMode(next);
+        try {
+            localStorage.setItem('zchat_streamer_mode', next ? 'true' : 'false');
+        } catch (e) { }
+        showToast(
+            next ? 'Mode Streamer Aktif: Pesan & data chat disamarkan.' : 'Mode Streamer Dinonaktifkan.',
+            'info'
+        );
+    };
+
+    function applyStreamerMode(active) {
+        if (active) {
+            document.body.classList.add('streamer-mode');
+            document.documentElement.classList.add('streamer-mode');
+        } else {
+            document.body.classList.remove('streamer-mode');
+            document.documentElement.classList.remove('streamer-mode');
+        }
+
+        const iconOff = document.getElementById('streamerIconOff');
+        const iconOn = document.getElementById('streamerIconOn');
+        const btn = document.getElementById('btnStreamerMode');
+        if (iconOff && iconOn) {
+            iconOff.style.display = active ? 'none' : 'block';
+            iconOn.style.display = active ? 'block' : 'none';
+        }
+        if (btn) {
+            if (active) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+    }
+
     // Jalankan inisialisasi saat DOM siap
     document.addEventListener('DOMContentLoaded', () => {
         window.initTheme();
+        window.initStreamerMode();
         initAuth();
     });
 

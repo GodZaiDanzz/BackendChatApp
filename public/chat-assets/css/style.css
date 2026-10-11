@@ -421,12 +421,17 @@ html, body {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.75rem 0.75rem;
+  padding: 0.7rem 0.75rem;
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
   margin-bottom: 0.25rem;
   position: relative;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  height: 64px;
+  min-height: 64px;
+  max-height: 64px;
 }
 
 .list-item:hover {
@@ -435,7 +440,59 @@ html, body {
 
 .list-item.active {
   background-color: var(--accent-soft);
-  border: 1px solid var(--accent-border);
+  border-color: var(--accent-border);
+}
+
+.list-item:active,
+.list-item.active {
+  transform: none !important;
+}
+
+.list-item.call-log-item {
+  height: auto;
+  min-height: 68px;
+  max-height: none;
+}
+
+/* Mode Streamer (Privacy & Screen Protection) */
+body.streamer-mode .list-item-preview .list-preview-text,
+body.streamer-mode .list-item-preview > span:not(.unread-badge):not(.list-item-status-check) {
+  filter: blur(6px);
+  user-select: none;
+  transition: filter 0.2s ease;
+}
+
+body.streamer-mode .list-item:hover .list-item-preview .list-preview-text,
+body.streamer-mode .list-item:hover .list-item-preview > span:not(.unread-badge):not(.list-item-status-check) {
+  filter: blur(0);
+}
+
+body.streamer-mode .message-row.other .message-bubble .bubble-content {
+  filter: blur(5px);
+  user-select: none;
+  transition: filter 0.2s ease;
+}
+
+body.streamer-mode .message-row.other .message-bubble:hover .bubble-content {
+  filter: blur(0);
+}
+
+body.streamer-mode #infoUsername,
+body.streamer-mode .info-field-value {
+  filter: blur(5px);
+  user-select: none;
+  transition: filter 0.2s ease;
+}
+
+body.streamer-mode #infoUsername:hover,
+body.streamer-mode .info-field-value:hover {
+  filter: blur(0);
+}
+
+body.streamer-mode #btnStreamerMode {
+  color: #a78bfa;
+  background: rgba(124, 58, 237, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.4);
 }
 
 .avatar-container {
