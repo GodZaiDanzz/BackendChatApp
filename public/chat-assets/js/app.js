@@ -2140,8 +2140,44 @@
         }
     });
 
+    // ==========================================
+    // Pengaturan Tema Gelap / Terang (Dark Mode)
+    // ==========================================
+    window.initTheme = function () {
+        const savedTheme = localStorage.getItem('zchat_theme') || 'dark';
+        applyTheme(savedTheme);
+    };
+
+    window.toggleTheme = function () {
+        const current = document.documentElement.getAttribute('data-theme') || 'dark';
+        const next = current === 'dark' ? 'light' : 'dark';
+        applyTheme(next);
+        showToast(next === 'dark' ? 'Tema Gelap Diaktifkan' : 'Tema Terang Diaktifkan', 'info');
+    };
+
+    function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        if (document.body) document.body.setAttribute('data-theme', theme);
+        try {
+            localStorage.setItem('zchat_theme', theme);
+        } catch (e) {}
+
+        const darkIcon = document.getElementById('themeIconDark');
+        const lightIcon = document.getElementById('themeIconLight');
+        if (darkIcon && lightIcon) {
+            if (theme === 'dark') {
+                darkIcon.style.display = 'block';
+                lightIcon.style.display = 'none';
+            } else {
+                darkIcon.style.display = 'none';
+                lightIcon.style.display = 'block';
+            }
+        }
+    }
+
     // Jalankan inisialisasi saat DOM siap
     document.addEventListener('DOMContentLoaded', () => {
+        window.initTheme();
         initAuth();
     });
 

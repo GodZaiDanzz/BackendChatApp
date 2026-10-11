@@ -1,10 +1,20 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" data-theme="dark">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="ZChat Web - Aplikasi Pesan Instan Modern Real-time">
     <title>ZChat Web - Ruang Obrolan Real-time</title>
+
+    {{-- Script pencegah flicker tema saat loading awal --}}
+    <script>
+        (function() {
+            try {
+                var saved = localStorage.getItem('zchat_theme') || 'dark';
+                document.documentElement.setAttribute('data-theme', saved);
+            } catch (e) {}
+        })();
+    </script>
 
     {{-- Google Fonts: Plus Jakarta Sans --}}
     <link rel="preconnect" href="https://fonts.googleapis.com">
