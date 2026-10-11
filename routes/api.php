@@ -55,4 +55,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/groups/{id}/messages', [GroupController::class, 'storeMessage']);
     Route::put('/groups/{id}/messages/{messageId}', [GroupController::class, 'updateMessage']);
     Route::delete('/groups/{id}/messages/{messageId}', [GroupController::class, 'destroyMessage']);
+
+    // WebRTC Voice Channels and Calls
+    Route::post('/voice/signal', [\App\Http\Controllers\VoiceCallController::class, 'sendSignal']);
+    Route::post('/voice/groups/{id}/join', [\App\Http\Controllers\VoiceCallController::class, 'joinGroupVoice']);
+    Route::post('/voice/groups/{id}/leave', [\App\Http\Controllers\VoiceCallController::class, 'leaveGroupVoice']);
+    Route::get('/voice/groups/{id}/status', [\App\Http\Controllers\VoiceCallController::class, 'getGroupVoiceStatus']);
 });

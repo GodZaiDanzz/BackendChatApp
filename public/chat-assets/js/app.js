@@ -196,7 +196,28 @@
         isCurrentlyTyping: false,
         lastTypingSentAt: 0,
         myTypingTimeout: null,
-        conversationKeys: {}
+        conversationKeys: {},
+        voice: {
+            active: false,
+            roomType: null,
+            groupId: null,
+            targetUserId: null,
+            targetName: '',
+            localStream: null,
+            isMuted: false,
+            isDeafened: false,
+            peerConnections: {},
+            remoteStreams: {},
+            audioElements: {},
+            participants: [],
+            callTimer: null,
+            callSeconds: 0,
+            audioContext: null,
+            analyser: null,
+            analyserInterval: null,
+            ringToneOscillator: null,
+            incomingCall: null
+        }
     };
 
     const cryptoKeyCache = new Map();
@@ -787,6 +808,11 @@
             try { state.reverbSocket.disconnect(); } catch (e) { }
             state.reverbSocket = null;
         }
+
+        if (state.voice && state.voice.active) {
+            window.handleDisconnectVoiceCall();
+        }
+        stopIncomingRingtone();
 
         state.token = null;
         state.user = null;
@@ -3627,6 +3653,10 @@
                 const msg = data.message || data;
                 await handleIncomingDirectMessage(msg);
             });
+
+            channel.bind('voice.signal', async (signal) => {
+                await handleIncomingVoiceSignal(signal);
+            });
         } catch (e) {
             console.warn('Reverb WebSocket initialization error:', e);
         }
@@ -3909,6 +3939,673 @@
         }, 2000);
     }
 
+    const RTC_CONFIG = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' }
+        ]
+    };
+
+    let ringtoneAudioContext = null;
+    let ringtoneInterval = null;
+
+    function playIncomingRingtone() {
+        stopIncomingRingtone();
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            ringtoneAudioContext = new AudioCtx();
+
+            const playTone = () => {
+                if (!ringtoneAudioContext) return;
+                try {
+                    const osc1 = ringtoneAudioContext.createOscillator();
+                    const osc2 = ringtoneAudioContext.createOscillator();
+                    const gain = ringtoneAudioContext.createGain();
+
+                    osc1.type = 'sine';
+                    osc1.frequency.setValueAtTime(440, ringtoneAudioContext.currentTime);
+                    osc2.type = 'sine';
+                    osc2.frequency.setValueAtTime(480, ringtoneAudioContext.currentTime);
+
+                    gain.gain.setValueAtTime(0.08, ringtoneAudioContext.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ringtoneAudioContext.currentTime + 1.2);
+
+                    osc1.connect(gain);
+                    osc2.connect(gain);
+                    gain.connect(ringtoneAudioContext.destination);
+
+                    osc1.start();
+                    osc2.start();
+                    osc1.stop(ringtoneAudioContext.currentTime + 1.2);
+                    osc2.stop(ringtoneAudioContext.currentTime + 1.2);
+                } catch (e) { }
+            };
+
+            playTone();
+            ringtoneInterval = setInterval(playTone, 2400);
+        } catch (e) { }
+    }
+
+    function stopIncomingRingtone() {
+        if (ringtoneInterval) {
+            clearInterval(ringtoneInterval);
+            ringtoneInterval = null;
+        }
+        if (ringtoneAudioContext) {
+            try { ringtoneAudioContext.close(); } catch (e) { }
+            ringtoneAudioContext = null;
+        }
+    }
+
+    async function getMediaStream() {
+        if (state.voice.localStream) return state.voice.localStream;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                },
+                video: false
+            });
+            state.voice.localStream = stream;
+            initVoiceActivityDetection(stream);
+            return stream;
+        } catch (err) {
+            console.error('Gagal mengakses mikrofon:', err);
+            showToast('Tidak dapat mengakses mikrofon. Pastikan izin mikrofon diberikan di browser.', 'error');
+            return null;
+        }
+    }
+
+    function initVoiceActivityDetection(stream) {
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            const ctx = new AudioCtx();
+            const source = ctx.createMediaStreamSource(stream);
+            const analyser = ctx.createAnalyser();
+            analyser.fftSize = 256;
+            source.connect(analyser);
+
+            state.voice.audioContext = ctx;
+            state.voice.analyser = analyser;
+
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            let wasSpeaking = false;
+
+            if (state.voice.analyserInterval) clearInterval(state.voice.analyserInterval);
+            state.voice.analyserInterval = setInterval(() => {
+                if (!state.voice.active || state.voice.isMuted) {
+                    if (wasSpeaking) {
+                        setLocalSpeaking(false);
+                        wasSpeaking = false;
+                    }
+                    return;
+                }
+
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                const avg = sum / dataArray.length;
+
+                const isSpeakingNow = avg > 16;
+                if (isSpeakingNow !== wasSpeaking) {
+                    wasSpeaking = isSpeakingNow;
+                    setLocalSpeaking(isSpeakingNow);
+                    broadcastVoiceState({ is_speaking: isSpeakingNow });
+                }
+            }, 150);
+        } catch (e) {
+            console.warn('VAD init failed:', e);
+        }
+    }
+
+    function setLocalSpeaking(speaking) {
+        if (!state.user) return;
+        const card = document.getElementById('voiceParticipant_' + state.user.id);
+        if (card) {
+            if (speaking) card.classList.add('is-speaking');
+            else card.classList.remove('is-speaking');
+        }
+    }
+
+    function setRemoteSpeaking(peerId, speaking) {
+        const card = document.getElementById('voiceParticipant_' + peerId);
+        if (card) {
+            if (speaking) card.classList.add('is-speaking');
+            else card.classList.remove('is-speaking');
+        }
+    }
+
+    function createPeerConnection(peerId) {
+        if (state.voice.peerConnections[peerId]) {
+            return state.voice.peerConnections[peerId];
+        }
+
+        const pc = new RTCPeerConnection(RTC_CONFIG);
+        state.voice.peerConnections[peerId] = pc;
+
+        if (state.voice.localStream) {
+            state.voice.localStream.getTracks().forEach(track => {
+                pc.addTrack(track, state.voice.localStream);
+            });
+        }
+
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                sendVoiceSignal(peerId, 'ice-candidate', event.candidate);
+            }
+        };
+
+        pc.ontrack = (event) => {
+            const remoteStream = event.streams[0];
+            state.voice.remoteStreams[peerId] = remoteStream;
+            attachRemoteAudio(peerId, remoteStream);
+        };
+
+        pc.onconnectionstatechange = () => {
+            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+                removePeer(peerId);
+            }
+        };
+
+        return pc;
+    }
+
+    function attachRemoteAudio(peerId, stream) {
+        let audioEl = state.voice.audioElements[peerId];
+        if (!audioEl) {
+            audioEl = document.createElement('audio');
+            audioEl.id = 'remoteAudio_' + peerId;
+            audioEl.autoplay = true;
+            const container = document.getElementById('voiceAudioElements');
+            if (container) container.appendChild(audioEl);
+            state.voice.audioElements[peerId] = audioEl;
+        }
+        audioEl.srcObject = stream;
+        audioEl.muted = state.voice.isDeafened;
+    }
+
+    function removePeer(peerId) {
+        if (state.voice.peerConnections[peerId]) {
+            try { state.voice.peerConnections[peerId].close(); } catch (e) { }
+            delete state.voice.peerConnections[peerId];
+        }
+        if (state.voice.audioElements[peerId]) {
+            try { state.voice.audioElements[peerId].remove(); } catch (e) { }
+            delete state.voice.audioElements[peerId];
+        }
+        delete state.voice.remoteStreams[peerId];
+
+        state.voice.participants = state.voice.participants.filter(p => Number(p.id) !== Number(peerId));
+        renderVoiceParticipantsGrid();
+
+        if (state.voice.roomType === 'direct') {
+            handleDisconnectVoiceCall();
+        }
+    }
+
+    async function sendVoiceSignal(targetId, signalType, data) {
+        if (!state.token) return;
+        try {
+            await apiRequest('/voice/signal', {
+                method: 'POST',
+                body: JSON.stringify({
+                    target_id: Number(targetId),
+                    signal_type: signalType,
+                    room_type: state.voice.roomType || 'direct',
+                    group_id: state.voice.groupId,
+                    data: data
+                })
+            });
+        } catch (e) { }
+    }
+
+    function broadcastVoiceState(stateData) {
+        for (const peerId in state.voice.peerConnections) {
+            sendVoiceSignal(peerId, 'room-state', stateData);
+        }
+    }
+
+    async function handleIncomingVoiceSignal(signal) {
+        if (!signal || !signal.signal_type) return;
+
+        const senderId = Number(signal.sender_id);
+        const myId = Number(state.user ? state.user.id : 0);
+        if (senderId === myId) return;
+
+        switch (signal.signal_type) {
+            case 'call-offer': {
+                if (state.voice.active) {
+                    sendVoiceSignal(senderId, 'call-busy', {});
+                    return;
+                }
+
+                if (signal.room_type === 'group') {
+                    const pc = createPeerConnection(senderId);
+                    await pc.setRemoteDescription(new RTCSessionDescription(signal.data));
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    sendVoiceSignal(senderId, 'call-answer', answer);
+                    return;
+                }
+
+                state.voice.incomingCall = signal;
+                document.getElementById('incomingCallerName').textContent = `${signal.sender_name} memanggil Anda...`;
+                const avatarEl = document.getElementById('incomingCallAvatar');
+                if (avatarEl) {
+                    avatarEl.textContent = (signal.sender_name || 'U').substring(0, 2).toUpperCase();
+                }
+                const modal = document.getElementById('incomingCallModal');
+                if (modal) modal.style.display = 'flex';
+                playIncomingRingtone();
+                break;
+            }
+
+            case 'call-answer': {
+                const pc = state.voice.peerConnections[senderId];
+                if (pc) {
+                    await pc.setRemoteDescription(new RTCSessionDescription(signal.data));
+                    stopIncomingRingtone();
+                    startCallDurationTimer();
+                    updateVoiceDockInfo();
+                    showToast(`Terhubung dengan ${state.voice.targetName}`, 'success');
+                }
+                break;
+            }
+
+            case 'ice-candidate': {
+                const pc = state.voice.peerConnections[senderId];
+                if (pc && signal.data) {
+                    try {
+                        await pc.addIceCandidate(new RTCIceCandidate(signal.data));
+                    } catch (e) { }
+                }
+                break;
+            }
+
+            case 'call-rejected': {
+                stopIncomingRingtone();
+                handleDisconnectVoiceCall();
+                showToast(`${signal.sender_name || 'Kontak'} menolak panggilan suara.`, 'info');
+                break;
+            }
+
+            case 'call-busy': {
+                stopIncomingRingtone();
+                handleDisconnectVoiceCall();
+                showToast(`${signal.sender_name || 'Kontak'} sedang dalam panggilan lain.`, 'info');
+                break;
+            }
+
+            case 'call-ended': {
+                stopIncomingRingtone();
+                handleDisconnectVoiceCall();
+                showToast('Panggilan suara telah diakhiri.', 'info');
+                break;
+            }
+
+            case 'room-join': {
+                if (state.voice.active && state.voice.roomType === 'group' && Number(state.voice.groupId) === Number(signal.group_id)) {
+                    const newcomer = signal.data;
+                    if (newcomer && !state.voice.participants.find(p => Number(p.id) === Number(newcomer.id))) {
+                        state.voice.participants.push(newcomer);
+                        renderVoiceParticipantsGrid();
+                        playMessageChime();
+                        showToast(`${newcomer.name} bergabung ke ruang suara`, 'info');
+
+                        const stream = await getMediaStream();
+                        if (stream) {
+                            const pc = createPeerConnection(newcomer.id);
+                            const offer = await pc.createOffer();
+                            await pc.setLocalDescription(offer);
+                            sendVoiceSignal(newcomer.id, 'call-offer', offer);
+                        }
+                    }
+                }
+                break;
+            }
+
+            case 'room-leave': {
+                if (state.voice.active && state.voice.roomType === 'group') {
+                    const leftUserId = signal.data?.user_id || senderId;
+                    removePeer(leftUserId);
+                    const leftUser = state.voice.participants.find(p => Number(p.id) === Number(leftUserId));
+                    if (leftUser) {
+                        showToast(`${leftUser.name} keluar dari ruang suara`, 'info');
+                    }
+                }
+                break;
+            }
+
+            case 'room-state': {
+                if (signal.data) {
+                    if (signal.data.is_speaking !== undefined) {
+                        setRemoteSpeaking(senderId, signal.data.is_speaking);
+                    }
+                    if (signal.data.is_muted !== undefined) {
+                        const p = state.voice.participants.find(x => Number(x.id) === senderId);
+                        if (p) {
+                            p.is_muted = signal.data.is_muted;
+                            renderVoiceParticipantsGrid();
+                        }
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    window.handleStartVoiceCall = async function () {
+        if (!state.activeContact) {
+            showToast('Pilih kontak atau grup terlebih dahulu untuk memulai obrolan suara.', 'info');
+            return;
+        }
+
+        if (state.voice.active) {
+            window.openVoiceStage();
+            return;
+        }
+
+        if (state.activeContact.is_group) {
+            await window.joinGroupVoiceChannel(state.activeContact.group_id, state.activeContact.name);
+        } else {
+            await window.startDirectVoiceCall(state.activeContact.id, state.activeContact.display_name);
+        }
+    };
+
+    window.startDirectVoiceCall = async function (targetId, targetName) {
+        const stream = await getMediaStream();
+        if (!stream) return;
+
+        state.voice.active = true;
+        state.voice.roomType = 'direct';
+        state.voice.groupId = null;
+        state.voice.targetUserId = Number(targetId);
+        state.voice.targetName = targetName;
+        state.voice.participants = [
+            { id: state.user.id, name: state.user.display_name || state.user.username, is_muted: false },
+            { id: Number(targetId), name: targetName, is_muted: false }
+        ];
+
+        updateVoiceDockInfo();
+        showVoiceDock();
+        renderVoiceParticipantsGrid();
+        window.openVoiceStage();
+
+        document.getElementById('voiceStageSubtitle').textContent = `Memanggil ${targetName}...`;
+
+        const pc = createPeerConnection(targetId);
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        await sendVoiceSignal(targetId, 'call-offer', offer);
+        playIncomingRingtone();
+    };
+
+    window.handleAcceptIncomingCall = async function () {
+        stopIncomingRingtone();
+        const incoming = state.voice.incomingCall;
+        const modal = document.getElementById('incomingCallModal');
+        if (modal) modal.style.display = 'none';
+        if (!incoming) return;
+
+        const stream = await getMediaStream();
+        if (!stream) {
+            sendVoiceSignal(incoming.sender_id, 'call-rejected', {});
+            return;
+        }
+
+        const callerId = Number(incoming.sender_id);
+        state.voice.active = true;
+        state.voice.roomType = 'direct';
+        state.voice.groupId = null;
+        state.voice.targetUserId = callerId;
+        state.voice.targetName = incoming.sender_name;
+        state.voice.participants = [
+            { id: callerId, name: incoming.sender_name, is_muted: false },
+            { id: state.user.id, name: state.user.display_name || state.user.username, is_muted: false }
+        ];
+
+        updateVoiceDockInfo();
+        showVoiceDock();
+        renderVoiceParticipantsGrid();
+        window.openVoiceStage();
+
+        const pc = createPeerConnection(callerId);
+        await pc.setRemoteDescription(new RTCSessionDescription(incoming.data));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        await sendVoiceSignal(callerId, 'call-answer', answer);
+
+        startCallDurationTimer();
+        state.voice.incomingCall = null;
+        showToast(`Terhubung dengan ${incoming.sender_name}`, 'success');
+    };
+
+    window.handleDeclineIncomingCall = function () {
+        stopIncomingRingtone();
+        const incoming = state.voice.incomingCall;
+        const modal = document.getElementById('incomingCallModal');
+        if (modal) modal.style.display = 'none';
+        if (incoming) {
+            sendVoiceSignal(incoming.sender_id, 'call-rejected', {});
+            state.voice.incomingCall = null;
+        }
+    };
+
+    window.joinGroupVoiceChannel = async function (groupId, groupName) {
+        const stream = await getMediaStream();
+        if (!stream) return;
+
+        try {
+            const res = await apiRequest(`/voice/groups/${groupId}/join`, { method: 'POST' });
+            if (!res) return;
+
+            state.voice.active = true;
+            state.voice.roomType = 'group';
+            state.voice.groupId = Number(groupId);
+            state.voice.targetUserId = null;
+            state.voice.targetName = groupName || 'Grup';
+
+            const existingParticipants = res.participants || [];
+            state.voice.participants = [
+                ...existingParticipants,
+                { id: state.user.id, name: state.user.display_name || state.user.username, is_muted: false }
+            ];
+
+            updateVoiceDockInfo();
+            showVoiceDock();
+            startCallDurationTimer();
+            renderVoiceParticipantsGrid();
+            window.openVoiceStage();
+
+            for (const other of existingParticipants) {
+                const pc = createPeerConnection(other.id);
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                sendVoiceSignal(other.id, 'call-offer', offer);
+            }
+
+            showToast(`Bergabung ke ruang suara ${groupName}`, 'success');
+        } catch (e) {
+            console.error('Gagal masuk ruang suara grup:', e);
+            showToast('Gagal bergabung ke ruang suara grup', 'error');
+        }
+    };
+
+    window.handleDisconnectVoiceCall = function () {
+        stopIncomingRingtone();
+        if (!state.voice.active) return;
+
+        if (state.voice.roomType === 'group' && state.voice.groupId) {
+            apiRequest(`/voice/groups/${state.voice.groupId}/leave`, { method: 'POST' }).catch(() => { });
+        } else if (state.voice.roomType === 'direct' && state.voice.targetUserId) {
+            sendVoiceSignal(state.voice.targetUserId, 'call-ended', {});
+        }
+
+        for (const peerId in state.voice.peerConnections) {
+            try { state.voice.peerConnections[peerId].close(); } catch (e) { }
+        }
+        state.voice.peerConnections = {};
+
+        for (const peerId in state.voice.audioElements) {
+            try { state.voice.audioElements[peerId].remove(); } catch (e) { }
+        }
+        state.voice.audioElements = {};
+        state.voice.remoteStreams = {};
+
+        if (state.voice.localStream) {
+            state.voice.localStream.getTracks().forEach(track => track.stop());
+            state.voice.localStream = null;
+        }
+
+        if (state.voice.analyserInterval) {
+            clearInterval(state.voice.analyserInterval);
+            state.voice.analyserInterval = null;
+        }
+
+        if (state.voice.callTimer) {
+            clearInterval(state.voice.callTimer);
+            state.voice.callTimer = null;
+        }
+
+        state.voice.active = false;
+        state.voice.roomType = null;
+        state.voice.groupId = null;
+        state.voice.targetUserId = null;
+        state.voice.callSeconds = 0;
+        state.voice.isMuted = false;
+        state.voice.isDeafened = false;
+        state.voice.participants = [];
+
+        hideVoiceDock();
+        window.minimizeVoiceStage();
+        showToast('Obrolan suara selesai.', 'info');
+    };
+
+    window.toggleVoiceMute = function () {
+        if (!state.voice.localStream) return;
+        state.voice.isMuted = !state.voice.isMuted;
+        state.voice.localStream.getAudioTracks().forEach(track => {
+            track.enabled = !state.voice.isMuted;
+        });
+
+        const micLabel = document.getElementById('stageMicLabel');
+        if (micLabel) micLabel.textContent = state.voice.isMuted ? 'Unmute' : 'Mute';
+
+        const dockBtn = document.getElementById('btnDockToggleMic');
+        if (dockBtn) {
+            dockBtn.style.color = state.voice.isMuted ? '#ef4444' : 'currentColor';
+        }
+
+        broadcastVoiceState({ is_muted: state.voice.isMuted });
+        setLocalSpeaking(false);
+        showToast(state.voice.isMuted ? 'Mikrofon dimatikan' : 'Mikrofon diaktifkan', 'info');
+    };
+
+    window.toggleVoiceDeafen = function () {
+        state.voice.isDeafened = !state.voice.isDeafened;
+        for (const peerId in state.voice.audioElements) {
+            state.voice.audioElements[peerId].muted = state.voice.isDeafened;
+        }
+
+        const deafenLabel = document.getElementById('stageDeafenLabel');
+        if (deafenLabel) deafenLabel.textContent = state.voice.isDeafened ? 'Undeafen' : 'Deafen';
+
+        const dockBtn = document.getElementById('btnDockToggleDeafen');
+        if (dockBtn) {
+            dockBtn.style.color = state.voice.isDeafened ? '#ef4444' : 'currentColor';
+        }
+
+        showToast(state.voice.isDeafened ? 'Output suara dibisukan' : 'Output suara dinyalakan', 'info');
+    };
+
+    window.openVoiceStage = function () {
+        const modal = document.getElementById('voiceStageModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            renderVoiceParticipantsGrid();
+        }
+    };
+
+    window.minimizeVoiceStage = function () {
+        const modal = document.getElementById('voiceStageModal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    function showVoiceDock() {
+        const dock = document.getElementById('activeVoiceDock');
+        if (dock) dock.style.display = 'flex';
+    }
+
+    function hideVoiceDock() {
+        const dock = document.getElementById('activeVoiceDock');
+        if (dock) dock.style.display = 'none';
+    }
+
+    function updateVoiceDockInfo() {
+        const titleEl = document.getElementById('dockVoiceTitle');
+        const stageTitle = document.getElementById('voiceStageTitle');
+        const stageSubtitle = document.getElementById('voiceStageSubtitle');
+
+        const title = state.voice.roomType === 'group'
+            ? `Ruang Suara: ${state.voice.targetName}`
+            : `Panggilan: ${state.voice.targetName}`;
+
+        if (titleEl) titleEl.textContent = title;
+        if (stageTitle) stageTitle.textContent = title;
+        if (stageSubtitle) {
+            const count = state.voice.participants.length;
+            stageSubtitle.textContent = state.voice.roomType === 'group'
+                ? `${count} orang terhubung di ruang suara`
+                : 'Panggilan suara terhubung';
+        }
+    }
+
+    function startCallDurationTimer() {
+        if (state.voice.callTimer) clearInterval(state.voice.callTimer);
+        state.voice.callSeconds = 0;
+        state.voice.callTimer = setInterval(() => {
+            state.voice.callSeconds++;
+            const mins = String(Math.floor(state.voice.callSeconds / 60)).padStart(2, '0');
+            const secs = String(state.voice.callSeconds % 60).padStart(2, '0');
+            const durationEl = document.getElementById('dockVoiceDuration');
+            if (durationEl) durationEl.textContent = `${mins}:${secs}`;
+        }, 1000);
+    }
+
+    function renderVoiceParticipantsGrid() {
+        const grid = document.getElementById('voiceParticipantsGrid');
+        if (!grid) return;
+
+        const participants = state.voice.participants || [];
+        if (participants.length === 0) {
+            grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); font-size: 0.875rem;">Belum ada anggota lain di ruang suara.</div>';
+            return;
+        }
+
+        grid.innerHTML = participants.map(p => {
+            const isMe = state.user && Number(p.id) === Number(state.user.id);
+            const initial = (p.name || 'U').substring(0, 2).toUpperCase();
+            const muteBadge = p.is_muted ? '<span style="font-size: 0.75rem; color: #ef4444; margin-top: 0.25rem;">(Muted)</span>' : '';
+
+            return `
+                <div id="voiceParticipant_${p.id}" class="voice-participant-card">
+                    <div class="voice-participant-avatar avatar-pastel-purple">
+                        ${initial}
+                    </div>
+                    <span style="font-size: 0.875rem; font-weight: 600; color: var(--text-main); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${escapeHtml(p.name)} ${isMe ? '(Anda)' : ''}
+                    </span>
+                    ${muteBadge}
+                </div>
+            `;
+        }).join('');
+    }
+
     window.handleLocalFilter = function (query) {
         if (state.activeTab === 'contacts') {
             renderContactsList(query);
@@ -3978,6 +4675,11 @@
             const addGrpMemModal = document.getElementById('addGroupMemberModal');
             if (addGrpMemModal && (addGrpMemModal.classList.contains('active') || addGrpMemModal.style.display === 'flex')) {
                 window.closeAddGroupMemberModal();
+            }
+
+            const voiceStageModal = document.getElementById('voiceStageModal');
+            if (voiceStageModal && voiceStageModal.style.display === 'flex') {
+                window.minimizeVoiceStage();
             }
 
             if (state.editingMessageId) {

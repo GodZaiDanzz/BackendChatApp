@@ -48,6 +48,7 @@
     @include('components.add-group-member-modal')
     @include('components.contact-info-modal')
     @include('components.user-profile-modal')
+    @include('components.voice-call-overlay')
     @include('components.toast')
 
     <script src="/chat-assets/js/pusher.min.js?v={{ time() }}"></script>
