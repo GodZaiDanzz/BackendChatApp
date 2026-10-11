@@ -160,6 +160,33 @@
 <div id="voiceAudioElements" style="display: none;" aria-hidden="true"></div>
 
 <style>
+#voiceStageModal {
+    background: rgba(8, 10, 18, 0.68) !important;
+    backdrop-filter: blur(14px) !important;
+    -webkit-backdrop-filter: blur(14px) !important;
+}
+
+#voiceStageModal .modal-card {
+    background: rgba(20, 22, 36, 0.96) !important;
+    backdrop-filter: blur(24px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65) !important;
+    border-radius: 20px !important;
+}
+
+#incomingCallModal {
+    background: rgba(8, 10, 18, 0.68) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+}
+
+#incomingCallModal .modal-card {
+    background: rgba(20, 22, 36, 0.96) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65) !important;
+    border-radius: 20px !important;
+}
+
 #incomingCallModal.active,
 #voiceStageModal.active {
     display: flex !important;
@@ -183,22 +210,23 @@
 }
 
 .voice-participant-card {
-    background: var(--bg-surface, rgba(255,255,255,0.03));
-    border: 1px solid var(--border-color, rgba(255,255,255,0.08));
-    border-radius: var(--radius-lg, 12px);
-    padding: 1.25rem 1rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 1.5rem 1rem;
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
     position: relative;
-    transition: all 0.2s ease;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .voice-participant-card.is-speaking {
     border-color: #10b981 !important;
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.35) !important;
-    background: rgba(16, 185, 129, 0.06) !important;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.4), 0 0 24px rgba(16, 185, 129, 0.25) !important;
+    background: rgba(16, 185, 129, 0.08) !important;
+    transform: translateY(-2px);
 }
 
 .voice-participant-avatar {
@@ -212,10 +240,11 @@
     justify-content: center;
     font-size: 1.25rem;
     font-weight: 700;
-    transition: box-shadow 0.2s ease;
+    object-fit: cover;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .voice-participant-card.is-speaking .voice-participant-avatar {
-    box-shadow: 0 0 0 3px #10b981;
+    box-shadow: 0 0 0 3px #10b981, 0 0 16px rgba(16, 185, 129, 0.4);
 }
 </style>

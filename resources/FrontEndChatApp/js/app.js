@@ -209,6 +209,7 @@
             peerConnections: {},
             remoteStreams: {},
             audioElements: {},
+            pendingIceCandidates: {},
             participants: [],
             callTimer: null,
             callSeconds: 0,
@@ -4170,6 +4171,37 @@
         }
     }
 
+    function addOrQueueIceCandidate(peerId, candidate) {
+        if (!candidate) return;
+        const pc = state.voice.peerConnections[peerId];
+        if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+            try {
+                pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => {
+                    console.warn('addIceCandidate error:', e);
+                });
+            } catch (e) { }
+        } else {
+            if (!state.voice.pendingIceCandidates[peerId]) {
+                state.voice.pendingIceCandidates[peerId] = [];
+            }
+            state.voice.pendingIceCandidates[peerId].push(candidate);
+        }
+    }
+
+    async function drainPendingIceCandidates(peerId) {
+        const pc = state.voice.peerConnections[peerId];
+        if (!pc) return;
+        const queued = state.voice.pendingIceCandidates[peerId] || [];
+        state.voice.pendingIceCandidates[peerId] = [];
+        for (const cand of queued) {
+            try {
+                await pc.addIceCandidate(new RTCIceCandidate(cand));
+            } catch (e) {
+                console.warn('drain candidate error:', e);
+            }
+        }
+    }
+
     function createPeerConnection(peerId) {
         if (state.voice.peerConnections[peerId]) {
             return state.voice.peerConnections[peerId];
@@ -4186,7 +4218,12 @@
 
         pc.onicecandidate = (event) => {
             if (event.candidate) {
-                sendVoiceSignal(peerId, 'ice-candidate', event.candidate);
+                sendVoiceSignal(peerId, 'ice-candidate', {
+                    candidate: event.candidate.candidate,
+                    sdpMid: event.candidate.sdpMid,
+                    sdpMLineIndex: event.candidate.sdpMLineIndex,
+                    usernameFragment: event.candidate.usernameFragment
+                });
             }
         };
 
@@ -4217,6 +4254,14 @@
         }
         audioEl.srcObject = stream;
         audioEl.muted = state.voice.isDeafened;
+        try {
+            const playPromise = audioEl.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(err => {
+                    console.warn('Autoplay audio policy:', err);
+                });
+            }
+        } catch (e) { }
     }
 
     function removePeer(peerId) {
@@ -4229,6 +4274,7 @@
             delete state.voice.audioElements[peerId];
         }
         delete state.voice.remoteStreams[peerId];
+        delete state.voice.pendingIceCandidates[peerId];
 
         state.voice.participants = state.voice.participants.filter(p => Number(p.id) !== Number(peerId));
         renderVoiceParticipantsGrid();
@@ -4288,10 +4334,18 @@
                     if (typeof sdpOffer === 'string') {
                         try { sdpOffer = JSON.parse(sdpOffer); } catch (e) { }
                     }
-                    await pc.setRemoteDescription(new RTCSessionDescription(sdpOffer));
-                    const answer = await pc.createAnswer();
-                    await pc.setLocalDescription(answer);
-                    sendVoiceSignal(senderId, 'call-answer', answer);
+                    const offerDesc = (typeof sdpOffer === 'object' && sdpOffer !== null)
+                        ? { type: sdpOffer.type || 'offer', sdp: sdpOffer.sdp || '' }
+                        : { type: 'offer', sdp: String(sdpOffer || '') };
+                    try {
+                        await pc.setRemoteDescription(offerDesc);
+                        await drainPendingIceCandidates(senderId);
+                        const answer = await pc.createAnswer();
+                        await pc.setLocalDescription(answer);
+                        sendVoiceSignal(senderId, 'call-answer', { type: answer.type, sdp: answer.sdp });
+                    } catch (e) {
+                        console.error('Group voice offer handling error:', e);
+                    }
                     return;
                 }
 
@@ -4341,24 +4395,29 @@
                     if (typeof sdpAnswer === 'string') {
                         try { sdpAnswer = JSON.parse(sdpAnswer); } catch (e) { }
                     }
-                    await pc.setRemoteDescription(new RTCSessionDescription(sdpAnswer));
-                    startCallDurationTimer();
-                    updateVoiceDockInfo();
-                    showToast(`Terhubung dengan ${state.voice.targetName}`, 'success');
+                    const answerDesc = (typeof sdpAnswer === 'object' && sdpAnswer !== null)
+                        ? { type: sdpAnswer.type || 'answer', sdp: sdpAnswer.sdp || '' }
+                        : { type: 'answer', sdp: String(sdpAnswer || '') };
+                    try {
+                        await pc.setRemoteDescription(answerDesc);
+                        await drainPendingIceCandidates(senderId);
+                        startCallDurationTimer();
+                        updateVoiceDockInfo();
+                        showToast(`Terhubung dengan ${state.voice.targetName}`, 'success');
+                    } catch (e) {
+                        console.error('Direct call answer handling error:', e);
+                    }
                 }
                 break;
             }
 
             case 'ice-candidate': {
-                const pc = state.voice.peerConnections[senderId];
-                if (pc && signal.data) {
-                    try {
-                        let candData = signal.data;
-                        if (typeof candData === 'string') {
-                            try { candData = JSON.parse(candData); } catch (e) { }
-                        }
-                        await pc.addIceCandidate(new RTCIceCandidate(candData));
-                    } catch (e) { }
+                if (signal.data) {
+                    let candData = signal.data;
+                    if (typeof candData === 'string') {
+                        try { candData = JSON.parse(candData); } catch (e) { }
+                    }
+                    addOrQueueIceCandidate(senderId, candData);
                 }
                 break;
             }
@@ -4475,18 +4534,29 @@
             { id: Number(targetId), name: targetName, is_muted: false }
         ];
 
-        updateVoiceDockInfo();
-        showVoiceDock();
-        renderVoiceParticipantsGrid();
         window.openVoiceStage();
+        renderVoiceParticipantsGrid();
 
-        document.getElementById('voiceStageSubtitle').textContent = `Memanggil ${targetName}...`;
+        const subtitleEl = document.getElementById('voiceStageSubtitle');
+        if (subtitleEl) {
+            subtitleEl.textContent = `Memanggil ${targetName}...`;
+            subtitleEl.style.color = 'var(--text-muted, #94a3b8)';
+        }
 
-        const pc = createPeerConnection(targetId);
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        await sendVoiceSignal(targetId, 'call-offer', offer);
-        playIncomingRingtone();
+        try {
+            const pc = createPeerConnection(targetId);
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            await sendVoiceSignal(targetId, 'call-offer', {
+                type: offer.type,
+                sdp: offer.sdp
+            });
+            playIncomingRingtone();
+        } catch (err) {
+            console.error('Error starting direct voice call:', err);
+            showToast('Gagal memulai panggilan suara: ' + err.message, 'error');
+            handleDisconnectVoiceCall();
+        }
     };
 
     window.handleAcceptIncomingCall = async function () {
@@ -4500,42 +4570,59 @@
         }
         if (!incoming) return;
 
+        const callerId = Number(incoming.sender_id);
+        const callerName = incoming.sender_name || 'Kontak';
+
         const stream = await getMediaStream();
         if (!stream) {
-            sendVoiceSignal(incoming.sender_id, 'call-rejected', {});
+            sendVoiceSignal(callerId, 'call-rejected', {});
             return;
         }
 
-        const callerId = Number(incoming.sender_id);
         state.voice.active = true;
         state.voice.roomType = 'direct';
         state.voice.groupId = null;
         state.voice.targetUserId = callerId;
-        state.voice.targetName = incoming.sender_name;
+        state.voice.targetName = callerName;
         state.voice.participants = [
-            { id: callerId, name: incoming.sender_name, is_muted: false },
+            { id: callerId, name: callerName, is_muted: false },
             { id: state.user.id, name: state.user.display_name || state.user.username, is_muted: false }
         ];
 
-        updateVoiceDockInfo();
-        showVoiceDock();
-        renderVoiceParticipantsGrid();
         window.openVoiceStage();
+        updateVoiceDockInfo();
+        renderVoiceParticipantsGrid();
 
-        let sdpOffer = incoming.data;
-        if (typeof sdpOffer === 'string') {
-            try { sdpOffer = JSON.parse(sdpOffer); } catch (e) { }
+        try {
+            let sdpOffer = incoming.data;
+            if (typeof sdpOffer === 'string') {
+                try { sdpOffer = JSON.parse(sdpOffer); } catch (e) { }
+            }
+
+            const pc = createPeerConnection(callerId);
+            const offerDesc = (typeof sdpOffer === 'object' && sdpOffer !== null)
+                ? { type: sdpOffer.type || 'offer', sdp: sdpOffer.sdp || '' }
+                : { type: 'offer', sdp: String(sdpOffer || '') };
+
+            await pc.setRemoteDescription(offerDesc);
+            await drainPendingIceCandidates(callerId);
+
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            await sendVoiceSignal(callerId, 'call-answer', {
+                type: answer.type,
+                sdp: answer.sdp
+            });
+
+            startCallDurationTimer();
+            state.voice.incomingCall = null;
+            showToast(`Terhubung dengan ${callerName}`, 'success');
+        } catch (err) {
+            console.error('Error accepting voice call:', err);
+            showToast('Gagal menghubungkan obrolan suara: ' + err.message, 'error');
+            handleDisconnectVoiceCall();
         }
-
-        const pc = createPeerConnection(callerId);
-        await pc.setRemoteDescription(new RTCSessionDescription(sdpOffer));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        await sendVoiceSignal(callerId, 'call-answer', answer);
-
-        startCallDurationTimer();
-        state.voice.incomingCall = null;
-        showToast(`Terhubung dengan ${incoming.sender_name}`, 'success');
     };
 
     window.handleDeclineIncomingCall = function () {
@@ -4573,17 +4660,23 @@
                 { id: state.user.id, name: state.user.display_name || state.user.username, is_muted: false }
             ];
 
+            window.openVoiceStage();
             updateVoiceDockInfo();
-            showVoiceDock();
             startCallDurationTimer();
             renderVoiceParticipantsGrid();
-            window.openVoiceStage();
 
             for (const other of existingParticipants) {
-                const pc = createPeerConnection(other.id);
-                const offer = await pc.createOffer();
-                await pc.setLocalDescription(offer);
-                sendVoiceSignal(other.id, 'call-offer', offer);
+                try {
+                    const pc = createPeerConnection(other.id);
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+                    sendVoiceSignal(other.id, 'call-offer', {
+                        type: offer.type,
+                        sdp: offer.sdp
+                    });
+                } catch (e) {
+                    console.error('Error connecting to group participant:', e);
+                }
             }
 
             showToast(`Bergabung ke ruang suara ${groupName}`, 'success');
@@ -4698,6 +4791,7 @@
             modal.style.display = 'flex';
             renderVoiceParticipantsGrid();
         }
+        hideVoiceDock();
     };
 
     window.minimizeVoiceStage = function () {
@@ -4705,6 +4799,9 @@
         if (modal) {
             modal.classList.remove('active');
             modal.style.display = 'none';
+        }
+        if (state.voice.active) {
+            showVoiceDock();
         }
     };
 
@@ -4731,9 +4828,15 @@
         if (stageTitle) stageTitle.textContent = title;
         if (stageSubtitle) {
             const count = state.voice.participants.length;
-            stageSubtitle.textContent = state.voice.roomType === 'group'
-                ? `${count} orang terhubung di ruang suara`
-                : 'Panggilan suara terhubung';
+            const mins = String(Math.floor(state.voice.callSeconds / 60)).padStart(2, '0');
+            const secs = String(state.voice.callSeconds % 60).padStart(2, '0');
+            if (state.voice.roomType === 'group') {
+                stageSubtitle.textContent = `${count} orang terhubung • ${mins}:${secs}`;
+                stageSubtitle.style.color = '#10b981';
+            } else {
+                stageSubtitle.textContent = `Terhubung • ${mins}:${secs}`;
+                stageSubtitle.style.color = '#10b981';
+            }
         }
     }
 
@@ -4746,6 +4849,14 @@
             const secs = String(state.voice.callSeconds % 60).padStart(2, '0');
             const durationEl = document.getElementById('dockVoiceDuration');
             if (durationEl) durationEl.textContent = `${mins}:${secs}`;
+
+            const stageSubtitle = document.getElementById('voiceStageSubtitle');
+            if (stageSubtitle && state.voice.active) {
+                stageSubtitle.textContent = state.voice.roomType === 'group'
+                    ? `Terhubung di grup • ${mins}:${secs}`
+                    : `Terhubung • ${mins}:${secs}`;
+                stageSubtitle.style.color = '#10b981';
+            }
         }, 1000);
     }
 
@@ -4764,11 +4875,13 @@
             const initial = (p.name || 'U').substring(0, 2).toUpperCase();
             const muteBadge = p.is_muted ? '<span style="font-size: 0.75rem; color: #ef4444; margin-top: 0.25rem;">(Muted)</span>' : '';
 
+            const avatarMarkup = p.avatar
+                ? `<img src="${escapeHtml(p.avatar)}" alt="${escapeHtml(p.name)}" class="voice-participant-avatar" style="object-fit: cover;">`
+                : `<div class="voice-participant-avatar ${getPastelColorClass(p.name)}">${initial}</div>`;
+
             return `
                 <div id="voiceParticipant_${p.id}" class="voice-participant-card">
-                    <div class="voice-participant-avatar avatar-pastel-purple">
-                        ${initial}
-                    </div>
+                    ${avatarMarkup}
                     <span style="font-size: 0.875rem; font-weight: 600; color: var(--text-main); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                         ${escapeHtml(p.name)} ${isMe ? '(Anda)' : ''}
                     </span>
