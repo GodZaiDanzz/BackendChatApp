@@ -16,7 +16,6 @@ use Illuminate\Support\Str;
 
 class MessageController extends Controller
 {
-    /**
     public function upload(Request $request)
     {
         $request->validate([
