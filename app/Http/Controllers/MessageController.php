@@ -17,22 +17,57 @@ use Illuminate\Support\Str;
 class MessageController extends Controller
 {
     /**
-     * Store a new message in ephemeral MySQL queue and broadcast
-     */
+    public function upload(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|max:25600',
+        ]);
+
+        $file = $request->file('file');
+        $originalName = $file->getClientOriginalName();
+        $ext = strtolower($file->getClientOriginalExtension());
+        $mime = $file->getMimeType() ?: 'application/octet-stream';
+        $size = $file->getSize();
+
+        $filename = time() . '_' . Str::random(12) . ($ext ? '.' . $ext : '');
+        $uploadDir = public_path('uploads/chat');
+        if (!file_exists($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        $file->move($uploadDir, $filename);
+
+        return response()->json([
+            'url'  => '/uploads/chat/' . $filename,
+            'name' => $originalName,
+            'size' => $size,
+            'type' => $mime,
+        ]);
+    }
+
     public function store(Request $request)
     {
         $data = $request->validate([
-            'client_uuid' => 'required|uuid',
+            'client_uuid' => 'required|string|max:64',
             'receiver_id' => 'required|exists:users,id',
-            'body'        => 'required|string|max:4000',
+            'body'        => 'nullable|string|max:4000',
+            'attachment'  => 'nullable|array',
+            'reply_to'    => 'nullable|array',
         ]);
+
+        $body = $data['body'] ?? '';
+        if (trim($body) === '' && !empty($data['attachment']['name'])) {
+            $body = '[Berkas: ' . $data['attachment']['name'] . ']';
+        }
 
         $msg = Message::firstOrCreate(
             ['client_uuid' => $data['client_uuid']],
             [
                 'sender_id'   => $request->user()->id,
                 'receiver_id' => $data['receiver_id'],
-                'body'        => $data['body'],
+                'body'        => $body,
+                'attachment'  => $data['attachment'] ?? null,
+                'reply_to'    => $data['reply_to'] ?? null,
                 'status'      => 'sent',
             ]
         );

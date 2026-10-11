@@ -944,7 +944,8 @@ html, body {
   flex-shrink: 0;
 }
 
-.message-row.me:hover .message-actions {
+.message-row:hover .message-actions,
+.message-row:focus-within .message-actions {
   display: inline-flex;
 }
 

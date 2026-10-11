@@ -30,6 +30,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/contacts/reject', [ContactController::class, 'reject']);
     Route::post('/heartbeat', [ContactController::class, 'heartbeat']);
     Route::post('/devices', [DeviceController::class, 'store']);
+    Route::post('/messages/upload', [MessageController::class, 'upload']);
     Route::post('/messages', [MessageController::class, 'store'])->middleware('throttle:60,1');
     Route::put('/messages/{id}', [MessageController::class, 'update']);
     Route::delete('/messages/{id}', [MessageController::class, 'destroy']);

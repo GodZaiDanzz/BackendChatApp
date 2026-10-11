@@ -11,9 +11,18 @@ class Message extends Model
         'sender_id',
         'receiver_id',
         'body',
+        'attachment',
+        'reply_to',
         'status',
         'is_edited',
         'is_deleted',
+    ];
+
+    protected $casts = [
+        'attachment' => 'array',
+        'reply_to'   => 'array',
+        'is_edited'  => 'boolean',
+        'is_deleted' => 'boolean',
     ];
 
     public function sender()

@@ -1218,7 +1218,11 @@
         const name = isTargetMe ? 'Anda' : (state.activeContact.display_name || state.activeContact.username);
 
         if (authorEl) authorEl.textContent = `Membalas ${name}`;
-        if (snippetEl) snippetEl.textContent = target.body ? target.body.substring(0, 80) : '[Lampiran]';
+        let snippet = target.body || '';
+        if (target.attachment) {
+            snippet = snippet && !snippet.startsWith('[Berkas:') ? snippet : `📷 ${target.attachment.name || 'Lampiran'}`;
+        }
+        if (snippetEl) snippetEl.textContent = snippet ? snippet.substring(0, 80) : '[Lampiran]';
         if (banner) banner.style.display = 'flex';
 
         const textarea = document.getElementById('messageInput');
@@ -1243,6 +1247,27 @@
         }
     };
 
+    async function uploadAttachmentFile(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await fetch(`${API_BASE}/messages/upload`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                ...(state.token ? { 'Authorization': `Bearer ${state.token}` } : {})
+            },
+            body: formData
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => null);
+            throw new Error((err && err.message) || 'Gagal mengunggah berkas');
+        }
+
+        return await res.json();
+    }
+
     window.triggerFileAttachment = function () {
         const fileInput = document.getElementById('chatFileInput');
         if (fileInput) fileInput.click();
@@ -1252,9 +1277,8 @@
         const file = e.target.files && e.target.files[0];
         if (!file) return;
 
-        // Batasi ukuran maksimal berkas sebesar 5 MB
-        if (file.size > 5 * 1024 * 1024) {
-            showToast('Ukuran berkas melebihi batas maksimal 5 MB.', 'error');
+        if (file.size > 25 * 1024 * 1024) {
+            showToast('Ukuran berkas melebihi batas maksimal 25 MB.', 'error');
             e.target.value = '';
             return;
         }
@@ -1265,7 +1289,17 @@
                 name: file.name,
                 size: file.size,
                 type: file.type,
-                dataUrl: evt.target.result
+                dataUrl: evt.target.result,
+                fileObj: file,
+                uploadPromise: uploadAttachmentFile(file).then(res => {
+                    if (state.selectedAttachment && state.selectedAttachment.fileObj === file) {
+                        state.selectedAttachment.url = res.url;
+                    }
+                    return res;
+                }).catch(err => {
+                    console.warn('Upload gagal:', err);
+                    return null;
+                })
             };
 
             const banner = document.getElementById('attachmentPreviewBanner');
@@ -1839,18 +1873,12 @@
                 `;
             }
 
-            let renderedBody = escapeHtml(msg.body).replace(/\n/g, '<br>');
-            if (state.inChatSearchQuery && !isDeleted) {
-                try {
-                    const regex = new RegExp(`(${escapeRegex(state.inChatSearchQuery)})`, 'gi');
-                    renderedBody = renderedBody.replace(regex, '<mark class="chat-search-highlight">$1</mark>');
-                } catch (e) {}
-            }
-
+            // Quoted reply snippet
             let quoteHtml = '';
             if (msg.reply_to && !isDeleted) {
                 const targetReplyId = escapeHtml(msg.reply_to.id || msg.reply_to.client_uuid || '');
-                const authorName = escapeHtml(msg.reply_to.sender_name || 'Balasan');
+                const isRepliedAuthorMe = state.user && Number(msg.reply_to.sender_id) === Number(state.user.id);
+                const authorName = isRepliedAuthorMe ? 'Anda' : escapeHtml(msg.reply_to.sender_name || 'Balasan');
                 const snippetText = escapeHtml((msg.reply_to.body || '[Lampiran]').substring(0, 75));
                 quoteHtml = `
                     <div class="bubble-quote-card" onclick="scrollToMessage('${targetReplyId}')" role="button" tabindex="0" title="Loncat ke pesan asal">
@@ -1860,20 +1888,38 @@
                 `;
             }
 
+            // Attachment rendering with image detection and legacy fallback
             let attachmentHtml = '';
-            if (msg.attachment && !isDeleted) {
-                const att = msg.attachment;
-                if (att.type && att.type.startsWith('image/')) {
+            let att = msg.attachment;
+
+            if (!att && msg.body && msg.body.startsWith('[Berkas:') && !isDeleted) {
+                const match = msg.body.match(/^\[Berkas:\s*(.+?)\]$/);
+                if (match) {
+                    const fileName = match[1];
+                    const isImg = Boolean(fileName.match(/\.(jpeg|jpg|png|gif|webp|svg)$/i));
+                    att = {
+                        name: fileName,
+                        url: `/uploads/chat/${encodeURIComponent(fileName)}`,
+                        type: isImg ? 'image/jpeg' : 'application/octet-stream'
+                    };
+                }
+            }
+
+            if (att && !isDeleted) {
+                const fileUrl = att.url || att.dataUrl || '#';
+                const isImage = (att.type && att.type.startsWith('image/')) || (att.name && att.name.match(/\.(jpeg|jpg|png|gif|webp|svg)$/i));
+
+                if (isImage) {
                     attachmentHtml = `
                         <div class="bubble-attachment-image">
-                            <a href="${att.dataUrl}" target="_blank" rel="noopener noreferrer" title="Buka gambar penuh">
-                                <img src="${att.dataUrl}" alt="${escapeHtml(att.name || 'Gambar')}">
+                            <a href="${fileUrl}" target="_blank" rel="noopener noreferrer" title="Buka gambar penuh">
+                                <img src="${fileUrl}" alt="${escapeHtml(att.name || 'Gambar')}" loading="lazy">
                             </a>
                         </div>
                     `;
                 } else {
                     attachmentHtml = `
-                        <a class="bubble-attachment-file" href="${att.dataUrl}" download="${escapeHtml(att.name || 'berkas')}" title="Unduh berkas">
+                        <a class="bubble-attachment-file" href="${fileUrl}" download="${escapeHtml(att.name || 'berkas')}" title="Unduh berkas">
                             <div class="bubble-file-icon">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -1887,6 +1933,19 @@
                         </a>
                     `;
                 }
+            }
+
+            let renderedBody = '';
+            const isPlaceholderBody = att && msg.body && (msg.body === `[Berkas: ${att.name}]` || msg.body.startsWith('[Berkas:'));
+            if (!isPlaceholderBody && msg.body) {
+                let safeBody = escapeHtml(msg.body).replace(/\n/g, '<br>');
+                if (state.inChatSearchQuery && !isDeleted) {
+                    try {
+                        const regex = new RegExp(`(${escapeRegex(state.inChatSearchQuery)})`, 'gi');
+                        safeBody = safeBody.replace(regex, '<mark class="chat-search-highlight">$1</mark>');
+                    } catch (e) {}
+                }
+                renderedBody = `<span class="bubble-content">${safeBody}</span>`;
             }
 
             let reactionsHtml = '';
@@ -1910,10 +1969,10 @@
             return `
                 <div class="message-row ${rowClass} ${groupClass}" data-msg-id="${safeIdAttr}">
                     <div class="message-bubble-wrapper">
-                        <div class="message-bubble">
+                        <div class="message-bubble" ondblclick="startReplyMessage('${safeIdAttr}')" title="Klik 2x untuk membalas">
                             ${quoteHtml}
                             ${attachmentHtml}
-                            <span class="bubble-content">${renderedBody}</span>
+                            ${renderedBody}
                             ${isEdited ? '<span class="edited-label">(diedit)</span>' : ''}
                             <span class="bubble-meta">
                                 <span class="meta-time">${timeText}</span>
@@ -2066,17 +2125,59 @@
             ? crypto.randomUUID()
             : 'uuid-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
 
+        // Upload lampiran jika belum memiliki url publik
+        let finalAttachment = null;
+        if (state.selectedAttachment) {
+            if (state.selectedAttachment.url) {
+                finalAttachment = {
+                    url: state.selectedAttachment.url,
+                    name: state.selectedAttachment.name,
+                    size: state.selectedAttachment.size,
+                    type: state.selectedAttachment.type
+                };
+            } else if (state.selectedAttachment.uploadPromise) {
+                const res = await state.selectedAttachment.uploadPromise.catch(() => null);
+                if (res && res.url) {
+                    finalAttachment = {
+                        url: res.url,
+                        name: res.name || state.selectedAttachment.name,
+                        size: res.size || state.selectedAttachment.size,
+                        type: res.type || state.selectedAttachment.type
+                    };
+                }
+            } else if (state.selectedAttachment.fileObj) {
+                const res = await uploadAttachmentFile(state.selectedAttachment.fileObj).catch(() => null);
+                if (res && res.url) {
+                    finalAttachment = {
+                        url: res.url,
+                        name: res.name || state.selectedAttachment.name,
+                        size: res.size || state.selectedAttachment.size,
+                        type: res.type || state.selectedAttachment.type
+                    };
+                }
+            }
+
+            if (!finalAttachment && state.selectedAttachment.dataUrl) {
+                finalAttachment = {
+                    url: state.selectedAttachment.dataUrl,
+                    name: state.selectedAttachment.name,
+                    size: state.selectedAttachment.size,
+                    type: state.selectedAttachment.type
+                };
+            }
+        }
+
         const replyData = state.replyingTo ? {
             id: state.replyingTo.id || state.replyingTo.client_uuid,
             client_uuid: state.replyingTo.client_uuid,
+            sender_id: state.replyingTo.sender_id,
             sender_name: Number(state.replyingTo.sender_id) === Number(state.user.id)
-                ? 'Anda'
+                ? (state.user.display_name || state.user.username)
                 : (state.activeContact.display_name || state.activeContact.username),
             body: state.replyingTo.body
         } : null;
 
-        const attachmentData = state.selectedAttachment ? { ...state.selectedAttachment } : null;
-        const messageBody = body || (attachmentData ? `[Berkas: ${attachmentData.name}]` : '');
+        const messageBody = body || (finalAttachment ? `[Berkas: ${finalAttachment.name}]` : '');
 
         const newMsg = {
             id: null,
@@ -2085,7 +2186,7 @@
             receiver_id: state.activeContact.id,
             body: messageBody,
             reply_to: replyData,
-            attachment: attachmentData,
+            attachment: finalAttachment,
             reactions: {},
             status: 'sent',
             is_edited: false,
@@ -2113,7 +2214,9 @@
                 body: JSON.stringify({
                     client_uuid: clientUuid,
                     receiver_id: state.activeContact.id,
-                    body: messageBody
+                    body: messageBody,
+                    attachment: finalAttachment,
+                    reply_to: replyData
                 })
             });
 
@@ -2122,6 +2225,8 @@
                 if (target) {
                     target.id = savedMsg.id;
                     target.status = savedMsg.status || 'sent';
+                    if (savedMsg.attachment) target.attachment = savedMsg.attachment;
+                    if (savedMsg.reply_to) target.reply_to = savedMsg.reply_to;
                     persistMessages();
                     renderActiveMessages();
                 }
