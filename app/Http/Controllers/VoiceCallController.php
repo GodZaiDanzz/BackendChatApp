@@ -41,7 +41,9 @@ class VoiceCallController extends Controller
 
         // Extract or generate Call UUID
         $callUuid = null;
-        if (isset($data['data']) && is_array($data['data']) && !empty($data['data']['call_uuid'])) {
+        if (!empty($request->input('call_uuid'))) {
+            $callUuid = (string) $request->input('call_uuid');
+        } elseif (isset($data['data']) && is_array($data['data']) && !empty($data['data']['call_uuid'])) {
             $callUuid = (string) $data['data']['call_uuid'];
         }
 
@@ -81,7 +83,7 @@ class VoiceCallController extends Controller
             Cache::put("incoming_call_direct_{$targetId}", [
                 'sender_id'     => $sender->id,
                 'sender_name'   => $sender->display_name ?: $sender->username,
-                'sender_avatar' => $sender->avatar,
+                'sender_avatar' => null,
                 'target_id'     => $targetId,
                 'signal_type'   => 'call-offer',
                 'room_type'     => 'direct',
@@ -94,13 +96,24 @@ class VoiceCallController extends Controller
             $activePair = Cache::get("active_call_pair_{$pairKey}");
             $callUuid = $callUuid ?: ($activePair['call_uuid'] ?? null);
 
-            if ($callUuid) {
-                try {
-                    CallLog::where('call_uuid', $callUuid)->update([
+            try {
+                $callLog = $callUuid ? CallLog::where('call_uuid', $callUuid)->first() : null;
+                if (!$callLog) {
+                    $callLog = CallLog::where('caller_id', $targetId)
+                        ->where('receiver_id', $sender->id)
+                        ->latest()
+                        ->first();
+                }
+
+                if ($callLog) {
+                    $callLog->update([
                         'status'     => 'answered',
                         'started_at' => now(),
                     ]);
-                } catch (\Exception $e) { }
+                    $callUuid = $callLog->call_uuid;
+                }
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('CallLog answer update error: ' . $e->getMessage());
             }
 
             Cache::put("active_call_pair_{$pairKey}", [
