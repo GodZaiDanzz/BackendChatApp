@@ -48,6 +48,7 @@
     @include('components.add-friend-modal')
     @include('components.create-group-modal')
     @include('components.add-group-member-modal')
+    @include('components.edit-group-modal')
     @include('components.contact-info-modal')
     @include('components.user-profile-modal')
     @include('components.voice-call-overlay')

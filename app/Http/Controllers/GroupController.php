@@ -226,12 +226,48 @@ class GroupController extends Controller
             'description' => 'nullable|string|max:255',
         ]);
 
-        $group->update([
+        $updateData = [
             'name'        => trim($data['name']),
             'description' => isset($data['description']) ? trim($data['description']) : null,
-        ]);
+        ];
 
-        return response()->json($group);
+        if ($request->hasFile('avatar')) {
+            $request->validate(['avatar' => 'image|max:5120']);
+            $file = $request->file('avatar');
+            $filename = 'grp_' . $group->id . '_' . time() . '.' . $file->getClientOriginalExtension();
+            $dir = public_path('uploads/groups');
+            if (!file_exists($dir)) {
+                mkdir($dir, 0755, true);
+            }
+            $file->move($dir, $filename);
+            $updateData['avatar'] = '/uploads/groups/' . $filename;
+        } elseif ($request->has('avatar')) {
+            $updateData['avatar'] = $request->input('avatar');
+        }
+
+        $group->update($updateData);
+
+        $group->load(['members.user:id,username,display_name', 'creator:id,username,display_name']);
+
+        return response()->json([
+            'id'            => $group->id,
+            'name'          => $group->name,
+            'description'   => $group->description,
+            'avatar'        => $group->avatar,
+            'group_key'     => $group->group_key,
+            'created_by'    => $group->created_by,
+            'created_at'    => $group->created_at?->toIso8601String(),
+            'my_role'       => $myMember->role,
+            'members_count' => $group->members->count(),
+            'members'       => $group->members->map(fn($m) => [
+                'user_id'      => $m->user_id,
+                'username'     => $m->user?->username,
+                'display_name' => $m->user?->display_name ?: $m->user?->username,
+                'role'         => $m->role,
+                'joined_at'    => $m->joined_at?->toIso8601String(),
+            ]),
+            'message'       => 'Detail grup berhasil diperbarui',
+        ]);
     }
 
     public function addMembers(Request $request, $id)
@@ -243,12 +279,18 @@ class GroupController extends Controller
             return response()->json(['message' => 'Hanya admin yang dapat menambah anggota grup'], 403);
         }
 
-        $data = $request->validate([
-            'user_ids'   => 'required|array',
-            'user_ids.*' => 'integer|exists:users,id',
-        ]);
+        $userIds = $request->input('user_ids') ?? $request->input('member_ids');
+        if (!is_array($userIds) && $request->filled('user_id')) {
+            $userIds = [$request->input('user_id')];
+        }
 
-        foreach ($data['user_ids'] as $uid) {
+        if (empty($userIds) || !is_array($userIds)) {
+            return response()->json(['message' => 'Pilih setidaknya satu anggota untuk ditambahkan'], 422);
+        }
+
+        $validUsers = \App\Models\User::whereIn('id', $userIds)->pluck('id');
+
+        foreach ($validUsers as $uid) {
             GroupMember::firstOrCreate(
                 ['group_id' => $group->id, 'user_id' => $uid],
                 ['role' => 'member', 'joined_at' => now()]
@@ -258,12 +300,14 @@ class GroupController extends Controller
         $group->load('members.user:id,username,display_name');
 
         return response()->json([
-            'message' => 'Anggota berhasil ditambahkan',
-            'members' => $group->members->map(fn($m) => [
+            'message'       => 'Anggota berhasil ditambahkan',
+            'members_count' => $group->members->count(),
+            'members'       => $group->members->map(fn($m) => [
                 'user_id'      => $m->user_id,
                 'username'     => $m->user?->username,
                 'display_name' => $m->user?->display_name ?: $m->user?->username,
                 'role'         => $m->role,
+                'joined_at'    => $m->joined_at?->toIso8601String(),
             ]),
         ]);
     }

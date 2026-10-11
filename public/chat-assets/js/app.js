@@ -1135,16 +1135,20 @@
                 const isMeLastMsg = Boolean(lastMsg && state.user && Number(lastMsg.sender_id) === Number(state.user.id));
                 const statusCheckHtml = isMeLastMsg ? renderListStatusCheck(lastMsg.status) : '';
 
+                const groupAvatarContent = group.avatar
+                    ? `<img src="${escapeHtml(group.avatar)}" alt="${escapeHtml(group.name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`
+                    : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>`;
+
                 return `
                     <div class="list-item ${isActive}" onclick="selectGroup(${group.id})" role="button" tabindex="0">
                         <div class="avatar-container">
-                            <div class="avatar-circle avatar-pastel-purple" style="display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(109, 40, 217, 0.35)); color: #c4b5fd;">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                                    <circle cx="9" cy="7" r="4"></circle>
-                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                                </svg>
+                            <div class="avatar-circle avatar-pastel-purple" style="display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(109, 40, 217, 0.35)); color: #c4b5fd; overflow: hidden;">
+                                ${groupAvatarContent}
                             </div>
                         </div>
                         <div class="list-item-content">
@@ -2176,10 +2180,14 @@
         const btnDelContact = document.getElementById('btnDeleteContactAction');
         const btnLeaveGrp = document.getElementById('btnLeaveGroupAction');
         const btnDelGrp = document.getElementById('btnDeleteGroupAction');
+        const btnHeaderEdit = document.getElementById('btnHeaderEditGroup');
+        const btnEditAction = document.getElementById('btnEditGroupAction');
         if (groupSec) groupSec.style.display = 'none';
         if (btnDelContact) btnDelContact.style.display = 'flex';
         if (btnLeaveGrp) btnLeaveGrp.style.display = 'none';
         if (btnDelGrp) btnDelGrp.style.display = 'none';
+        if (btnHeaderEdit) btnHeaderEdit.style.display = 'none';
+        if (btnEditAction) btnEditAction.style.display = 'none';
 
         // Focus message input
         const input = document.getElementById('messageInput');
@@ -2231,15 +2239,22 @@
 
         const activeAvatarEl = document.getElementById('activeAvatarCircle');
         if (activeAvatarEl) {
-            activeAvatarEl.className = 'avatar-circle avatar-pastel-purple';
-            activeAvatarEl.innerHTML = `
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="9" cy="7" r="4"></circle>
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                </svg>
-            `;
+            if (group.avatar) {
+                activeAvatarEl.className = 'avatar-circle';
+                activeAvatarEl.style.overflow = 'hidden';
+                activeAvatarEl.innerHTML = `<img src="${escapeHtml(group.avatar)}" alt="${escapeHtml(group.name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+            } else {
+                activeAvatarEl.className = 'avatar-circle avatar-pastel-purple';
+                activeAvatarEl.style.overflow = 'hidden';
+                activeAvatarEl.innerHTML = `
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                `;
+            }
         }
 
         const dot = document.getElementById('activeStatusDot');
@@ -2318,17 +2333,26 @@
         const btnDelContact = document.getElementById('btnDeleteContactAction');
         const btnLeaveGrp = document.getElementById('btnLeaveGroupAction');
         const btnDelGrp = document.getElementById('btnDeleteGroupAction');
+        const btnHeaderEdit = document.getElementById('btnHeaderEditGroup');
+        const btnEditAction = document.getElementById('btnEditGroupAction');
 
         if (infoAvatar) {
-            infoAvatar.className = 'avatar-circle info-avatar-large avatar-pastel-purple';
-            infoAvatar.innerHTML = `
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="9" cy="7" r="4"></circle>
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                </svg>
-            `;
+            if (group.avatar) {
+                infoAvatar.className = 'avatar-circle info-avatar-large';
+                infoAvatar.style.overflow = 'hidden';
+                infoAvatar.innerHTML = `<img src="${escapeHtml(group.avatar)}" alt="${escapeHtml(group.name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+            } else {
+                infoAvatar.className = 'avatar-circle info-avatar-large avatar-pastel-purple';
+                infoAvatar.style.overflow = 'hidden';
+                infoAvatar.innerHTML = `
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                `;
+            }
         }
         if (infoName) infoName.textContent = group.name;
         if (infoUser) infoUser.textContent = group.description || 'Grup Obrolan ZChat';
@@ -2340,38 +2364,46 @@
 
         const isAdmin = group.my_role === 'admin' || (Number(group.created_by) === Number(state.user?.id));
         if (btnDelGrp) btnDelGrp.style.display = isAdmin ? 'flex' : 'none';
-        if (btnAddMem) btnAddMem.style.display = isAdmin ? 'block' : 'none';
+        if (btnAddMem) btnAddMem.style.display = isAdmin ? 'flex' : 'none';
+        if (btnHeaderEdit) btnHeaderEdit.style.display = isAdmin ? 'flex' : 'none';
+        if (btnEditAction) btnEditAction.style.display = isAdmin ? 'flex' : 'none';
 
         if (groupCount) groupCount.textContent = group.members ? group.members.length : (group.members_count || 1);
 
         if (groupList && group.members) {
+            const isCurrentCreator = Number(group.created_by) === Number(state.user?.id);
             groupList.innerHTML = group.members.map(m => {
                 const initial = (m.display_name || m.username || 'U').charAt(0).toUpperCase();
                 const isMe = Number(m.user_id) === Number(state.user?.id);
                 const isMemAdmin = m.role === 'admin';
-                const canKick = isAdmin && !isMe;
+                const isTargetCreator = Number(m.user_id) === Number(group.created_by);
+                // Admin can kick members; only creator can kick another admin; creator cannot be kicked by other admins
+                const canKick = isAdmin && !isMe && (!isTargetCreator || isCurrentCreator);
 
                 return `
-                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.6rem; border-radius: 8px; background: var(--bg-surface-elevated, rgba(255,255,255,0.03)); border: 1px solid var(--border-subtle, rgba(255,255,255,0.06)); font-size: 0.8125rem;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.45rem 0.65rem; border-radius: 8px; background: var(--bg-surface-elevated, rgba(255,255,255,0.03)); border: 1px solid var(--border-subtle, rgba(255,255,255,0.06)); font-size: 0.8125rem;">
                         <div style="display: flex; align-items: center; gap: 0.5rem; overflow: hidden; min-width: 0;">
-                            <div class="avatar-circle" style="width: 28px; height: 28px; font-size: 0.75rem; flex-shrink: 0;">${initial}</div>
+                            <div class="avatar-circle" style="width: 30px; height: 30px; font-size: 0.75rem; flex-shrink: 0; background: linear-gradient(135deg, rgba(124, 58, 237, 0.3), rgba(139, 92, 246, 0.15)); color: #c4b5fd;">${initial}</div>
                             <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                                 <div style="font-weight: 600; color: var(--text-primary); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
-                                    ${escapeHtml(m.display_name)}${isMe ? ' <span style="color: var(--accent-primary); font-size: 0.7rem;">(Anda)</span>' : ''}
+                                    ${escapeHtml(m.display_name)}${isMe ? ' <span style="color: var(--accent-primary); font-size: 0.7rem; font-weight: 500;">(Anda)</span>' : ''}
                                 </div>
                                 <div style="font-size: 0.7rem; color: var(--text-muted);">@${escapeHtml(m.username)}</div>
                             </div>
                         </div>
                         <div style="display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0;">
-                            <span style="font-size: 0.6875rem; padding: 2px 6px; border-radius: 4px; ${isMemAdmin ? 'background: rgba(124, 58, 237, 0.2); color: #a78bfa; font-weight: 600;' : 'background: rgba(255,255,255,0.06); color: var(--text-muted);'}">
-                                ${isMemAdmin ? 'Admin' : 'Anggota'}
+                            <span style="font-size: 0.6875rem; padding: 2px 7px; border-radius: 4px; ${isMemAdmin ? 'background: rgba(124, 58, 237, 0.2); color: #a78bfa; font-weight: 600;' : 'background: rgba(255,255,255,0.06); color: var(--text-muted);'}">
+                                ${isMemAdmin ? (isTargetCreator ? 'Owner' : 'Admin') : 'Anggota'}
                             </span>
                             ${canKick ? `
-                                <button type="button" class="btn-icon" style="padding: 2px; color: #ef4444; width: 22px; height: 22px;" title="Keluarkan dari grup" onclick="handleRemoveGroupMember(${m.user_id})">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                                        <line x1="6" y1="6" x2="18" y2="6"></line>
+                                <button type="button" class="btn-kick-member" style="display: flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.12); color: #f87171; font-size: 0.6875rem; font-weight: 600; cursor: pointer; transition: all 0.15s ease;" title="Keluarkan dari grup" onclick="handleRemoveGroupMember(${m.user_id}, '${escapeHtml(m.display_name || m.username)}')">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="8.5" cy="7" r="4"></circle>
+                                        <line x1="18" y1="8" x2="23" y2="13"></line>
+                                        <line x1="23" y1="8" x2="18" y2="13"></line>
                                     </svg>
+                                    <span>Kick</span>
                                 </button>
                             ` : ''}
                         </div>
@@ -2482,44 +2514,15 @@
     window.openAddGroupMemberModal = function () {
         if (!state.activeContact || !state.activeContact.is_group) return;
         const modal = document.getElementById('addGroupMemberModal');
-        const listEl = document.getElementById('addMembersChecklist');
-        const currentGroup = state.groups.find(g => Number(g.id) === Number(state.activeContact.group_id));
+        const searchInput = document.getElementById('searchAddMemberInput');
+        if (searchInput) searchInput.value = '';
 
-        const existingMemberIds = currentGroup && currentGroup.members
-            ? currentGroup.members.map(m => Number(m.user_id))
-            : [];
-
-        const candidateContacts = state.contacts.filter(c => !existingMemberIds.includes(Number(c.id)));
-
-        if (listEl) {
-            if (candidateContacts.length === 0) {
-                listEl.innerHTML = `
-                    <div style="padding: 1rem; text-align: center; font-size: 0.8125rem; color: var(--text-muted);">
-                        Semua kontak Anda sudah menjadi anggota grup ini.
-                    </div>
-                `;
-            } else {
-                listEl.innerHTML = candidateContacts.map(c => {
-                    const initial = (c.display_name || c.username || 'U').charAt(0).toUpperCase();
-                    return `
-                        <label style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.6rem; border-radius: 6px; cursor: pointer; transition: background 0.15s ease; background: var(--bg-surface-elevated, rgba(255,255,255,0.02));">
-                            <div style="display: flex; align-items: center; gap: 0.6rem;">
-                                <div class="avatar-circle" style="width: 28px; height: 28px; font-size: 0.75rem;">${initial}</div>
-                                <div>
-                                    <div style="font-size: 0.8125rem; font-weight: 600; color: var(--text-primary);">${escapeHtml(c.display_name)}</div>
-                                    <div style="font-size: 0.7rem; color: var(--text-muted);">@${escapeHtml(c.username)}</div>
-                                </div>
-                            </div>
-                            <input type="checkbox" name="add_to_group_members" value="${c.id}" style="width: 16px; height: 16px; accent-color: var(--accent-primary); cursor: pointer;">
-                        </label>
-                    `;
-                }).join('');
-            }
-        }
+        renderAddMemberCandidatesList('');
 
         if (modal) {
             modal.style.display = 'flex';
             modal.classList.add('active');
+            if (searchInput) searchInput.focus();
         }
     };
 
@@ -2528,6 +2531,76 @@
         if (modal) {
             modal.classList.remove('active');
             modal.style.display = 'none';
+        }
+    };
+
+    window.filterAddMemberCandidates = function (e) {
+        const q = (e.target.value || '').toLowerCase().trim();
+        renderAddMemberCandidatesList(q);
+    };
+
+    function renderAddMemberCandidatesList(filterText = '') {
+        const listEl = document.getElementById('addMembersChecklist');
+        if (!listEl) return;
+
+        const currentGroup = state.groups.find(g => Number(g.id) === Number(state.activeContact?.group_id));
+        const existingMemberIds = currentGroup && currentGroup.members
+            ? currentGroup.members.map(m => Number(m.user_id))
+            : [];
+
+        // Currently selected checkboxes to preserve during search filter
+        const currentlyChecked = new Set(
+            Array.from(document.querySelectorAll('input[name="add_to_group_members"]:checked')).map(cb => Number(cb.value))
+        );
+
+        let candidates = (state.contacts || []).filter(c => !existingMemberIds.includes(Number(c.id)));
+        if (filterText) {
+            candidates = candidates.filter(c =>
+                (c.display_name && c.display_name.toLowerCase().includes(filterText)) ||
+                (c.username && c.username.toLowerCase().includes(filterText))
+            );
+        }
+
+        if (candidates.length === 0) {
+            listEl.innerHTML = `
+                <div style="padding: 1.5rem 1rem; text-align: center; font-size: 0.8125rem; color: var(--text-muted);">
+                    ${filterText ? 'Tidak ada kontak yang cocok dengan kata kunci.' : 'Semua teman di kontak Anda sudah menjadi anggota grup ini.'}
+                </div>
+            `;
+            updateAddMemberSubmitCount();
+            return;
+        }
+
+        listEl.innerHTML = candidates.map(c => {
+            const initial = (c.display_name || c.username || 'U').charAt(0).toUpperCase();
+            const isChecked = currentlyChecked.has(Number(c.id));
+            return `
+                <label style="display: flex; align-items: center; justify-content: space-between; padding: 0.45rem 0.65rem; border-radius: 8px; cursor: pointer; transition: background 0.15s ease; background: var(--bg-surface-elevated, rgba(255,255,255,0.03)); border: 1px solid var(--border-subtle, rgba(255,255,255,0.06)); margin-bottom: 2px;">
+                    <div style="display: flex; align-items: center; gap: 0.65rem;">
+                        <div class="avatar-circle" style="width: 32px; height: 32px; font-size: 0.75rem; flex-shrink: 0; background: linear-gradient(135deg, rgba(124, 58, 237, 0.3), rgba(139, 92, 246, 0.15)); color: #c4b5fd;">${initial}</div>
+                        <div>
+                            <div style="font-size: 0.8125rem; font-weight: 600; color: var(--text-primary);">${escapeHtml(c.display_name)}</div>
+                            <div style="font-size: 0.7rem; color: var(--text-muted);">@${escapeHtml(c.username)}</div>
+                        </div>
+                    </div>
+                    <input type="checkbox" name="add_to_group_members" value="${c.id}" ${isChecked ? 'checked' : ''} onchange="updateAddMemberSubmitCount()" style="width: 17px; height: 17px; accent-color: var(--accent-primary); cursor: pointer;">
+                </label>
+            `;
+        }).join('');
+
+        updateAddMemberSubmitCount();
+    }
+
+    window.updateAddMemberSubmitCount = function () {
+        const checkboxes = document.querySelectorAll('input[name="add_to_group_members"]:checked');
+        const count = checkboxes.length;
+        const submitBtn = document.getElementById('btnSubmitAddMembers');
+        const badge = document.getElementById('addMemberSelectedBadge');
+        if (badge) {
+            badge.textContent = `${count} dipilih`;
+        }
+        if (submitBtn) {
+            submitBtn.textContent = count > 0 ? `Tambahkan (${count})` : 'Tambahkan';
         }
     };
 
@@ -2551,17 +2624,27 @@
         }
 
         try {
-            await apiRequest(`/groups/${groupId}/members`, {
+            const res = await apiRequest(`/groups/${groupId}/members`, {
                 method: 'POST',
                 body: JSON.stringify({ user_ids: userIds })
             });
 
-            showToast('Anggota berhasil ditambahkan ke grup!', 'success');
+            showToast(res?.message || 'Anggota berhasil ditambahkan ke grup!', 'success');
             window.closeAddGroupMemberModal();
             await fetchGroups();
             const updatedGroup = state.groups.find(g => Number(g.id) === Number(groupId));
             if (updatedGroup) {
+                state.activeContact = {
+                    ...updatedGroup,
+                    is_group: true,
+                    id: 'group_' + groupId,
+                    group_id: Number(groupId)
+                };
                 updateRightPanelForGroup(updatedGroup);
+                const statusLabel = document.getElementById('activeUserOnlineStatus');
+                if (statusLabel) {
+                    statusLabel.textContent = `${updatedGroup.members_count || (updatedGroup.members ? updatedGroup.members.length : 1)} anggota`;
+                }
             }
         } catch (err) {
             showToast('Gagal menambahkan anggota: ' + err.message, 'error');
@@ -2573,24 +2656,210 @@
         }
     };
 
-    window.handleRemoveGroupMember = async function (userId) {
+    window.handleRemoveGroupMember = async function (userId, memberName) {
         if (!state.activeContact || !state.activeContact.is_group) return;
         const groupId = state.activeContact.group_id;
-        const confirmed = window.confirm('Keluarkan anggota ini dari grup?');
+        const groupName = state.activeContact.name || 'Grup';
+        const displayName = memberName || 'anggota ini';
+        const confirmed = window.confirm(`Apakah Anda yakin ingin mengeluarkan "${displayName}" dari grup "${groupName}"?`);
         if (!confirmed) return;
 
         try {
-            await apiRequest(`/groups/${groupId}/members/${userId}`, {
+            const res = await apiRequest(`/groups/${groupId}/members/${userId}`, {
                 method: 'DELETE'
             });
-            showToast('Anggota telah dikeluarkan dari grup.', 'info');
+            showToast(res?.message || `"${displayName}" telah dikeluarkan dari grup.`, 'info');
             await fetchGroups();
             const updatedGroup = state.groups.find(g => Number(g.id) === Number(groupId));
             if (updatedGroup) {
+                state.activeContact = {
+                    ...updatedGroup,
+                    is_group: true,
+                    id: 'group_' + groupId,
+                    group_id: Number(groupId)
+                };
                 updateRightPanelForGroup(updatedGroup);
+                const statusLabel = document.getElementById('activeUserOnlineStatus');
+                if (statusLabel) {
+                    statusLabel.textContent = `${updatedGroup.members_count || (updatedGroup.members ? updatedGroup.members.length : 1)} anggota`;
+                }
             }
         } catch (err) {
             showToast('Gagal mengeluarkan anggota: ' + err.message, 'error');
+        }
+    };
+
+    window.openEditGroupModal = function () {
+        window.closeChatDropdown();
+        if (!state.activeContact || !state.activeContact.is_group) return;
+        const currentGroup = state.groups.find(g => Number(g.id) === Number(state.activeContact.group_id));
+        if (!currentGroup) return;
+
+        const modal = document.getElementById('editGroupModal');
+        const nameInput = document.getElementById('editGroupNameInput');
+        const descInput = document.getElementById('editGroupDescInput');
+        const avatarPreview = document.getElementById('editGroupAvatarPreview');
+        const avatarFileInput = document.getElementById('editGroupAvatarFile');
+        const fileNameEl = document.getElementById('editGroupAvatarFileName');
+
+        if (nameInput) nameInput.value = currentGroup.name || '';
+        if (descInput) descInput.value = currentGroup.description || '';
+        if (avatarFileInput) avatarFileInput.value = '';
+        if (fileNameEl) fileNameEl.textContent = '';
+
+        if (avatarPreview) {
+            if (currentGroup.avatar) {
+                avatarPreview.innerHTML = `<img src="${escapeHtml(currentGroup.avatar)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+            } else {
+                avatarPreview.innerHTML = `
+                    <div class="avatar-circle avatar-pastel-purple" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                    </div>
+                `;
+            }
+        }
+
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+            if (nameInput) nameInput.focus();
+        }
+    };
+
+    window.closeEditGroupModal = function () {
+        const modal = document.getElementById('editGroupModal');
+        if (modal) {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
+    };
+
+    window.previewGroupAvatar = function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) {
+            showToast('Ukuran gambar maksimal 5MB.', 'error');
+            e.target.value = '';
+            return;
+        }
+        const fileNameEl = document.getElementById('editGroupAvatarFileName');
+        if (fileNameEl) fileNameEl.textContent = file.name;
+
+        const reader = new FileReader();
+        reader.onload = function (evt) {
+            const preview = document.getElementById('editGroupAvatarPreview');
+            if (preview) {
+                preview.innerHTML = `<img src="${evt.target.result}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
+    window.handleEditGroupSubmit = async function (e) {
+        if (e) e.preventDefault();
+        if (!state.activeContact || !state.activeContact.is_group) return;
+
+        const groupId = state.activeContact.group_id;
+        const nameInput = document.getElementById('editGroupNameInput');
+        const descInput = document.getElementById('editGroupDescInput');
+        const avatarFileInput = document.getElementById('editGroupAvatarFile');
+        const submitBtn = document.getElementById('btnSubmitEditGroup');
+
+        const name = (nameInput ? nameInput.value : '').trim();
+        const description = (descInput ? descInput.value : '').trim();
+
+        if (!name) {
+            showToast('Nama grup tidak boleh kosong.', 'error');
+            return;
+        }
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Menyimpan...';
+        }
+
+        try {
+            let res;
+            const file = avatarFileInput && avatarFileInput.files ? avatarFileInput.files[0] : null;
+
+            if (file) {
+                const formData = new FormData();
+                formData.append('name', name);
+                formData.append('description', description);
+                formData.append('avatar', file);
+
+                const token = localStorage.getItem('zchat_token');
+                const response = await fetch(`${API_BASE}/groups/${groupId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    throw new Error(errData.message || 'Gagal memperbarui profil grup');
+                }
+                res = await response.json();
+            } else {
+                res = await apiRequest(`/groups/${groupId}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ name, description })
+                });
+            }
+
+            showToast('Detail grup berhasil diperbarui!', 'success');
+            window.closeEditGroupModal();
+
+            await fetchGroups();
+            const updatedGroup = state.groups.find(g => Number(g.id) === Number(groupId));
+            if (updatedGroup) {
+                state.activeContact = {
+                    ...updatedGroup,
+                    is_group: true,
+                    id: 'group_' + groupId,
+                    group_id: Number(groupId)
+                };
+                const headerName = document.getElementById('activeChatDisplayName');
+                if (headerName) headerName.textContent = updatedGroup.name;
+
+                const activeAvatarEl = document.getElementById('activeAvatarCircle');
+                if (activeAvatarEl) {
+                    if (updatedGroup.avatar) {
+                        activeAvatarEl.className = 'avatar-circle';
+                        activeAvatarEl.style.overflow = 'hidden';
+                        activeAvatarEl.innerHTML = `<img src="${escapeHtml(updatedGroup.avatar)}" alt="${escapeHtml(updatedGroup.name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+                    } else {
+                        activeAvatarEl.className = 'avatar-circle avatar-pastel-purple';
+                        activeAvatarEl.style.overflow = 'hidden';
+                        activeAvatarEl.innerHTML = `
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            </svg>
+                        `;
+                    }
+                }
+
+                updateRightPanelForGroup(updatedGroup);
+                renderChatsList();
+            }
+        } catch (err) {
+            showToast('Gagal mengubah grup: ' + err.message, 'error');
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Simpan Perubahan';
+            }
         }
     };
 
@@ -2677,6 +2946,20 @@
         if (isShown) {
             window.closeChatDropdown();
         } else {
+            const isGroup = Boolean(state.activeContact && state.activeContact.is_group);
+            const infoLabel = document.getElementById('menuItemInfoLabel');
+            const editGrpItem = document.getElementById('menuItemEditGroup');
+            const addMemItem = document.getElementById('menuItemAddMember');
+
+            if (infoLabel) {
+                infoLabel.textContent = isGroup ? 'Informasi Grup' : 'Informasi Kontak';
+            }
+
+            const isAdmin = isGroup && (state.activeContact.my_role === 'admin' || Number(state.activeContact.created_by) === Number(state.user?.id));
+
+            if (editGrpItem) editGrpItem.style.display = (isGroup && isAdmin) ? 'flex' : 'none';
+            if (addMemItem) addMemItem.style.display = (isGroup && isAdmin) ? 'flex' : 'none';
+
             menu.classList.add('show');
             menu.style.display = 'flex';
             if (btn) btn.classList.add('active');

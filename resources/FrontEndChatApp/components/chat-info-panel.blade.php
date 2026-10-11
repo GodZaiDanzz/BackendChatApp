@@ -10,7 +10,15 @@
                 <span id="infoStatusDot" class="status-indicator-dot online" style="width: 14px; height: 14px; border-width: 2.5px;"></span>
             </div>
 
-            <h3 id="infoDisplayName" class="info-profile-name">Info Kontak</h3>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-top: 0.25rem;">
+                <h3 id="infoDisplayName" class="info-profile-name" style="margin-top: 0;">Info Kontak</h3>
+                <button type="button" id="btnHeaderEditGroup" class="btn-icon" onclick="openEditGroupModal()" title="Edit Nama & Deskripsi Grup" style="display: none; width: 26px; height: 26px; border-radius: 6px; background: rgba(124, 58, 237, 0.15); color: #a78bfa; padding: 4px;" aria-label="Edit Grup">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                </button>
+            </div>
             <p id="infoUsername" class="info-profile-handle">@kontak</p>
 
             {{-- 3 Quick Action Round Buttons: Telepon, Video, Senyap --}}
@@ -113,6 +121,15 @@
                     <line x1="23" y1="8" x2="18" y2="13"></line>
                 </svg>
                 <span>Hapus Kontak</span>
+            </button>
+
+            {{-- Group Action: Edit Detail Grup (Admin only) --}}
+            <button type="button" id="btnEditGroupAction" onclick="openEditGroupModal()" style="display: none; width: 100%; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid rgba(124, 58, 237, 0.4); background: rgba(124, 58, 237, 0.12); color: #c4b5fd; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+                <span>Edit Detail Grup</span>
             </button>
 
             {{-- Group Action: Keluar dari Grup --}}
