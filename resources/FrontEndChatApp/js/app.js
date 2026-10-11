@@ -809,8 +809,14 @@
                             <span class="list-item-title">${escapeHtml(contact.display_name)}</span>
                             <span class="user-status-text ${isOnline ? 'online' : 'offline'}">${isOnline ? 'Online' : 'Offline'}</span>
                         </div>
-                        <div class="list-item-preview">
+                        <div class="list-item-preview" style="display: flex; align-items: center; justify-content: space-between;">
                             <span>@${escapeHtml(contact.username)}</span>
+                            <button type="button" class="btn-icon-subtle danger" onclick="event.stopPropagation(); confirmDeleteContact(${contact.id})" title="Hapus kontak ${escapeHtml(contact.display_name)}" style="opacity: 0.6; padding: 3px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center;">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1776,6 +1782,41 @@
         renderActiveMessages();
         renderChatsList();
         showToast('Riwayat obrolan telah dibersihkan dari perangkat Anda.', 'info');
+    };
+
+    window.confirmDeleteContact = async function (targetId = null) {
+        window.closeChatDropdown();
+
+        const contactId = targetId ? Number(targetId) : (state.activeContact ? state.activeContact.id : null);
+        if (!contactId) return;
+
+        const targetContact = state.contacts.find(c => c.id === contactId) || state.activeContact;
+        const targetName = targetContact ? (targetContact.display_name || targetContact.username) : 'kontak ini';
+
+        const confirmed = window.confirm(`Hapus "${targetName}" dari daftar kontak Anda? Hubungan kontak akan dihapus.`);
+        if (!confirmed) return;
+
+        try {
+            await apiRequest(`/contacts/${contactId}`, { method: 'DELETE' });
+
+            state.contacts = state.contacts.filter(c => c.id !== contactId);
+
+            if (state.activeContact && state.activeContact.id === contactId) {
+                window.closeActiveChat();
+                const panel = document.getElementById('chatInfoPanel');
+                if (panel) panel.classList.remove('open');
+            }
+
+            window.closeContactInfoModal();
+            renderContactsList();
+            renderChatsList();
+            updateUnreadBadges();
+
+            showToast(`Kontak "${targetName}" berhasil dihapus.`, 'success');
+        } catch (err) {
+            console.error('Gagal menghapus kontak:', err);
+            showToast(err.message || 'Gagal menghapus kontak.', 'error');
+        }
     };
 
     function parseMessageTime(val) {

@@ -47,9 +47,12 @@
             </div>
         </div>
 
-        <div style="display: flex; gap: 0.75rem; margin-top: 0.25rem;">
-            <button type="button" class="btn-action-primary" style="flex: 1;" onclick="closeContactInfoModal(); focusMessageInput();">
+        <div style="display: flex; gap: 0.75rem; margin-top: 0.25rem; flex-wrap: wrap;">
+            <button type="button" class="btn-action-primary" style="flex: 1; min-width: 120px;" onclick="closeContactInfoModal(); focusMessageInput();">
                 Kirim Pesan
+            </button>
+            <button type="button" class="btn-action-primary" style="background-color: rgba(239, 68, 68, 0.12); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);" onclick="confirmDeleteContact()">
+                Hapus Kontak
             </button>
             <button type="button" class="btn-action-primary" style="background-color: var(--bg-surface-elevated); color: var(--text-primary); border: 1px solid var(--border-subtle);" onclick="closeContactInfoModal()">
                 Tutup

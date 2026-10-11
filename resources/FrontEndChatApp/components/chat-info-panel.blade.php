@@ -99,6 +99,18 @@
                 </div>
             </div>
         </div>
+
+        <div class="info-section" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.08));">
+            <button type="button" class="btn-delete-contact" onclick="confirmDeleteContact()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.1); color: #ef4444; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="8.5" cy="7" r="4"></circle>
+                    <line x1="18" y1="8" x2="23" y2="13"></line>
+                    <line x1="23" y1="8" x2="18" y2="13"></line>
+                </svg>
+                <span>Hapus Kontak</span>
+            </button>
+        </div>
     </div>
 
     {{-- Bottom-Right Floating Help / Info Circle (?) Button --}}

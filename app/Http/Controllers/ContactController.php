@@ -178,4 +178,25 @@ class ContactController extends Controller
 
         return response()->json(['message' => 'Permintaan pertemanan ditolak']);
     }
+
+    public function destroy(Request $request, $id)
+    {
+        $myId = $request->user()->id;
+        $targetId = (int) $id;
+
+        $deleted = Contact::where(function ($q) use ($myId, $targetId) {
+            $q->where('user_id', $myId)->where('contact_id', $targetId);
+        })->orWhere(function ($q) use ($myId, $targetId) {
+            $q->where('user_id', $targetId)->where('contact_id', $myId);
+        })->delete();
+
+        if (!$deleted) {
+            return response()->json(['message' => 'Kontak tidak ditemukan'], 404);
+        }
+
+        return response()->json([
+            'message'    => 'Kontak berhasil dihapus',
+            'contact_id' => $targetId,
+        ]);
+    }
 }

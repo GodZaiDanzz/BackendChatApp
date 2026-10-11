@@ -28,6 +28,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/contacts', [ContactController::class, 'store']);
     Route::post('/contacts/accept', [ContactController::class, 'accept']);
     Route::post('/contacts/reject', [ContactController::class, 'reject']);
+    Route::delete('/contacts/{id}', [ContactController::class, 'destroy']);
     Route::post('/heartbeat', [ContactController::class, 'heartbeat']);
     Route::post('/devices', [DeviceController::class, 'store']);
     Route::post('/messages/upload', [MessageController::class, 'upload']);
