@@ -783,6 +783,11 @@
             state.heartbeatInterval = null;
         }
 
+        if (state.reverbSocket) {
+            try { state.reverbSocket.disconnect(); } catch (e) { }
+            state.reverbSocket = null;
+        }
+
         state.token = null;
         state.user = null;
         state.contacts = [];
@@ -3582,50 +3587,287 @@
         } catch (e) { }
     }
 
-    async function syncActiveGroupMessages() {
-        if (!state.token || !state.user || !state.activeContact || !state.activeContact.is_group) return;
-        const groupId = state.activeContact.group_id;
-        const chatKey = 'group_' + groupId;
+    function initWebSocket() {
+        if (!state.token || !state.user || typeof Pusher === 'undefined') return;
+        if (state.reverbSocket) return;
 
         try {
-            const apiMsgs = await apiRequest(`/groups/${groupId}/messages`);
-            if (Array.isArray(apiMsgs) && apiMsgs.length > 0) {
-                const hexKey = state.activeContact.group_key;
-                if (!state.chats[chatKey]) state.chats[chatKey] = [];
+            const host = window.location.hostname;
+            const isHttps = window.location.protocol === 'https:';
 
-                let hasNew = false;
-                for (const m of apiMsgs) {
-                    if (m.body && m.body.startsWith('enc:v1:')) {
+            state.reverbSocket = new Pusher('qguotkg6438cbendsfti', {
+                wsHost: host,
+                wsPort: isHttps ? 443 : 80,
+                wssPort: 443,
+                forceTLS: isHttps,
+                enabledTransports: ['ws', 'wss'],
+                channelAuthorization: {
+                    endpoint: '/api/broadcasting/auth',
+                    headers: {
+                        Authorization: 'Bearer ' + state.token,
+                        Accept: 'application/json'
+                    }
+                }
+            });
+
+            const channelName = 'private-chat.' + state.user.id;
+            const channel = state.reverbSocket.subscribe(channelName);
+
+            channel.bind('group.message.sent', async (data) => {
+                const msg = data.message || data;
+                await handleIncomingGroupMessage(msg);
+            });
+
+            channel.bind('group.message.updated', async (data) => {
+                const msg = data.message || data;
+                await handleUpdatedGroupMessage(msg);
+            });
+
+            channel.bind('message.sent', async (data) => {
+                const msg = data.message || data;
+                await handleIncomingDirectMessage(msg);
+            });
+        } catch (e) {
+            console.warn('Reverb WebSocket initialization error:', e);
+        }
+    }
+
+    async function handleIncomingGroupMessage(msg) {
+        if (!msg || !msg.group_id) return;
+        const groupId = msg.group_id;
+        const chatKey = 'group_' + groupId;
+
+        let hexKey = state.conversationKeys[chatKey];
+        if (!hexKey) {
+            const grp = (state.groups || []).find(g => Number(g.id) === Number(groupId));
+            if (grp && grp.group_key) {
+                hexKey = grp.group_key;
+                state.conversationKeys[chatKey] = hexKey;
+            } else {
+                await fetchGroups();
+                hexKey = state.conversationKeys[chatKey];
+            }
+        }
+
+        if (msg.body && msg.body.startsWith('enc:v1:') && hexKey) {
+            msg.body = await decryptMessageBody(msg.body, hexKey);
+        }
+
+        if (!state.chats[chatKey]) state.chats[chatKey] = [];
+
+        const exists = state.chats[chatKey].find(
+            x => (x.client_uuid && x.client_uuid === msg.client_uuid) || (x.id && x.id === msg.id)
+        );
+
+        if (!exists) {
+            state.chats[chatKey].push(msg);
+            await AppDB.saveMessage(msg, state.user.id);
+
+            const isCurrentActive = state.activeContact && state.activeContact.is_group && Number(state.activeContact.group_id) === Number(groupId);
+
+            if (isCurrentActive) {
+                renderActiveMessages();
+                if (Number(msg.sender_id) !== Number(state.user.id)) {
+                    playMessageChime();
+                }
+            } else {
+                if (Number(msg.sender_id) !== Number(state.user.id)) {
+                    state.unread[chatKey] = (state.unread[chatKey] || 0) + 1;
+                    playMessageChime();
+                    const group = (state.groups || []).find(g => Number(g.id) === Number(groupId));
+                    const groupName = group ? group.name : 'Grup';
+                    showToast(`Pesan baru di ${groupName} dari ${msg.sender_name}: "${msg.body.substring(0, 40)}"`, 'info');
+
+                    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                        try {
+                            new Notification(groupName, {
+                                body: `${msg.sender_name}: ${msg.body.substring(0, 80)}`,
+                                icon: '/favicon.ico'
+                            });
+                        } catch (e) { }
+                    }
+                }
+            }
+
+            renderChatsList();
+        }
+    }
+
+    async function handleUpdatedGroupMessage(msg) {
+        if (!msg || !msg.group_id) return;
+        const chatKey = 'group_' + msg.group_id;
+        const list = state.chats[chatKey];
+        if (!list) return;
+
+        const existing = list.find(x => (x.client_uuid && x.client_uuid === msg.client_uuid) || (x.id && x.id === msg.id));
+        if (existing) {
+            let hexKey = state.conversationKeys[chatKey];
+            if (msg.body && msg.body.startsWith('enc:v1:') && hexKey) {
+                msg.body = await decryptMessageBody(msg.body, hexKey);
+            }
+            existing.body = msg.body;
+            existing.is_edited = Boolean(msg.is_edited);
+            existing.is_deleted = Boolean(msg.is_deleted);
+            await AppDB.saveMessage(existing, state.user.id);
+
+            const isCurrentActive = state.activeContact && state.activeContact.is_group && Number(state.activeContact.group_id) === Number(msg.group_id);
+            if (isCurrentActive) {
+                renderActiveMessages();
+            }
+            renderChatsList();
+        }
+    }
+
+    async function handleIncomingDirectMessage(msg) {
+        if (!msg || !msg.sender_id) return;
+        const partnerId = Number(msg.sender_id);
+        const hexKey = getConversationKeyForContact(partnerId);
+
+        if (msg.body && msg.body.startsWith('enc:v1:')) {
+            msg.body = await decryptMessageBody(msg.body, hexKey);
+        }
+
+        if (!state.chats[partnerId]) state.chats[partnerId] = [];
+
+        const existing = state.chats[partnerId].find(
+            m => (m.client_uuid && m.client_uuid === msg.client_uuid) || (m.id && m.id === msg.id)
+        );
+
+        if (!existing) {
+            const isCurrentActive = state.activeContact && !state.activeContact.is_group && Number(state.activeContact.id) === partnerId;
+            playMessageChime();
+
+            if (isCurrentActive) {
+                msg.status = 'read';
+                state.chats[partnerId].push(msg);
+                renderActiveMessages();
+                if (msg.id) {
+                    apiRequest('/messages/ack', {
+                        method: 'POST',
+                        body: JSON.stringify({ message_ids: [msg.id], status: 'read' })
+                    }).catch(() => { });
+                }
+            } else {
+                msg.status = 'delivered';
+                state.chats[partnerId].push(msg);
+                state.unread[partnerId] = (state.unread[partnerId] || 0) + 1;
+                const sender = state.contacts.find(c => Number(c.id) === partnerId);
+                const senderName = sender ? sender.display_name : 'Seseorang';
+                showToast(`Pesan baru dari ${senderName}: "${msg.body.substring(0, 40)}"`, 'info');
+
+                if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                    try {
+                        new Notification(senderName, {
+                            body: msg.body.substring(0, 80),
+                            icon: '/favicon.ico'
+                        });
+                    } catch (e) { }
+                }
+
+                if (msg.id) {
+                    apiRequest('/messages/ack', {
+                        method: 'POST',
+                        body: JSON.stringify({ message_ids: [msg.id], status: 'delivered' })
+                    }).catch(() => { });
+                }
+            }
+
+            await AppDB.saveMessage(msg, state.user.id);
+            renderChatsList();
+        }
+    }
+
+    async function syncGroupMessages() {
+        if (!state.token || !state.user) return;
+
+        const since = {};
+        (state.groups || []).forEach(g => {
+            const chatKey = 'group_' + g.id;
+            const msgs = state.chats[chatKey] || [];
+            let maxId = 0;
+            msgs.forEach(m => {
+                if (m.id && Number(m.id) > maxId) maxId = Number(m.id);
+            });
+            since[g.id] = maxId;
+        });
+
+        try {
+            const res = await apiRequest('/groups/sync', {
+                method: 'POST',
+                body: JSON.stringify({ since: since })
+            });
+
+            if (res && Array.isArray(res.messages) && res.messages.length > 0) {
+                let hasChanges = false;
+                let activeUpdated = false;
+
+                for (const m of res.messages) {
+                    const chatKey = 'group_' + m.group_id;
+                    const hexKey = state.conversationKeys[chatKey];
+
+                    if (m.body && m.body.startsWith('enc:v1:') && hexKey) {
                         m.body = await decryptMessageBody(m.body, hexKey);
                     }
+
+                    if (!state.chats[chatKey]) state.chats[chatKey] = [];
+
                     const exists = state.chats[chatKey].find(
                         x => (x.client_uuid && x.client_uuid === m.client_uuid) || (x.id && x.id === m.id)
                     );
+
+                    const isCurrentActive = state.activeContact && state.activeContact.is_group && Number(state.activeContact.group_id) === Number(m.group_id);
+
                     if (!exists) {
                         state.chats[chatKey].push(m);
-                        hasNew = true;
-                        if (Number(m.sender_id) !== Number(state.user.id)) {
-                            playMessageChime();
+                        await AppDB.saveMessage(m, state.user.id);
+                        hasChanges = true;
+
+                        if (isCurrentActive) {
+                            activeUpdated = true;
+                            if (Number(m.sender_id) !== Number(state.user.id)) {
+                                playMessageChime();
+                            }
+                        } else {
+                            if (Number(m.sender_id) !== Number(state.user.id)) {
+                                state.unread[chatKey] = (state.unread[chatKey] || 0) + 1;
+                                playMessageChime();
+                                const group = (state.groups || []).find(g => Number(g.id) === Number(m.group_id));
+                                const groupName = group ? group.name : 'Grup';
+                                showToast(`Pesan baru di ${groupName} dari ${m.sender_name}: "${m.body.substring(0, 40)}"`, 'info');
+
+                                if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                                    try {
+                                        new Notification(groupName, {
+                                            body: `${m.sender_name}: ${m.body.substring(0, 80)}`,
+                                            icon: '/favicon.ico'
+                                        });
+                                    } catch (e) { }
+                                }
+                            }
                         }
                     } else {
                         if (m.is_edited && !exists.is_edited) {
                             exists.is_edited = true;
                             exists.body = m.body;
-                            hasNew = true;
+                            hasChanges = true;
+                            if (isCurrentActive) activeUpdated = true;
                         }
                         const isDel = Boolean(m.is_deleted) || m.body === 'Pesan ini telah dihapus';
                         if (isDel && !exists.is_deleted) {
                             exists.is_deleted = true;
                             exists.body = 'Pesan ini telah dihapus';
-                            hasNew = true;
+                            hasChanges = true;
+                            if (isCurrentActive) activeUpdated = true;
                         }
                     }
                 }
 
-                if (hasNew) {
+                if (hasChanges) {
                     persistMessages();
-                    renderActiveMessages();
                     renderChatsList();
+                }
+                if (activeUpdated) {
+                    renderActiveMessages();
                 }
             }
         } catch (e) { }
@@ -3635,13 +3877,14 @@
         if (state.syncInterval) clearInterval(state.syncInterval);
         if (state.heartbeatInterval) clearInterval(state.heartbeatInterval);
 
+        initWebSocket();
         sendHeartbeat();
         fetchContacts();
         fetchRequests();
         fetchGroups();
         syncPendingMessages();
         syncMessageStatuses();
-        syncActiveGroupMessages();
+        syncGroupMessages();
 
         state.heartbeatInterval = setInterval(() => {
             sendHeartbeat();
@@ -3652,7 +3895,7 @@
             syncTick++;
             syncPendingMessages();
             syncMessageStatuses();
-            syncActiveGroupMessages();
+            syncGroupMessages();
             fetchRequests();
 
             if (state.activeContact && !state.activeContact.is_group) {

@@ -45,6 +45,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Group messaging and management
     Route::get('/groups', [GroupController::class, 'index']);
     Route::post('/groups', [GroupController::class, 'store']);
+    Route::post('/groups/sync', [GroupController::class, 'sync']);
     Route::get('/groups/{id}', [GroupController::class, 'show']);
     Route::put('/groups/{id}', [GroupController::class, 'update']);
     Route::delete('/groups/{id}', [GroupController::class, 'destroy']);

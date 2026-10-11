@@ -126,6 +126,63 @@ class GroupController extends Controller
         ], 201);
     }
 
+    public function sync(Request $request)
+    {
+        $userId = $request->user()->id;
+        $since = $request->input('since', []);
+
+        $groups = Group::whereHas('members', function ($q) use ($userId) {
+            $q->where('user_id', $userId);
+        })->get();
+
+        $messages = [];
+
+        foreach ($groups as $group) {
+            $lastId = isset($since[$group->id]) ? (int) $since[$group->id] : 0;
+
+            if ($lastId === 0) {
+                $groupMessages = GroupMessage::where('group_id', $group->id)
+                    ->with('sender:id,username,display_name')
+                    ->latest()
+                    ->limit(50)
+                    ->get()
+                    ->reverse();
+            } else {
+                $groupMessages = GroupMessage::where('group_id', $group->id)
+                    ->with('sender:id,username,display_name')
+                    ->where(function ($q) use ($lastId) {
+                        $q->where('id', '>', $lastId)
+                          ->orWhere('updated_at', '>=', now()->subMinutes(10));
+                    })
+                    ->orderBy('created_at', 'asc')
+                    ->limit(100)
+                    ->get();
+            }
+
+            foreach ($groupMessages as $msg) {
+                if (!ChatEncryption::isEncrypted($msg->body) && !$msg->is_deleted) {
+                    $msg->body = ChatEncryption::encryptWithKey($msg->body, $group->group_key);
+                }
+                $sender = $msg->sender;
+                $messages[] = [
+                    'id'          => $msg->id,
+                    'client_uuid' => $msg->client_uuid,
+                    'group_id'    => $msg->group_id,
+                    'sender_id'   => $msg->sender_id,
+                    'sender_name' => $sender ? ($sender->display_name ?: $sender->username) : 'Pengguna',
+                    'body'        => $msg->body,
+                    'attachment'  => $msg->attachment,
+                    'reply_to'    => $msg->reply_to,
+                    'is_edited'   => (bool) $msg->is_edited,
+                    'is_deleted'  => (bool) $msg->is_deleted,
+                    'created_at'  => $msg->created_at?->toIso8601String(),
+                ];
+            }
+        }
+
+        return response()->json(['messages' => $messages]);
+    }
+
     public function show(Request $request, $id)
     {
         $group = Group::with(['members.user:id,username,display_name', 'creator:id,username,display_name'])->findOrFail($id);

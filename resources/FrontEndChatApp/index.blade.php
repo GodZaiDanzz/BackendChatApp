@@ -50,7 +50,7 @@
     @include('components.user-profile-modal')
     @include('components.toast')
 
-    {{-- Application Logic Script --}}
+    <script src="/chat-assets/js/pusher.min.js?v={{ time() }}"></script>
     <script src="/chat-assets/js/app.js?v={{ time() }}"></script>
 </body>
 </html>
