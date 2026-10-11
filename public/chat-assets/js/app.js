@@ -750,8 +750,8 @@
     window.handleLogout = async function () {
         if (state.token) {
             try {
-                await apiRequest('/logout', { method: 'POST' }).catch(() => {});
-            } catch (e) {}
+                await apiRequest('/logout', { method: 'POST' }).catch(() => { });
+            } catch (e) { }
         }
 
         if (state.syncInterval) {
@@ -1151,7 +1151,128 @@
         } else {
             panel.classList.toggle('open');
         }
+        if (state.activeContact) {
+            updateRightPanelMediaAndDocs(state.activeContact.id);
+        }
     };
+
+    function updateRightPanelMediaAndDocs(contactId) {
+        const mediaContainer = document.getElementById('infoMediaGrid');
+        const docsContainer = document.getElementById('infoDocumentsList');
+        const mediaCountEl = document.getElementById('infoMediaCount');
+        const docsCountEl = document.getElementById('infoDocsCount');
+
+        if (!contactId || !mediaContainer || !docsContainer) return;
+
+        const messages = state.chats[contactId] || [];
+        const validAttachments = [];
+
+        messages.forEach(msg => {
+            if (msg.is_deleted || msg.body === 'Pesan ini telah dihapus') return;
+            if (msg.attachment && msg.attachment.url) {
+                validAttachments.push(msg.attachment);
+            } else if (msg.body && msg.body.startsWith('[Berkas:')) {
+                const match = msg.body.match(/^\[Berkas:\s*(.+?)\]$/);
+                if (match) {
+                    validAttachments.push({
+                        name: match[1],
+                        url: '',
+                        size: 0,
+                        type: ''
+                    });
+                }
+            }
+        });
+
+        const images = [];
+        const documents = [];
+
+        validAttachments.forEach(att => {
+            const name = (att.name || att.url || '').toLowerCase();
+            const type = (att.type || '').toLowerCase();
+            const isImg = type.startsWith('image/') || Boolean(name.match(/\.(jpeg|jpg|png|gif|webp|svg)$/i));
+
+            if (isImg) {
+                images.push(att);
+            } else {
+                documents.push(att);
+            }
+        });
+
+        if (mediaCountEl) mediaCountEl.textContent = images.length;
+        if (docsCountEl) docsCountEl.textContent = documents.length;
+
+        if (images.length === 0) {
+            mediaContainer.innerHTML = `
+                <div class="empty-media-note" style="grid-column: 1 / -1; padding: 0.85rem 0.5rem; text-align: center; font-size: 0.75rem; color: var(--text-muted); background: var(--bg-surface-elevated, rgba(255,255,255,0.03)); border-radius: 8px; border: 1px dashed var(--border-subtle, rgba(255,255,255,0.1));">
+                    Belum ada gambar bersama
+                </div>
+            `;
+        } else {
+            const recentImages = images.slice(-9).reverse();
+            mediaContainer.innerHTML = recentImages.map(img => {
+                const imgUrl = img.url || '#';
+                const imgName = escapeHtml(img.name || 'Gambar');
+                return `
+                    <a href="${imgUrl}" target="_blank" rel="noopener noreferrer" class="media-thumb-card" title="${imgName}" style="background-image: url('${imgUrl}'); background-size: cover; background-position: center; border: 1px solid var(--border-card); display: block; text-decoration: none;">
+                    </a>
+                `;
+            }).join('');
+        }
+
+        if (documents.length === 0) {
+            docsContainer.innerHTML = `
+                <div class="empty-docs-note" style="padding: 0.85rem 0.5rem; text-align: center; font-size: 0.75rem; color: var(--text-muted); background: var(--bg-surface-elevated, rgba(255,255,255,0.03)); border-radius: 8px; border: 1px dashed var(--border-subtle, rgba(255,255,255,0.1));">
+                    Belum ada dokumen bersama (.zip, .pdf, dll)
+                </div>
+            `;
+        } else {
+            const recentDocs = documents.slice(-10).reverse();
+            docsContainer.innerHTML = recentDocs.map(doc => {
+                const docUrl = doc.url || '#';
+                const docName = escapeHtml(doc.name || 'Berkas');
+                const ext = (doc.name || '').split('.').pop().toLowerCase() || 'file';
+                const sizeText = doc.size ? formatFileSize(doc.size) : 'Dokumen';
+
+                let iconColor = '#7c3aed';
+                let iconSvg = `
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                `;
+
+                if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+                    iconColor = '#f59e0b';
+                    iconSvg = `
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                        </svg>
+                    `;
+                } else if (ext === 'pdf') {
+                    iconColor = '#ef4444';
+                } else if (['doc', 'docx', 'txt'].includes(ext)) {
+                    iconColor = '#3b82f6';
+                } else if (['xls', 'xlsx', 'csv'].includes(ext)) {
+                    iconColor = '#10b981';
+                }
+
+                return `
+                    <a href="${docUrl}" ${docUrl !== '#' ? `download="${docName}"` : ''} target="_blank" rel="noopener noreferrer" class="document-item-card" title="Buka ${docName}" style="text-decoration: none;">
+                        <div class="doc-icon-container" style="color: ${iconColor};">
+                            ${iconSvg}
+                        </div>
+                        <div class="doc-details" style="overflow: hidden; min-width: 0;">
+                            <span class="doc-name" style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${docName}</span>
+                            <span class="doc-meta">${sizeText} • ${ext.toUpperCase()}</span>
+                        </div>
+                    </a>
+                `;
+            }).join('');
+        }
+    }
 
     window.handleSimulatedAction = function (name) {
         showToast(`${name} sedang disiapkan.`, 'info');
@@ -1174,14 +1295,14 @@
             gain.connect(ctx.destination);
             osc.start();
             osc.stop(ctx.currentTime + 0.32);
-        } catch (e) {}
+        } catch (e) { }
     }
 
     window.toggleSoundNotification = function (enabled) {
         state.soundEnabled = Boolean(enabled);
         try {
             localStorage.setItem('zchat_sound_enabled', String(state.soundEnabled));
-        } catch (e) {}
+        } catch (e) { }
         if (state.soundEnabled) {
             playMessageChime();
             showToast('Suara notifikasi diaktifkan.', 'info');
@@ -1751,6 +1872,7 @@
             renderActiveMessages();
             renderContactsList();
             renderChatsList();
+            updateRightPanelMediaAndDocs(contact.id);
         } catch (err) {
             console.error('Error rendering active chat messages:', err);
         } finally {
@@ -1986,7 +2108,7 @@
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                 </svg>
-                <span>Pesan dalam obrolan ini diamankan dengan enkripsi end-to-end (AES-256).</span>
+                <span>Pesan dalam obrolan ini diamankan dengan enkripsi end-to-end.</span>
             </div>
         `;
 
@@ -2114,7 +2236,7 @@
                     try {
                         const regex = new RegExp(`(${escapeRegex(state.inChatSearchQuery)})`, 'gi');
                         safeBody = safeBody.replace(regex, '<mark class="chat-search-highlight">$1</mark>');
-                    } catch (e) {}
+                    } catch (e) { }
                 }
                 renderedBody = `<span class="bubble-content">${safeBody}</span>`;
             }
@@ -2125,14 +2247,14 @@
                 reactionsHtml = `
                     <div class="message-reactions-row">
                         ${Object.entries(msg.reactions).map(([em, users]) => {
-                            const isMyReaction = users.includes(currentName);
-                            return `
+                    const isMyReaction = users.includes(currentName);
+                    return `
                                 <button type="button" class="reaction-pill ${isMyReaction ? 'active' : ''}" onclick="toggleMessageReaction('${safeIdAttr}', '${em}')" title="${escapeHtml(users.join(', '))}">
                                     <span>${em}</span>
                                     <span class="reaction-count">${users.length}</span>
                                 </button>
                             `;
-                        }).join('')}
+                }).join('')}
                     </div>
                 `;
             }
@@ -2182,6 +2304,10 @@
 
         // Auto scroll to latest message
         container.scrollTop = container.scrollHeight;
+
+        if (state.activeContact) {
+            updateRightPanelMediaAndDocs(state.activeContact.id);
+        }
     }
 
     window.handleMessageKeydown = function (e) {
@@ -2204,7 +2330,7 @@
             apiRequest('/typing', {
                 method: 'POST',
                 body: JSON.stringify({ receiver_id: state.activeContact.id, is_typing: false })
-            }).catch(() => {});
+            }).catch(() => { });
         }
     }
 
@@ -2218,7 +2344,7 @@
             apiRequest('/typing', {
                 method: 'POST',
                 body: JSON.stringify({ receiver_id: state.activeContact.id, is_typing: true })
-            }).catch(() => {});
+            }).catch(() => { });
         }
 
         clearTimeout(state.myTypingTimeout);
@@ -2228,7 +2354,7 @@
                 apiRequest('/typing', {
                     method: 'POST',
                     body: JSON.stringify({ receiver_id: state.activeContact.id, is_typing: false })
-                }).catch(() => {});
+                }).catch(() => { });
             }
         }, 2500);
     };
@@ -2663,7 +2789,7 @@
                                     body: msg.body.substring(0, 80),
                                     icon: '/favicon.ico'
                                 });
-                            } catch (e) {}
+                            } catch (e) { }
                         }
                     }
                 } else {
@@ -2705,7 +2831,7 @@
                             message_ids: readAckIds,
                             status: 'read'
                         })
-                    }).catch(() => {});
+                    }).catch(() => { });
                 }
 
                 if (deliveredAckIds.length > 0) {
@@ -2715,7 +2841,7 @@
                             message_ids: deliveredAckIds,
                             status: 'delivered'
                         })
-                    }).catch(() => {});
+                    }).catch(() => { });
                 }
             }
         } catch (e) {
@@ -2798,7 +2924,7 @@
     async function sendHeartbeat() {
         if (!state.token || !state.user) return;
         try {
-            await apiRequest('/heartbeat', { method: 'POST' }).catch(() => {});
+            await apiRequest('/heartbeat', { method: 'POST' }).catch(() => { });
         } catch (e) {
             // Abaikan error heartbeat di background
         }
@@ -2811,7 +2937,7 @@
             if (res && res.contact_id) {
                 setContactTyping(res.contact_id, res.is_typing);
             }
-        } catch (e) {}
+        } catch (e) { }
     }
 
     function startDataSync() {
@@ -2960,7 +3086,7 @@
         if (document.body) document.body.setAttribute('data-theme', theme);
         try {
             localStorage.setItem('zchat_theme', theme);
-        } catch (e) {}
+        } catch (e) { }
 
         const darkIcon = document.getElementById('themeIconDark');
         const lightIcon = document.getElementById('themeIconLight');

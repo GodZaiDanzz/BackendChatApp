@@ -59,7 +59,6 @@
                 </div>
                 <div>
                     <div style="font-size: 0.8125rem; font-weight: 600; color: #10b981;">Terenkripsi End-to-End</div>
-                    <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.3;">Pesan diamankan dengan enkripsi AES-256</div>
                 </div>
             </div>
         </div>
@@ -67,26 +66,12 @@
         {{-- Section 1: Media Bersama --}}
         <div class="info-section">
             <div class="info-section-header">
-                <span class="info-section-title">Media bersama</span>
-                <button type="button" class="btn-link-action" onclick="handleSimulatedAction('Lihat Semua Media')">
-                    Lihat semua
-                </button>
+                <span class="info-section-title">Media bersama (<span id="infoMediaCount">0</span>)</span>
             </div>
 
-            <div class="info-media-grid">
-                {{-- Thumbnail 1: Soft Purple-Blue Gradient --}}
-                <div class="media-thumb-card thumb-gradient-purple" title="Gambar bersama"></div>
-
-                {{-- Thumbnail 2: Soft Orange-Peach Gradient --}}
-                <div class="media-thumb-card thumb-gradient-peach" title="Gambar bersama"></div>
-
-                {{-- Thumbnail 3: Soft Gray with Gallery Icon --}}
-                <div class="media-thumb-card thumb-placeholder" title="Media lainnya">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                        <polyline points="21 15 16 10 5 21"></polyline>
-                    </svg>
+            <div id="infoMediaGrid" class="info-media-grid">
+                <div class="empty-media-note" style="grid-column: 1 / -1; padding: 0.85rem 0.5rem; text-align: center; font-size: 0.75rem; color: var(--text-muted); background: var(--bg-surface-elevated, rgba(255,255,255,0.03)); border-radius: 8px; border: 1px dashed var(--border-subtle, rgba(255,255,255,0.1));">
+                    Belum ada gambar bersama
                 </div>
             </div>
         </div>
@@ -94,23 +79,12 @@
         {{-- Section 2: Dokumen --}}
         <div class="info-section">
             <div class="info-section-header">
-                <span class="info-section-title">Dokumen</span>
+                <span class="info-section-title">Dokumen (<span id="infoDocsCount">0</span>)</span>
             </div>
 
-            <div class="document-item-card" onclick="handleSimulatedAction('Buka Dokumen: Brief proyek.pdf')">
-                <div class="doc-icon-container">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                        <line x1="16" y1="17" x2="8" y2="17"></line>
-                        <polyline points="10 9 9 9 8 9"></polyline>
-                    </svg>
-                </div>
-
-                <div class="doc-details">
-                    <span class="doc-name">Brief proyek.pdf</span>
-                    <span class="doc-meta">2.4 MB • PDF</span>
+            <div id="infoDocumentsList" class="info-documents-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <div class="empty-docs-note" style="padding: 0.85rem 0.5rem; text-align: center; font-size: 0.75rem; color: var(--text-muted); background: var(--bg-surface-elevated, rgba(255,255,255,0.03)); border-radius: 8px; border: 1px dashed var(--border-subtle, rgba(255,255,255,0.1));">
+                    Belum ada dokumen bersama (.zip, .pdf, dll)
                 </div>
             </div>
         </div>
