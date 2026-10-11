@@ -51,9 +51,11 @@
 
         async function saveMessage(msg, currentUserId) {
             if (!msg || !msg.client_uuid) return;
-            const partnerId = Number(msg.sender_id) === Number(currentUserId)
-                ? Number(msg.receiver_id)
-                : Number(msg.sender_id);
+            const partnerId = msg.group_id
+                ? 'group_' + msg.group_id
+                : (Number(msg.sender_id) === Number(currentUserId)
+                    ? Number(msg.receiver_id)
+                    : Number(msg.sender_id));
 
             const record = {
                 ...msg,
@@ -87,9 +89,11 @@
                     const store = tx.objectStore(STORE_MESSAGES);
                     messages.forEach(msg => {
                         if (msg && msg.client_uuid) {
-                            const partnerId = Number(msg.sender_id) === Number(currentUserId)
-                                ? Number(msg.receiver_id)
-                                : Number(msg.sender_id);
+                            const partnerId = msg.group_id
+                                ? 'group_' + msg.group_id
+                                : (Number(msg.sender_id) === Number(currentUserId)
+                                    ? Number(msg.receiver_id)
+                                    : Number(msg.sender_id));
                             store.put({ ...msg, partner_id: partnerId });
                         }
                     });
@@ -145,7 +149,7 @@
                     req.onsuccess = function () {
                         const items = req.result || [];
                         items.forEach(item => {
-                            if (Number(item.partner_id) === Number(partnerId)) {
+                            if (String(item.partner_id) === String(partnerId)) {
                                 store.delete(item.client_uuid);
                             }
                         });
@@ -173,6 +177,7 @@
         user: JSON.parse(localStorage.getItem('zchat_user') || 'null'),
         contacts: [],
         requests: [],
+        groups: [],
         chats: JSON.parse(localStorage.getItem('zchat_messages') || '{}'),
         unread: {},
         activeContact: null,
@@ -220,6 +225,20 @@
 
     function getConversationKeyForContact(contactId) {
         if (!contactId) return null;
+        if (state.conversationKeys && state.conversationKeys[contactId]) {
+            return state.conversationKeys[contactId];
+        }
+        if (String(contactId).startsWith('group_')) {
+            const gid = Number(String(contactId).replace('group_', ''));
+            const grp = (state.groups || []).find(g => Number(g.id) === gid);
+            if (grp && grp.group_key) {
+                state.conversationKeys[contactId] = grp.group_key;
+                return grp.group_key;
+            }
+            if (state.activeContact && state.activeContact.is_group && state.activeContact.group_key) {
+                return state.activeContact.group_key;
+            }
+        }
         const id = Number(contactId);
         if (state.conversationKeys && state.conversationKeys[id]) {
             return state.conversationKeys[id];
@@ -973,42 +992,127 @@
 
         updateUnreadBadges();
 
-        if (state.contacts.length === 0) {
+        const conversationItems = [];
+
+        (state.contacts || []).forEach(contact => {
+            const msgs = state.chats[contact.id] || [];
+            const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
+            const lastTime = lastMsg ? new Date(lastMsg.created_at || 0).getTime() : 0;
+            conversationItems.push({
+                is_group: false,
+                id: contact.id,
+                raw: contact,
+                display_name: contact.display_name,
+                username: contact.username,
+                is_online: Boolean(contact.is_online),
+                lastMsg: lastMsg,
+                lastTime: lastTime,
+                unread: state.unread[contact.id] || 0
+            });
+        });
+
+        (state.groups || []).forEach(group => {
+            const chatKey = 'group_' + group.id;
+            const msgs = state.chats[chatKey] || [];
+            const lastMsg = msgs.length ? msgs[msgs.length - 1] : group.last_message;
+            const lastTime = lastMsg ? new Date(lastMsg.created_at || 0).getTime() : (group.created_at ? new Date(group.created_at).getTime() : 0);
+            conversationItems.push({
+                is_group: true,
+                id: chatKey,
+                group_id: group.id,
+                raw: group,
+                display_name: group.name,
+                username: `${group.members_count || (group.members ? group.members.length : 1)} anggota`,
+                is_online: true,
+                lastMsg: lastMsg,
+                lastTime: lastTime,
+                unread: state.unread[chatKey] || 0
+            });
+        });
+
+        if (conversationItems.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
-                    <p class="empty-state-desc">Belum ada percakapan aktif. Mulai tambahkan teman dan kirim pesan.</p>
+                    <p class="empty-state-desc">Belum ada obrolan atau grup aktif. Mulai tambahkan teman atau buat grup baru.</p>
                 </div>
             `;
             return;
         }
 
-        // Urutkan kontak berdasarkan pesan terakhir
-        const sortedContacts = [...state.contacts].sort((a, b) => {
-            const msgsA = state.chats[a.id] || [];
-            const msgsB = state.chats[b.id] || [];
-            const lastA = msgsA.length ? new Date(msgsA[msgsA.length - 1].created_at || 0) : 0;
-            const lastB = msgsB.length ? new Date(msgsB[msgsB.length - 1].created_at || 0) : 0;
-            return lastB - lastA;
+        conversationItems.sort((a, b) => b.lastTime - a.lastTime);
+
+        const q = filterQuery.toLowerCase();
+        const filtered = conversationItems.filter(item => {
+            return item.display_name.toLowerCase().includes(q) || item.username.toLowerCase().includes(q);
         });
 
-        const filtered = sortedContacts.filter(c => {
-            const q = filterQuery.toLowerCase();
-            return c.display_name.toLowerCase().includes(q) || c.username.toLowerCase().includes(q);
-        });
+        if (filtered.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <p class="empty-state-desc">Tidak ada hasil pencarian percakapan.</p>
+                </div>
+            `;
+            return;
+        }
 
-        container.innerHTML = filtered.map(contact => {
+        container.innerHTML = filtered.map(item => {
+            if (item.is_group) {
+                const group = item.raw;
+                const lastMsg = item.lastMsg;
+                const isLastDeleted = lastMsg && (lastMsg.is_deleted || lastMsg.body === 'Pesan ini telah dihapus');
+                let previewText = 'Belum ada pesan grup';
+                if (lastMsg) {
+                    if (isLastDeleted) {
+                        previewText = '🚫 Pesan telah dihapus';
+                    } else {
+                        const senderPrefix = lastMsg.sender_name ? `${escapeHtml(lastMsg.sender_name)}: ` : '';
+                        previewText = senderPrefix + escapeHtml(lastMsg.body);
+                    }
+                }
+                const timeText = lastMsg ? formatTime(lastMsg.created_at) : '';
+                const unreadCount = item.unread;
+                const isActive = state.activeContact && state.activeContact.is_group && Number(state.activeContact.group_id) === Number(group.id) ? 'active' : '';
+
+                return `
+                    <div class="list-item ${isActive}" onclick="selectGroup(${group.id})" role="button" tabindex="0">
+                        <div class="avatar-container">
+                            <div class="avatar-circle avatar-pastel-purple" style="display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(109, 40, 217, 0.35)); color: #c4b5fd;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="list-item-content">
+                            <div class="list-item-header">
+                                <span class="list-item-title" style="display: flex; align-items: center; gap: 4px;">
+                                    <span>${escapeHtml(group.name)}</span>
+                                </span>
+                                <span class="list-item-time">${timeText}</span>
+                            </div>
+                            <div class="list-item-preview">
+                                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; ${isLastDeleted ? 'font-style: italic; color: var(--text-muted);' : ''}">${previewText}</span>
+                                ${unreadCount > 0 ? `<span class="unread-badge" title="${unreadCount} pesan belum dibaca">${unreadCount}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            const contact = item.raw;
             const isTyping = Boolean(state.typingUsers && state.typingUsers[contact.id]);
-            const msgs = state.chats[contact.id] || [];
-            const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
+            const lastMsg = item.lastMsg;
             const isLastDeleted = lastMsg && (lastMsg.is_deleted || lastMsg.body === 'Pesan ini telah dihapus');
             const previewText = isTyping
                 ? '<span class="typing-preview-text">sedang mengetik...</span>'
                 : (lastMsg ? (isLastDeleted ? '🚫 Pesan telah dihapus' : escapeHtml(lastMsg.body)) : 'Belum ada pesan');
             const timeText = lastMsg ? formatTime(lastMsg.created_at) : '';
-            const unreadCount = state.unread[contact.id] || 0;
+            const unreadCount = item.unread;
             const pastelClass = getPastelColorClass(contact.display_name || contact.username);
             const initials = (contact.display_name || contact.username).split(' ').map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase() || 'U';
-            const isActive = state.activeContact && state.activeContact.id === contact.id ? 'active' : '';
+            const isActive = state.activeContact && !state.activeContact.is_group && Number(state.activeContact.id) === Number(contact.id) ? 'active' : '';
             const isOnline = Boolean(contact.is_online);
 
             return `
@@ -1885,9 +1989,462 @@
             }
         }
 
+        const groupSec = document.getElementById('infoGroupSection');
+        const btnDelContact = document.getElementById('btnDeleteContactAction');
+        const btnLeaveGrp = document.getElementById('btnLeaveGroupAction');
+        const btnDelGrp = document.getElementById('btnDeleteGroupAction');
+        if (groupSec) groupSec.style.display = 'none';
+        if (btnDelContact) btnDelContact.style.display = 'flex';
+        if (btnLeaveGrp) btnLeaveGrp.style.display = 'none';
+        if (btnDelGrp) btnDelGrp.style.display = 'none';
+
         // Focus message input
         const input = document.getElementById('messageInput');
         if (input) input.focus();
+    };
+
+    async function fetchGroups() {
+        if (!state.token) return [];
+        try {
+            const groups = await apiRequest('/groups');
+            state.groups = Array.isArray(groups) ? groups : [];
+            state.groups.forEach(g => {
+                if (g.group_key) {
+                    state.conversationKeys['group_' + g.id] = g.group_key;
+                }
+            });
+            renderChatsList();
+            return state.groups;
+        } catch (e) {
+            console.warn('Gagal memuat daftar grup:', e);
+            return [];
+        }
+    }
+
+    window.selectGroup = async function (groupId) {
+        const group = (state.groups || []).find(g => Number(g.id) === Number(groupId));
+        if (!group) return;
+
+        if (state.editingMessageId) {
+            window.cancelEditMessage();
+        }
+
+        const chatKey = 'group_' + groupId;
+        state.activeContact = {
+            ...group,
+            is_group: true,
+            id: chatKey,
+            group_id: Number(groupId)
+        };
+
+        state.unread[chatKey] = 0;
+
+        document.getElementById('noChatSelected').style.display = 'none';
+        const chatWindow = document.getElementById('activeChatWindow');
+        chatWindow.style.display = 'flex';
+
+        document.getElementById('activeChatDisplayName').textContent = group.name;
+        document.getElementById('activeChatUsername').textContent = `${group.members_count || (group.members ? group.members.length : 1)} anggota`;
+
+        const activeAvatarEl = document.getElementById('activeAvatarCircle');
+        if (activeAvatarEl) {
+            activeAvatarEl.className = 'avatar-circle avatar-pastel-purple';
+            activeAvatarEl.innerHTML = `
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+            `;
+        }
+
+        const dot = document.getElementById('activeStatusDot');
+        const smallDot = document.getElementById('activeStatusSmallDot');
+        const statusLabel = document.getElementById('activeUserOnlineStatus');
+        const typingBadge = document.getElementById('activeTypingStatus');
+
+        if (dot) {
+            dot.className = 'status-indicator-dot online';
+            dot.title = 'Grup Aktif';
+        }
+        if (smallDot) smallDot.className = 'presence-dot online';
+        if (statusLabel) {
+            statusLabel.className = 'user-status-text online';
+            statusLabel.textContent = `${group.members_count || (group.members ? group.members.length : 1)} anggota`;
+        }
+        if (typingBadge) typingBadge.style.display = 'none';
+
+        updateRightPanelForGroup(group);
+
+        document.querySelector('.app-viewport').classList.add('show-chat');
+
+        const skeleton = document.getElementById('chatLoadingSkeleton');
+        const msgsContainer = document.getElementById('messagesContainer');
+        if (skeleton && msgsContainer) {
+            skeleton.style.display = 'flex';
+            msgsContainer.style.display = 'none';
+        }
+
+        try {
+            const apiMsgs = await apiRequest(`/groups/${groupId}/messages`);
+            if (Array.isArray(apiMsgs)) {
+                const hexKey = group.group_key;
+                for (const m of apiMsgs) {
+                    if (m.body && m.body.startsWith('enc:v1:')) {
+                        m.body = await decryptMessageBody(m.body, hexKey);
+                    }
+                }
+                state.chats[chatKey] = apiMsgs;
+                await AppDB.saveMessagesBatch(apiMsgs.map(m => ({ ...m, group_id: groupId })), state.user.id);
+                persistMessages();
+            }
+        } catch (e) {
+            console.warn('Gagal memuat pesan grup:', e);
+        }
+
+        try {
+            renderActiveMessages();
+            renderChatsList();
+            updateRightPanelMediaAndDocs(chatKey);
+        } catch (err) {
+            console.error('Error render pesan grup:', err);
+        } finally {
+            if (skeleton && msgsContainer) {
+                setTimeout(() => {
+                    skeleton.style.display = 'none';
+                    msgsContainer.style.display = 'flex';
+                    msgsContainer.scrollTop = msgsContainer.scrollHeight;
+                }, 40);
+            }
+        }
+
+        const input = document.getElementById('messageInput');
+        if (input) input.focus();
+    };
+
+    function updateRightPanelForGroup(group) {
+        const infoAvatar = document.getElementById('infoAvatarCircle');
+        const infoName = document.getElementById('infoDisplayName');
+        const infoUser = document.getElementById('infoUsername');
+        const infoDot = document.getElementById('infoStatusDot');
+        const groupSec = document.getElementById('infoGroupSection');
+        const groupList = document.getElementById('infoGroupMembersList');
+        const groupCount = document.getElementById('infoGroupMembersCount');
+        const btnAddMem = document.getElementById('btnOpenAddMember');
+        const btnDelContact = document.getElementById('btnDeleteContactAction');
+        const btnLeaveGrp = document.getElementById('btnLeaveGroupAction');
+        const btnDelGrp = document.getElementById('btnDeleteGroupAction');
+
+        if (infoAvatar) {
+            infoAvatar.className = 'avatar-circle info-avatar-large avatar-pastel-purple';
+            infoAvatar.innerHTML = `
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+            `;
+        }
+        if (infoName) infoName.textContent = group.name;
+        if (infoUser) infoUser.textContent = group.description || 'Grup Obrolan ZChat';
+        if (infoDot) infoDot.className = 'status-indicator-dot online';
+
+        if (groupSec) groupSec.style.display = 'block';
+        if (btnDelContact) btnDelContact.style.display = 'none';
+        if (btnLeaveGrp) btnLeaveGrp.style.display = 'flex';
+
+        const isAdmin = group.my_role === 'admin' || (Number(group.created_by) === Number(state.user?.id));
+        if (btnDelGrp) btnDelGrp.style.display = isAdmin ? 'flex' : 'none';
+        if (btnAddMem) btnAddMem.style.display = isAdmin ? 'block' : 'none';
+
+        if (groupCount) groupCount.textContent = group.members ? group.members.length : (group.members_count || 1);
+
+        if (groupList && group.members) {
+            groupList.innerHTML = group.members.map(m => {
+                const initial = (m.display_name || m.username || 'U').charAt(0).toUpperCase();
+                const isMe = Number(m.user_id) === Number(state.user?.id);
+                const isMemAdmin = m.role === 'admin';
+                const canKick = isAdmin && !isMe;
+
+                return `
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.6rem; border-radius: 8px; background: var(--bg-surface-elevated, rgba(255,255,255,0.03)); border: 1px solid var(--border-subtle, rgba(255,255,255,0.06)); font-size: 0.8125rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; overflow: hidden; min-width: 0;">
+                            <div class="avatar-circle" style="width: 28px; height: 28px; font-size: 0.75rem; flex-shrink: 0;">${initial}</div>
+                            <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                <div style="font-weight: 600; color: var(--text-primary); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
+                                    ${escapeHtml(m.display_name)}${isMe ? ' <span style="color: var(--accent-primary); font-size: 0.7rem;">(Anda)</span>' : ''}
+                                </div>
+                                <div style="font-size: 0.7rem; color: var(--text-muted);">@${escapeHtml(m.username)}</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0;">
+                            <span style="font-size: 0.6875rem; padding: 2px 6px; border-radius: 4px; ${isMemAdmin ? 'background: rgba(124, 58, 237, 0.2); color: #a78bfa; font-weight: 600;' : 'background: rgba(255,255,255,0.06); color: var(--text-muted);'}">
+                                ${isMemAdmin ? 'Admin' : 'Anggota'}
+                            </span>
+                            ${canKick ? `
+                                <button type="button" class="btn-icon" style="padding: 2px; color: #ef4444; width: 22px; height: 22px;" title="Keluarkan dari grup" onclick="handleRemoveGroupMember(${m.user_id})">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="6"></line>
+                                    </svg>
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
+    window.openCreateGroupModal = function () {
+        const modal = document.getElementById('createGroupModal');
+        const nameInput = document.getElementById('groupNameInput');
+        const descInput = document.getElementById('groupDescInput');
+        const membersList = document.getElementById('createGroupMembersList');
+
+        if (nameInput) nameInput.value = '';
+        if (descInput) descInput.value = '';
+
+        if (membersList) {
+            if (!state.contacts || state.contacts.length === 0) {
+                membersList.innerHTML = `
+                    <div style="padding: 1rem; text-align: center; font-size: 0.8125rem; color: var(--text-muted);">
+                        Belum ada kontak teman. Tambahkan teman terlebih dahulu untuk diundang ke grup.
+                    </div>
+                `;
+            } else {
+                membersList.innerHTML = state.contacts.map(c => {
+                    const initial = (c.display_name || c.username || 'U').charAt(0).toUpperCase();
+                    return `
+                        <label style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.6rem; border-radius: 6px; cursor: pointer; transition: background 0.15s ease; background: var(--bg-surface-elevated, rgba(255,255,255,0.02));">
+                            <div style="display: flex; align-items: center; gap: 0.6rem;">
+                                <div class="avatar-circle" style="width: 28px; height: 28px; font-size: 0.75rem;">${initial}</div>
+                                <div>
+                                    <div style="font-size: 0.8125rem; font-weight: 600; color: var(--text-primary);">${escapeHtml(c.display_name)}</div>
+                                    <div style="font-size: 0.7rem; color: var(--text-muted);">@${escapeHtml(c.username)}</div>
+                                </div>
+                            </div>
+                            <input type="checkbox" name="selected_group_members" value="${c.id}" style="width: 16px; height: 16px; accent-color: var(--accent-primary); cursor: pointer;">
+                        </label>
+                    `;
+                }).join('');
+            }
+        }
+
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+            if (nameInput) nameInput.focus();
+        }
+    };
+
+    window.closeCreateGroupModal = function () {
+        const modal = document.getElementById('createGroupModal');
+        if (modal) {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
+    };
+
+    window.handleCreateGroupSubmit = async function (e) {
+        if (e) e.preventDefault();
+        const nameInput = document.getElementById('groupNameInput');
+        const descInput = document.getElementById('groupDescInput');
+        const submitBtn = document.getElementById('btnSubmitCreateGroup');
+
+        const name = (nameInput ? nameInput.value : '').trim();
+        const description = (descInput ? descInput.value : '').trim();
+
+        if (!name) {
+            showToast('Nama grup tidak boleh kosong.', 'error');
+            return;
+        }
+
+        const checkboxes = document.querySelectorAll('input[name="selected_group_members"]:checked');
+        const memberIds = Array.from(checkboxes).map(cb => Number(cb.value));
+
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Membuat...';
+        }
+
+        try {
+            const res = await apiRequest('/groups', {
+                method: 'POST',
+                body: JSON.stringify({
+                    name,
+                    description,
+                    member_ids: memberIds
+                })
+            });
+
+            showToast(`Grup "${name}" berhasil dibuat!`, 'success');
+            window.closeCreateGroupModal();
+            await fetchGroups();
+            if (res && res.id) {
+                window.selectGroup(res.id);
+            }
+        } catch (err) {
+            showToast('Gagal membuat grup: ' + err.message, 'error');
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Buat Grup';
+            }
+        }
+    };
+
+    window.openAddGroupMemberModal = function () {
+        if (!state.activeContact || !state.activeContact.is_group) return;
+        const modal = document.getElementById('addGroupMemberModal');
+        const listEl = document.getElementById('addMembersChecklist');
+        const currentGroup = state.groups.find(g => Number(g.id) === Number(state.activeContact.group_id));
+
+        const existingMemberIds = currentGroup && currentGroup.members
+            ? currentGroup.members.map(m => Number(m.user_id))
+            : [];
+
+        const candidateContacts = state.contacts.filter(c => !existingMemberIds.includes(Number(c.id)));
+
+        if (listEl) {
+            if (candidateContacts.length === 0) {
+                listEl.innerHTML = `
+                    <div style="padding: 1rem; text-align: center; font-size: 0.8125rem; color: var(--text-muted);">
+                        Semua kontak Anda sudah menjadi anggota grup ini.
+                    </div>
+                `;
+            } else {
+                listEl.innerHTML = candidateContacts.map(c => {
+                    const initial = (c.display_name || c.username || 'U').charAt(0).toUpperCase();
+                    return `
+                        <label style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.6rem; border-radius: 6px; cursor: pointer; transition: background 0.15s ease; background: var(--bg-surface-elevated, rgba(255,255,255,0.02));">
+                            <div style="display: flex; align-items: center; gap: 0.6rem;">
+                                <div class="avatar-circle" style="width: 28px; height: 28px; font-size: 0.75rem;">${initial}</div>
+                                <div>
+                                    <div style="font-size: 0.8125rem; font-weight: 600; color: var(--text-primary);">${escapeHtml(c.display_name)}</div>
+                                    <div style="font-size: 0.7rem; color: var(--text-muted);">@${escapeHtml(c.username)}</div>
+                                </div>
+                            </div>
+                            <input type="checkbox" name="add_to_group_members" value="${c.id}" style="width: 16px; height: 16px; accent-color: var(--accent-primary); cursor: pointer;">
+                        </label>
+                    `;
+                }).join('');
+            }
+        }
+
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+        }
+    };
+
+    window.closeAddGroupMemberModal = function () {
+        const modal = document.getElementById('addGroupMemberModal');
+        if (modal) {
+            modal.classList.remove('active');
+            modal.style.display = 'none';
+        }
+    };
+
+    window.handleAddGroupMembersSubmit = async function (e) {
+        if (e) e.preventDefault();
+        if (!state.activeContact || !state.activeContact.is_group) return;
+
+        const groupId = state.activeContact.group_id;
+        const checkboxes = document.querySelectorAll('input[name="add_to_group_members"]:checked');
+        const userIds = Array.from(checkboxes).map(cb => Number(cb.value));
+
+        if (userIds.length === 0) {
+            showToast('Pilih setidaknya 1 kontak untuk ditambahkan.', 'info');
+            return;
+        }
+
+        const submitBtn = document.getElementById('btnSubmitAddMembers');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Menambahkan...';
+        }
+
+        try {
+            await apiRequest(`/groups/${groupId}/members`, {
+                method: 'POST',
+                body: JSON.stringify({ user_ids: userIds })
+            });
+
+            showToast('Anggota berhasil ditambahkan ke grup!', 'success');
+            window.closeAddGroupMemberModal();
+            await fetchGroups();
+            const updatedGroup = state.groups.find(g => Number(g.id) === Number(groupId));
+            if (updatedGroup) {
+                updateRightPanelForGroup(updatedGroup);
+            }
+        } catch (err) {
+            showToast('Gagal menambahkan anggota: ' + err.message, 'error');
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Tambahkan';
+            }
+        }
+    };
+
+    window.handleRemoveGroupMember = async function (userId) {
+        if (!state.activeContact || !state.activeContact.is_group) return;
+        const groupId = state.activeContact.group_id;
+        const confirmed = window.confirm('Keluarkan anggota ini dari grup?');
+        if (!confirmed) return;
+
+        try {
+            await apiRequest(`/groups/${groupId}/members/${userId}`, {
+                method: 'DELETE'
+            });
+            showToast('Anggota telah dikeluarkan dari grup.', 'info');
+            await fetchGroups();
+            const updatedGroup = state.groups.find(g => Number(g.id) === Number(groupId));
+            if (updatedGroup) {
+                updateRightPanelForGroup(updatedGroup);
+            }
+        } catch (err) {
+            showToast('Gagal mengeluarkan anggota: ' + err.message, 'error');
+        }
+    };
+
+    window.handleLeaveGroup = async function () {
+        if (!state.activeContact || !state.activeContact.is_group) return;
+        const groupId = state.activeContact.group_id;
+        const confirmed = window.confirm(`Apakah Anda yakin ingin keluar dari grup "${state.activeContact.name}"?`);
+        if (!confirmed) return;
+
+        try {
+            await apiRequest(`/groups/${groupId}/members/${state.user.id}`, {
+                method: 'DELETE'
+            });
+            showToast('Anda telah keluar dari grup.', 'info');
+            window.closeActiveChat();
+            await fetchGroups();
+        } catch (err) {
+            showToast('Gagal keluar dari grup: ' + err.message, 'error');
+        }
+    };
+
+    window.handleDeleteGroup = async function () {
+        if (!state.activeContact || !state.activeContact.is_group) return;
+        const groupId = state.activeContact.group_id;
+        const confirmed = window.confirm(`PERINGATAN: Bubarkan grup "${state.activeContact.name}" untuk semua anggota? Tindakan ini tidak dapat dibatalkan.`);
+        if (!confirmed) return;
+
+        try {
+            await apiRequest(`/groups/${groupId}`, {
+                method: 'DELETE'
+            });
+            showToast('Grup telah dibubarkan.', 'info');
+            window.closeActiveChat();
+            await fetchGroups();
+        } catch (err) {
+            showToast('Gagal membubarkan grup: ' + err.message, 'error');
+        }
     };
 
     window.closeActiveChat = function () {
@@ -2259,10 +2816,17 @@
                 `;
             }
 
+            let groupSenderHtml = '';
+            if (state.activeContact && state.activeContact.is_group && !isMe) {
+                const sName = msg.sender_name || 'Anggota';
+                groupSenderHtml = `<div class="group-msg-sender" style="font-size: 0.75rem; font-weight: 700; color: #a78bfa; margin-bottom: 3px;">${escapeHtml(sName)}</div>`;
+            }
+
             return `
                 <div class="message-row ${rowClass} ${groupClass}" data-msg-id="${safeIdAttr}">
                     <div class="message-bubble-wrapper">
                         <div class="message-bubble" ondblclick="startReplyMessage('${safeIdAttr}')" title="Klik 2x untuk membalas">
+                            ${groupSenderHtml}
                             ${quoteHtml}
                             ${attachmentHtml}
                             ${renderedBody}
@@ -2476,6 +3040,64 @@
 
         const messageBody = body || (finalAttachment ? `[Berkas: ${finalAttachment.name}]` : '');
 
+        if (state.activeContact.is_group) {
+            const groupId = state.activeContact.group_id;
+            const chatKey = 'group_' + groupId;
+            const newMsg = {
+                id: null,
+                client_uuid: clientUuid,
+                group_id: groupId,
+                sender_id: state.user.id,
+                sender_name: state.user.display_name || state.user.username,
+                body: messageBody,
+                reply_to: replyData,
+                attachment: finalAttachment,
+                status: 'sent',
+                is_edited: false,
+                is_deleted: false,
+                created_at: new Date().toISOString()
+            };
+
+            if (!state.chats[chatKey]) state.chats[chatKey] = [];
+            state.chats[chatKey].push(newMsg);
+            persistMessages();
+            renderActiveMessages();
+            renderChatsList();
+
+            textarea.value = '';
+            textarea.style.height = 'auto';
+            window.cancelReplyMessage();
+            window.cancelAttachment();
+
+            try {
+                const hexKey = state.activeContact.group_key;
+                const encryptedPayload = await encryptMessageBody(messageBody, hexKey);
+
+                const savedMsg = await apiRequest(`/groups/${groupId}/messages`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        client_uuid: clientUuid,
+                        body: encryptedPayload,
+                        attachment: finalAttachment,
+                        reply_to: replyData
+                    })
+                });
+
+                if (savedMsg && savedMsg.id) {
+                    const target = state.chats[chatKey].find(m => m.client_uuid === clientUuid);
+                    if (target) {
+                        target.id = savedMsg.id;
+                        await AppDB.saveMessage({ ...target, group_id: groupId }, state.user.id);
+                        persistMessages();
+                        renderActiveMessages();
+                    }
+                }
+            } catch (err) {
+                showToast('Gagal mengirim pesan ke grup: ' + err.message, 'error');
+            }
+            return;
+        }
+
         const newMsg = {
             id: null,
             client_uuid: clientUuid,
@@ -2542,7 +3164,8 @@
 
     window.startEditMessage = function (msgIdentifier) {
         if (!state.activeContact) return;
-        const msgs = state.chats[state.activeContact.id] || [];
+        const chatKey = state.activeContact.is_group ? ('group_' + state.activeContact.group_id) : state.activeContact.id;
+        const msgs = state.chats[chatKey] || [];
         const target = msgs.find(m => String(m.id) === String(msgIdentifier) || (m.client_uuid && String(m.client_uuid) === String(msgIdentifier)));
 
         if (!target) {
@@ -2590,7 +3213,8 @@
     async function handleUpdateMessage(msgIdentifier, newBody) {
         if (!state.activeContact) return;
 
-        const msgs = state.chats[state.activeContact.id] || [];
+        const chatKey = state.activeContact.is_group ? ('group_' + state.activeContact.group_id) : state.activeContact.id;
+        const msgs = state.chats[chatKey] || [];
         const target = msgs.find(m => String(m.id) === String(msgIdentifier) || (m.client_uuid && String(m.client_uuid) === String(msgIdentifier)));
 
         if (!target) {
@@ -2611,6 +3235,17 @@
 
         try {
             const idToCall = target.id || target.client_uuid;
+            if (state.activeContact.is_group) {
+                const hexKey = state.activeContact.group_key;
+                const encryptedBody = await encryptMessageBody(newBody, hexKey);
+                await apiRequest(`/groups/${state.activeContact.group_id}/messages/${idToCall}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({ body: encryptedBody })
+                });
+                showToast('Pesan grup berhasil diedit.', 'success');
+                return;
+            }
+
             const hexKey = getConversationKeyForContact(state.activeContact.id);
             const encryptedBody = await encryptMessageBody(newBody, hexKey);
 
@@ -2633,7 +3268,6 @@
             }
             showToast('Pesan berhasil diedit.', 'success');
         } catch (err) {
-            // Rollback jika gagal
             target.body = previousBody;
             target.is_edited = previousEdited;
             persistMessages();
@@ -2646,7 +3280,8 @@
     window.confirmDeleteMessage = async function (msgIdentifier) {
         if (!state.activeContact) return;
 
-        const msgs = state.chats[state.activeContact.id] || [];
+        const chatKey = state.activeContact.is_group ? ('group_' + state.activeContact.group_id) : state.activeContact.id;
+        const msgs = state.chats[chatKey] || [];
         const target = msgs.find(m => String(m.id) === String(msgIdentifier) || (m.client_uuid && String(m.client_uuid) === String(msgIdentifier)));
 
         if (!target) return;
@@ -2675,6 +3310,14 @@
 
         try {
             const idToCall = target.id || target.client_uuid;
+            if (state.activeContact.is_group) {
+                await apiRequest(`/groups/${state.activeContact.group_id}/messages/${idToCall}`, {
+                    method: 'DELETE'
+                });
+                showToast('Pesan grup berhasil dihapus.', 'info');
+                return;
+            }
+
             await apiRequest(`/messages/${idToCall}`, {
                 method: 'DELETE',
                 body: JSON.stringify({
@@ -2684,7 +3327,6 @@
             });
             showToast('Pesan berhasil dihapus.', 'info');
         } catch (err) {
-            // Rollback jika gagal
             target.body = previousBody;
             target.is_deleted = previousDeleted;
             persistMessages();
@@ -2940,37 +3582,86 @@
         } catch (e) { }
     }
 
+    async function syncActiveGroupMessages() {
+        if (!state.token || !state.user || !state.activeContact || !state.activeContact.is_group) return;
+        const groupId = state.activeContact.group_id;
+        const chatKey = 'group_' + groupId;
+
+        try {
+            const apiMsgs = await apiRequest(`/groups/${groupId}/messages`);
+            if (Array.isArray(apiMsgs) && apiMsgs.length > 0) {
+                const hexKey = state.activeContact.group_key;
+                if (!state.chats[chatKey]) state.chats[chatKey] = [];
+
+                let hasNew = false;
+                for (const m of apiMsgs) {
+                    if (m.body && m.body.startsWith('enc:v1:')) {
+                        m.body = await decryptMessageBody(m.body, hexKey);
+                    }
+                    const exists = state.chats[chatKey].find(
+                        x => (x.client_uuid && x.client_uuid === m.client_uuid) || (x.id && x.id === m.id)
+                    );
+                    if (!exists) {
+                        state.chats[chatKey].push(m);
+                        hasNew = true;
+                        if (Number(m.sender_id) !== Number(state.user.id)) {
+                            playMessageChime();
+                        }
+                    } else {
+                        if (m.is_edited && !exists.is_edited) {
+                            exists.is_edited = true;
+                            exists.body = m.body;
+                            hasNew = true;
+                        }
+                        const isDel = Boolean(m.is_deleted) || m.body === 'Pesan ini telah dihapus';
+                        if (isDel && !exists.is_deleted) {
+                            exists.is_deleted = true;
+                            exists.body = 'Pesan ini telah dihapus';
+                            hasNew = true;
+                        }
+                    }
+                }
+
+                if (hasNew) {
+                    persistMessages();
+                    renderActiveMessages();
+                    renderChatsList();
+                }
+            }
+        } catch (e) { }
+    }
+
     function startDataSync() {
         if (state.syncInterval) clearInterval(state.syncInterval);
         if (state.heartbeatInterval) clearInterval(state.heartbeatInterval);
 
-        // Fetch & Heartbeat langsung saat start
         sendHeartbeat();
         fetchContacts();
         fetchRequests();
+        fetchGroups();
         syncPendingMessages();
         syncMessageStatuses();
+        syncActiveGroupMessages();
 
-        // Kirim heartbeat setiap 20 detik untuk mempertahankan status online
         state.heartbeatInterval = setInterval(() => {
             sendHeartbeat();
         }, 20000);
 
         let syncTick = 0;
-        // Polling setiap 2 detik untuk sinkronisasi pesan, status ceklis, dan status mengetik
         state.syncInterval = setInterval(() => {
             syncTick++;
             syncPendingMessages();
             syncMessageStatuses();
+            syncActiveGroupMessages();
             fetchRequests();
 
-            if (state.activeContact) {
+            if (state.activeContact && !state.activeContact.is_group) {
                 checkActiveContactTyping();
             }
 
-            // Perbarui status online/offline kontak setiap 5 detik (setiap 2-3 tick)
             if (syncTick % 2 === 0) {
                 fetchContacts();
+                fetchGroups();
             }
         }, 2000);
     }
@@ -3034,6 +3725,16 @@
             const addModal = document.getElementById('addFriendModal');
             if (addModal && addModal.classList.contains('active')) {
                 window.closeAddFriendModal();
+            }
+
+            const createGrpModal = document.getElementById('createGroupModal');
+            if (createGrpModal && (createGrpModal.classList.contains('active') || createGrpModal.style.display === 'flex')) {
+                window.closeCreateGroupModal();
+            }
+
+            const addGrpMemModal = document.getElementById('addGroupMemberModal');
+            if (addGrpMemModal && (addGrpMemModal.classList.contains('active') || addGrpMemModal.style.display === 'flex')) {
+                window.closeAddGroupMemberModal();
             }
 
             if (state.editingMessageId) {

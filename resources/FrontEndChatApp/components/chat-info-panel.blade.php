@@ -63,6 +63,19 @@
             </div>
         </div>
 
+        {{-- Group Members Section (Visible only when active conversation is group) --}}
+        <div id="infoGroupSection" class="info-section" style="display: none;">
+            <div class="info-section-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="info-section-title">Anggota Grup (<span id="infoGroupMembersCount">0</span>)</span>
+                <button type="button" id="btnOpenAddMember" class="btn-action-primary" style="padding: 0.25rem 0.6rem; font-size: 0.75rem; border-radius: 6px;" onclick="openAddGroupMemberModal()">
+                    + Tambah
+                </button>
+            </div>
+            <div id="infoGroupMembersList" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 220px; overflow-y: auto;">
+                {{-- Dynamically populated --}}
+            </div>
+        </div>
+
         {{-- Section 1: Media Bersama --}}
         <div class="info-section">
             <div class="info-section-header">
@@ -89,8 +102,10 @@
             </div>
         </div>
 
-        <div class="info-section" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.08));">
-            <button type="button" class="btn-delete-contact" onclick="confirmDeleteContact()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.1); color: #ef4444; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
+        {{-- Actions at bottom: Contact vs Group --}}
+        <div class="info-section" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.08)); display: flex; flex-direction: column; gap: 0.5rem;">
+            {{-- Contact Action --}}
+            <button type="button" id="btnDeleteContactAction" class="btn-delete-contact" onclick="confirmDeleteContact()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.1); color: #ef4444; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                     <circle cx="8.5" cy="7" r="4"></circle>
@@ -98,6 +113,25 @@
                     <line x1="23" y1="8" x2="18" y2="13"></line>
                 </svg>
                 <span>Hapus Kontak</span>
+            </button>
+
+            {{-- Group Action: Keluar dari Grup --}}
+            <button type="button" id="btnLeaveGroupAction" onclick="handleLeaveGroup()" style="display: none; width: 100%; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.1); color: #ef4444; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                <span>Keluar dari Grup</span>
+            </button>
+
+            {{-- Group Action: Bubarkan Grup (Admin only) --}}
+            <button type="button" id="btnDeleteGroupAction" onclick="handleDeleteGroup()" style="display: none; width: 100%; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.2); color: #f87171; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                <span>Bubarkan Grup</span>
             </button>
         </div>
     </div>

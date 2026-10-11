@@ -50,4 +50,11 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(User::class, 'contacts', 'user_id', 'contact_id')->withTimestamps();
     }
+
+    public function groups()
+    {
+        return $this->belongsToMany(Group::class, 'group_members')
+            ->withPivot(['role', 'joined_at'])
+            ->withTimestamps();
+    }
 }

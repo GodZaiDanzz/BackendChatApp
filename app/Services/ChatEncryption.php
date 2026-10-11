@@ -29,11 +29,10 @@ class ChatEncryption
     }
 
     /**
-     * Encrypt plaintext string using AES-256-GCM.
+     * Encrypt plaintext string using AES-256-GCM with a specific 256-bit hex key.
      */
-    public static function encrypt(string $plainText, int $userA, int $userB): string
+    public static function encryptWithKey(string $plainText, string $hexKey): string
     {
-        $hexKey = self::deriveKey($userA, $userB);
         $binaryKey = hex2bin($hexKey);
         $iv = openssl_random_pseudo_bytes(12);
         $tag = '';
@@ -47,9 +46,9 @@ class ChatEncryption
     }
 
     /**
-     * Decrypt ciphertext payload using AES-256-GCM.
+     * Decrypt ciphertext payload using AES-256-GCM with a specific 256-bit hex key.
      */
-    public static function decrypt(string $payload, int $userA, int $userB): string
+    public static function decryptWithKey(string $payload, string $hexKey): string
     {
         if (!self::isEncrypted($payload)) {
             return $payload;
@@ -69,9 +68,25 @@ class ChatEncryption
 
         $ciphertext = substr($rawCipherWithTag, 0, -16);
         $tag = substr($rawCipherWithTag, -16);
-        $binaryKey = hex2bin(self::deriveKey($userA, $userB));
+        $binaryKey = hex2bin($hexKey);
 
         $decrypted = openssl_decrypt($ciphertext, 'aes-256-gcm', $binaryKey, OPENSSL_RAW_DATA, $iv, $tag);
         return $decrypted !== false ? $decrypted : $payload;
+    }
+
+    /**
+     * Encrypt plaintext string between two users.
+     */
+    public static function encrypt(string $plainText, int $userA, int $userB): string
+    {
+        return self::encryptWithKey($plainText, self::deriveKey($userA, $userB));
+    }
+
+    /**
+     * Decrypt ciphertext payload between two users.
+     */
+    public static function decrypt(string $payload, int $userA, int $userB): string
+    {
+        return self::decryptWithKey($payload, self::deriveKey($userA, $userB));
     }
 }
