@@ -45,9 +45,24 @@ class VoiceCallController extends Controller
                 'data'          => $data['data'] ?? null,
                 'created_at'    => now()->timestamp
             ], 35);
-        } elseif (in_array($data['signal_type'], ['call-answer', 'call-rejected', 'call-ended', 'call-busy'])) {
+        } elseif ($data['signal_type'] === 'call-answer' && $data['room_type'] === 'direct') {
+            Cache::forget("incoming_call_direct_{$sender->id}");
+            Cache::put("call_answer_direct_{$targetId}", [
+                'sender_id'     => $sender->id,
+                'sender_name'   => $sender->display_name ?: $sender->username,
+                'sender_avatar' => $sender->avatar,
+                'target_id'     => $targetId,
+                'signal_type'   => 'call-answer',
+                'room_type'     => 'direct',
+                'group_id'      => null,
+                'data'          => $data['data'] ?? null,
+                'created_at'    => now()->timestamp
+            ], 30);
+        } elseif (in_array($data['signal_type'], ['call-rejected', 'call-ended', 'call-busy'])) {
             Cache::forget("incoming_call_direct_{$targetId}");
             Cache::forget("incoming_call_direct_{$sender->id}");
+            Cache::forget("call_answer_direct_{$targetId}");
+            Cache::forget("call_answer_direct_{$sender->id}");
         }
 
         broadcast(new VoiceSignalSent(
@@ -65,14 +80,27 @@ class VoiceCallController extends Controller
     public function getActiveCall(Request $request)
     {
         $userId = $request->user()->id;
+
+        // 1. Check if user is being called (incoming offer)
         $call = Cache::get("incoming_call_direct_{$userId}");
         if ($call) {
             if (now()->timestamp - ($call['created_at'] ?? 0) > 30) {
                 Cache::forget("incoming_call_direct_{$userId}");
-                return response()->json(['has_call' => false]);
+            } else {
+                return response()->json(['has_call' => true, 'call' => $call]);
             }
-            return response()->json(['has_call' => true, 'call' => $call]);
         }
+
+        // 2. Check if an outgoing call by this user was answered
+        $answer = Cache::get("call_answer_direct_{$userId}");
+        if ($answer) {
+            if (now()->timestamp - ($answer['created_at'] ?? 0) > 25) {
+                Cache::forget("call_answer_direct_{$userId}");
+            } else {
+                return response()->json(['has_call' => true, 'call' => $answer]);
+            }
+        }
+
         return response()->json(['has_call' => false]);
     }
 

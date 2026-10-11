@@ -3685,12 +3685,6 @@
 
             channel.bind('voice.signal', onVoiceSignal);
             channel.bind('.voice.signal', onVoiceSignal);
-
-            state.reverbSocket.bind_global(async (eventName, rawSignal) => {
-                if (eventName === 'voice.signal' || eventName === '.voice.signal') {
-                    onVoiceSignal(rawSignal);
-                }
-            });
         } catch (e) {
             console.warn('Reverb WebSocket initialization error:', e);
         }
@@ -3942,7 +3936,15 @@
         try {
             const res = await apiRequest('/voice/active-call');
             if (res && res.has_call && res.call) {
-                if (!state.voice.active && !state.voice.incomingCall) {
+                if (res.call.signal_type === 'call-answer') {
+                    if (state.voice.active && Number(res.call.sender_id) === Number(state.voice.targetUserId)) {
+                        await handleIncomingVoiceSignal(res.call);
+                    }
+                } else if (res.call.signal_type === 'call-offer') {
+                    if (!state.voice.active && !state.voice.incomingCall) {
+                        await handleIncomingVoiceSignal(res.call);
+                    }
+                } else {
                     await handleIncomingVoiceSignal(res.call);
                 }
             } else if (res && !res.has_call && state.voice.incomingCall) {
@@ -4400,6 +4402,13 @@
                 stopIncomingRingtone();
                 const pc = state.voice.peerConnections[senderId];
                 if (pc) {
+                    if (pc.signalingState === 'stable') {
+                        if (!state.voice.callTimer) {
+                            startCallDurationTimer();
+                            updateVoiceDockInfo();
+                        }
+                        return;
+                    }
                     let sdpAnswer = signal.data;
                     if (typeof sdpAnswer === 'string') {
                         try { sdpAnswer = JSON.parse(sdpAnswer); } catch (e) { }
@@ -4410,14 +4419,16 @@
                         sdp: normalizeSdp(rawSdp)
                     };
                     try {
-                        await pc.setRemoteDescription(answerDesc);
+                        if (pc.signalingState === 'have-local-offer') {
+                            await pc.setRemoteDescription(answerDesc);
+                        }
                         await drainPendingIceCandidates(senderId);
-                        startCallDurationTimer();
-                        updateVoiceDockInfo();
-                        showToast(`Terhubung dengan ${state.voice.targetName}`, 'success');
                     } catch (e) {
                         console.error('Direct call answer handling error:', e);
                     }
+                    startCallDurationTimer();
+                    updateVoiceDockInfo();
+                    showToast(`Terhubung dengan ${state.voice.targetName}`, 'success');
                 }
                 break;
             }
@@ -4547,6 +4558,11 @@
 
         window.openVoiceStage();
         renderVoiceParticipantsGrid();
+
+        const titleEl = document.getElementById('voiceStageTitle');
+        if (titleEl) {
+            titleEl.textContent = `Panggilan: ${targetName}`;
+        }
 
         const subtitleEl = document.getElementById('voiceStageSubtitle');
         if (subtitleEl) {
