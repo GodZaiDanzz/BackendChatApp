@@ -1405,6 +1405,26 @@
         showToast('Riwayat obrolan telah dibersihkan dari perangkat Anda.', 'info');
     };
 
+    function parseMessageTime(val) {
+        if (!val) return Date.now();
+        if (typeof val === 'number') return val;
+        const str = String(val).replace(' ', 'T');
+        const parsed = Date.parse(str);
+        return isNaN(parsed) ? Date.now() : parsed;
+    }
+
+    function shouldGroupMessages(prevMsg, currMsg) {
+        if (!prevMsg || !currMsg) return false;
+        if (Number(prevMsg.sender_id) !== Number(currMsg.sender_id)) return false;
+
+        const prevTime = parseMessageTime(prevMsg.created_at);
+        const currTime = parseMessageTime(currMsg.created_at);
+        const diffMinutes = Math.abs((currTime - prevTime) / (1000 * 60));
+
+        // Nyatu jika dalam rentang 3 menit oleh pengirim yang sama
+        return diffMinutes <= 3;
+    }
+
     function renderActiveMessages() {
         const container = document.getElementById('messagesContainer');
         if (!container || !state.activeContact) return;
@@ -1432,7 +1452,7 @@
             </div>
         `;
 
-        container.innerHTML = dateDividerHtml + messages.map(msg => {
+        container.innerHTML = dateDividerHtml + messages.map((msg, idx) => {
             const isMe = Boolean(state.user && msg.sender_id === state.user.id);
             const rowClass = isMe ? 'me' : 'other';
             const timeText = formatTime(msg.created_at);
@@ -1442,30 +1462,54 @@
             const msgIdentifier = msg.id ? String(msg.id) : (msg.client_uuid || '');
             const safeIdAttr = escapeHtml(msgIdentifier);
 
+            // Grouping logic ala WhatsApp (berdempet jika <= 3 menit oleh pengirim yang sama)
+            const prevMsg = idx > 0 ? messages[idx - 1] : null;
+            const nextMsg = idx < messages.length - 1 ? messages[idx + 1] : null;
+
+            const isGroupedWithPrev = shouldGroupMessages(prevMsg, msg);
+            const isGroupedWithNext = shouldGroupMessages(msg, nextMsg);
+
+            let groupClass = 'msg-group-single';
+            if (isGroupedWithPrev && isGroupedWithNext) {
+                groupClass = 'msg-group-middle';
+            } else if (isGroupedWithPrev && !isGroupedWithNext) {
+                groupClass = 'msg-group-last';
+            } else if (!isGroupedWithPrev && isGroupedWithNext) {
+                groupClass = 'msg-group-first';
+            }
+
             if (isDeleted) {
                 return `
-                    <div class="message-row ${rowClass}" data-msg-id="${safeIdAttr}">
-                        <div class="message-bubble deleted">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; opacity: 0.7;">
-                                <circle cx="12" cy="12" r="10"></circle>
-                                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
-                            </svg>
-                            <span>Pesan ini telah dihapus</span>
-                        </div>
-                        <div class="message-meta">
-                            <span>${timeText}</span>
-                            ${statusMarker}
+                    <div class="message-row ${rowClass} ${groupClass}" data-msg-id="${safeIdAttr}">
+                        <div class="message-bubble-wrapper">
+                            <div class="message-bubble deleted">
+                                <span class="bubble-content" style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; opacity: 0.7;">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                                    </svg>
+                                    <span>Pesan ini telah dihapus</span>
+                                </span>
+                                <span class="bubble-meta">
+                                    <span class="meta-time">${timeText}</span>
+                                    ${statusMarker}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 `;
             }
 
             return `
-                <div class="message-row ${rowClass}" data-msg-id="${safeIdAttr}">
+                <div class="message-row ${rowClass} ${groupClass}" data-msg-id="${safeIdAttr}">
                     <div class="message-bubble-wrapper">
                         <div class="message-bubble">
-                            ${escapeHtml(msg.body).replace(/\n/g, '<br>')}
+                            <span class="bubble-content">${escapeHtml(msg.body).replace(/\n/g, '<br>')}</span>
                             ${isEdited ? '<span class="edited-label">(diedit)</span>' : ''}
+                            <span class="bubble-meta">
+                                <span class="meta-time">${timeText}</span>
+                                ${statusMarker}
+                            </span>
                         </div>
                         ${isMe ? `
                             <div class="message-actions" role="toolbar" aria-label="Aksi pesan">
@@ -1483,10 +1527,6 @@
                                 </button>
                             </div>
                         ` : ''}
-                    </div>
-                    <div class="message-meta">
-                        <span>${timeText}</span>
-                        ${statusMarker}
                     </div>
                 </div>
             `;

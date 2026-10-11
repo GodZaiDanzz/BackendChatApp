@@ -767,10 +767,10 @@ html, body {
 .messages-container {
   flex: 1;
   overflow-y: auto;
-  padding: 1.5rem 2rem;
+  padding: 1.25rem 1.75rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0;
   background-color: var(--bg-canvas);
 }
 
@@ -798,12 +798,24 @@ html, body {
   text-transform: uppercase;
 }
 
-/* Message Row & Bubbles */
+/* Message Row & Bubbles (WhatsApp-style Clustering & Matte Finish) */
 .message-row {
   display: flex;
   flex-direction: column;
-  max-width: 65%;
+  max-width: 72%;
   position: relative;
+  margin-top: 0.85rem; /* Terpisah default jika beda waktu / pengirim */
+  transition: margin-top var(--transition-fast);
+}
+
+.message-row:first-child {
+  margin-top: 0.25rem;
+}
+
+/* WhatsApp Grouping: Berdempet jika dikirim berturut-turut dalam beberapa menit */
+.message-row.msg-group-middle,
+.message-row.msg-group-last {
+  margin-top: 2.5px; /* Nyatu berdempet! */
 }
 
 .message-row.me {
@@ -828,55 +840,96 @@ html, body {
 }
 
 .message-bubble {
-  padding: 0.8rem 1.15rem;
-  border-radius: var(--radius-lg);
+  padding: 0.55rem 0.85rem 0.45rem;
   font-size: 0.9rem;
-  line-height: 1.55;
+  line-height: 1.45;
   word-break: break-word;
   position: relative;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); /* Clean, matte shadow - ZERO NEON */
 }
 
+/* WhatsApp Corner Radii for Outgoing (Me) */
+.message-row.me.msg-group-single .message-bubble {
+  border-radius: 14px 14px 4px 14px;
+}
+.message-row.me.msg-group-first .message-bubble {
+  border-radius: 14px 14px 4px 14px;
+}
+.message-row.me.msg-group-middle .message-bubble {
+  border-radius: 14px 4px 4px 14px;
+}
+.message-row.me.msg-group-last .message-bubble {
+  border-radius: 14px 4px 14px 14px;
+}
+
+/* WhatsApp Corner Radii for Incoming (Other) */
+.message-row.other.msg-group-single .message-bubble {
+  border-radius: 14px 14px 14px 4px;
+}
+.message-row.other.msg-group-first .message-bubble {
+  border-radius: 14px 14px 14px 4px;
+}
+.message-row.other.msg-group-middle .message-bubble {
+  border-radius: 4px 14px 14px 4px;
+}
+.message-row.other.msg-group-last .message-bubble {
+  border-radius: 4px 14px 4px 14px;
+}
+
+/* Fallback border radius if no group class */
 .message-row.other .message-bubble {
   background-color: var(--bubble-other);
   color: var(--bubble-other-text);
   border: 1px solid var(--bubble-other-border);
-  border-bottom-left-radius: 4px;
-  box-shadow: var(--shadow-bubble);
+  border-radius: 14px 14px 14px 4px;
 }
 
 .message-row.me .message-bubble {
   background-color: var(--accent-primary);
   color: var(--bubble-me-text);
-  border-bottom-right-radius: 4px;
-  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.25);
+  border-radius: 14px 14px 4px 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); /* No neon glow */
 }
 
-.message-meta {
-  display: flex;
+/* Integrated WhatsApp Bubble Content & Meta */
+.bubble-content {
+  display: inline;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.bubble-meta {
+  display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.72rem;
-  margin-top: 0.25rem;
-  padding: 0 0.25rem;
+  gap: 0.25rem;
+  float: right;
+  margin-left: 0.65rem;
+  margin-top: 0.35rem;
+  font-size: 0.6875rem;
+  line-height: 1;
+  user-select: none;
+  white-space: nowrap;
+  position: relative;
+  top: 2px;
 }
 
-.message-row.other .message-meta {
-  color: var(--bubble-other-meta);
+.message-row.me .bubble-meta {
+  color: rgba(255, 255, 255, 0.72);
 }
 
-.message-row.me .message-meta {
-  color: var(--bubble-me-meta);
+.message-row.other .bubble-meta {
+  color: var(--text-muted);
 }
 
 .status-check {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--bubble-me-meta);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .status-check.read {
-  color: #ffffff;
+  color: #38bdf8; /* Blue double check */
 }
 
 .message-actions {
@@ -919,15 +972,22 @@ html, body {
   color: var(--status-danger);
 }
 
-.message-bubble.deleted {
+/* Strictly Clean Deleted Message (Matte, No Neon Halo) */
+.message-bubble.deleted,
+.message-row.me .message-bubble.deleted {
   font-style: italic;
   color: var(--text-muted) !important;
-  background-color: rgba(255, 255, 255, 0.04) !important;
+  background-color: rgba(255, 255, 255, 0.03) !important;
   border: 1px dashed var(--border-card) !important;
+  box-shadow: none !important; /* NO NEON */
+}
+
+.message-bubble.deleted .bubble-meta {
+  color: var(--text-muted) !important;
 }
 
 .edited-label {
-  font-size: 0.7rem;
+  font-size: 0.6875rem;
   opacity: 0.8;
   font-style: italic;
   margin-left: 0.25rem;
