@@ -98,5 +98,14 @@
                 </div>
             </div>
         </div>
+
+        {{-- Panel 4: Call Logs List (Switched from Rail) --}}
+        <div id="panelCalls" style="display: none;">
+            <div id="callsContainer">
+                <div class="empty-state">
+                    <p class="empty-state-desc">Belum ada riwayat panggilan.</p>
+                </div>
+            </div>
+        </div>
     </div>
 </aside>

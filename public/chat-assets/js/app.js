@@ -197,12 +197,14 @@
         lastTypingSentAt: 0,
         myTypingTimeout: null,
         conversationKeys: {},
+        callLogs: [],
         voice: {
             active: false,
             roomType: null,
             groupId: null,
             targetUserId: null,
             targetName: '',
+            callUuid: null,
             localStream: null,
             isMuted: false,
             isDeafened: false,
@@ -1238,16 +1240,19 @@
         const btnChats = document.getElementById('railBtnChats');
         const btnContacts = document.getElementById('railBtnContacts');
         const btnRequests = document.getElementById('railBtnRequests');
+        const btnCalls = document.getElementById('railBtnCalls');
         const panelChats = document.getElementById('panelChats');
         const panelContacts = document.getElementById('panelContacts');
         const panelRequests = document.getElementById('panelRequests');
+        const panelCalls = document.getElementById('panelCalls');
         const sectionLabel = document.getElementById('sidebarSectionLabel');
 
-        [btnChats, btnContacts, btnRequests].forEach(b => { if (b) b.classList.remove('active'); });
+        [btnChats, btnContacts, btnRequests, btnCalls].forEach(b => { if (b) b.classList.remove('active'); });
 
         if (panelChats) panelChats.style.display = 'none';
         if (panelContacts) panelContacts.style.display = 'none';
         if (panelRequests) panelRequests.style.display = 'none';
+        if (panelCalls) panelCalls.style.display = 'none';
 
         if (tab === 'chats') {
             if (btnChats) btnChats.classList.add('active');
@@ -1264,8 +1269,124 @@
             if (panelRequests) panelRequests.style.display = 'block';
             if (sectionLabel) sectionLabel.textContent = 'PERMINTAAN PERTEMANAN';
             renderRequestsList();
+        } else if (tab === 'calls') {
+            if (btnCalls) btnCalls.classList.add('active');
+            if (panelCalls) panelCalls.style.display = 'block';
+            if (sectionLabel) sectionLabel.textContent = 'RIWAYAT PANGGILAN';
+            fetchCallLogs();
         }
     };
+
+    window.fetchCallLogs = async function () {
+        if (!state.token) return;
+        try {
+            const res = await apiRequest('/voice/call-logs');
+            if (res && res.call_logs) {
+                state.callLogs = res.call_logs;
+                renderCallLogsList();
+            }
+        } catch (e) {
+            console.warn('Gagal memuat riwayat panggilan:', e);
+        }
+    };
+
+    function renderCallLogsList(filterQuery = '') {
+        const container = document.getElementById('callsContainer');
+        if (!container) return;
+
+        let logs = state.callLogs || [];
+        if (filterQuery) {
+            const q = filterQuery.toLowerCase();
+            logs = logs.filter(log => {
+                const other = log.other_user || {};
+                const name = (other.display_name || other.username || '').toLowerCase();
+                const status = (log.status_label || '').toLowerCase();
+                const uuid = (log.call_uuid || '').toLowerCase();
+                return name.includes(q) || status.includes(q) || uuid.includes(q);
+            });
+        }
+
+        if (logs.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <p class="empty-state-desc">${filterQuery ? 'Tidak ada riwayat panggilan yang cocok.' : 'Belum ada riwayat panggilan.'}</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = logs.map(log => {
+            const otherUser = log.other_user || { id: 0, display_name: 'Pengguna', username: 'user' };
+            const otherName = otherUser.display_name || otherUser.username || 'Pengguna';
+            const initial = otherName.charAt(0).toUpperCase();
+            const pastelClass = getPastelColorClass(otherName);
+            const initials = otherName.split(' ').map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase() || 'U';
+            const isOutgoing = log.direction === 'outgoing';
+
+            let statusIcon = '';
+            let statusBadgeText = log.status_label || 'Selesai';
+            let badgeBg = 'rgba(100, 116, 139, 0.15)';
+            let badgeColor = '#94a3b8';
+
+            if (log.status === 'answered') {
+                badgeBg = 'rgba(16, 185, 129, 0.15)';
+                badgeColor = '#10b981';
+                statusIcon = isOutgoing
+                    ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" title="Panggilan Keluar"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>`
+                    : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" title="Panggilan Masuk"><line x1="17" y1="7" x2="7" y2="17"></line><polyline points="17 17 7 17 7 7"></polyline></svg>`;
+            } else if (log.status === 'rejected') {
+                badgeBg = 'rgba(239, 68, 68, 0.15)';
+                badgeColor = '#ef4444';
+                statusIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" title="Panggilan Ditolak"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>`;
+            } else if (log.status === 'missed') {
+                badgeBg = 'rgba(239, 68, 68, 0.15)';
+                badgeColor = '#ef4444';
+                statusIcon = isOutgoing
+                    ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" title="Tak Terjawab"><line x1="7" y1="17" x2="17" y2="7"></line><polyline points="7 7 17 7 17 17"></polyline></svg>`
+                    : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" title="Panggilan Tak Terjawab"><line x1="17" y1="7" x2="7" y2="17"></line><polyline points="17 17 7 17 7 7"></polyline></svg>`;
+            } else {
+                badgeBg = 'rgba(245, 158, 11, 0.15)';
+                badgeColor = '#f59e0b';
+                statusIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" title="Sedang Sibuk"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
+            }
+
+            const endedByText = log.ended_by_name ? ` • Diakhiri oleh ${escapeHtml(log.ended_by_name)}` : '';
+            const durationText = log.status === 'answered' ? `Durasi: ${log.duration_formatted}` : statusBadgeText;
+            const timeText = log.created_at_time ? `${log.created_at_date}, ${log.created_at_time}` : (log.created_at_human || '');
+            const callUuidShort = (log.call_uuid || '').substring(0, 16);
+
+            return `
+                <div class="list-item call-log-item" style="cursor: default; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 0.85rem; flex: 1; min-width: 0;">
+                        <div class="avatar-container">
+                            <div class="avatar-circle ${pastelClass}">${initials}</div>
+                        </div>
+                        <div class="list-item-content">
+                            <div class="list-item-header">
+                                <span class="list-item-title">${escapeHtml(otherName)}</span>
+                                <span class="list-item-time">${escapeHtml(timeText)}</span>
+                            </div>
+                            <div class="list-item-preview" style="gap: 0.35rem; align-items: center;">
+                                <span style="display: inline-flex; align-items: center;">${statusIcon}</span>
+                                <span style="color: ${badgeColor}; font-weight: 500; font-size: 0.78rem;">${escapeHtml(durationText)}</span>
+                                <span style="opacity: 0.75; font-size: 0.75rem;">${endedByText}</span>
+                            </div>
+                            <div style="margin-top: 0.15rem; font-size: 0.68rem; color: var(--text-muted); opacity: 0.7; font-family: monospace;">
+                                ID: ${escapeHtml(callUuidShort)}
+                            </div>
+                        </div>
+                    </div>
+                    ${otherUser.id ? `
+                        <button type="button" class="btn-icon" onclick="startDirectVoiceCall(${otherUser.id}, '${escapeHtml(otherName).replace(/'/g, "\\'")}')" title="Panggil Ulang" aria-label="Panggil Ulang" style="margin-left: 0.5rem; width: 34px; height: 34px; border-radius: 50%; background: rgba(124, 58, 237, 0.12); color: #7c3aed; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.15s, background 0.15s;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                            </svg>
+                        </button>
+                    ` : ''}
+                </div>
+            `;
+        }).join('');
+    }
 
     window.switchSidebarTab = window.switchRailTab;
 
@@ -3947,6 +4068,12 @@
                 } else {
                     await handleIncomingVoiceSignal(res.call);
                 }
+            } else if (res && res.call_ended) {
+                if (state.voice.active || state.voice.incomingCall) {
+                    handleDisconnectVoiceCall(false);
+                    showToast('Panggilan suara telah diakhiri.', 'info');
+                    fetchCallLogs();
+                }
             } else if (res && !res.has_call && state.voice.incomingCall) {
                 stopCallTitleFlash();
                 stopIncomingRingtone();
@@ -3977,6 +4104,7 @@
         fetchContacts();
         fetchRequests();
         fetchGroups();
+        fetchCallLogs();
         syncPendingMessages();
         syncMessageStatuses();
         syncGroupMessages();
@@ -4493,29 +4621,32 @@
             case 'call-rejected': {
                 stopCallTitleFlash();
                 stopIncomingRingtone();
-                handleDisconnectVoiceCall();
+                handleDisconnectVoiceCall(false);
                 showToast(`${signal.sender_name || 'Kontak'} menolak panggilan suara.`, 'info');
+                fetchCallLogs();
                 break;
             }
 
             case 'call-busy': {
                 stopCallTitleFlash();
                 stopIncomingRingtone();
-                handleDisconnectVoiceCall();
+                handleDisconnectVoiceCall(false);
                 showToast(`${signal.sender_name || 'Kontak'} sedang dalam panggilan lain.`, 'info');
+                fetchCallLogs();
                 break;
             }
 
             case 'call-ended': {
                 stopCallTitleFlash();
                 stopIncomingRingtone();
-                handleDisconnectVoiceCall();
+                handleDisconnectVoiceCall(false);
                 const incomingModal = document.getElementById('incomingCallModal');
                 if (incomingModal) {
                     incomingModal.classList.remove('active');
                     incomingModal.style.display = 'none';
                 }
                 showToast('Panggilan suara telah diakhiri.', 'info');
+                fetchCallLogs();
                 break;
             }
 
@@ -4592,11 +4723,13 @@
         const stream = await getMediaStream();
         if (!stream) return;
 
+        const callUuid = 'call_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         state.voice.active = true;
         state.voice.roomType = 'direct';
         state.voice.groupId = null;
         state.voice.targetUserId = Number(targetId);
         state.voice.targetName = targetName;
+        state.voice.callUuid = callUuid;
         state.voice.participants = [
             { id: state.user.id, name: state.user.display_name || state.user.username, is_muted: false },
             { id: Number(targetId), name: targetName, is_muted: false }
@@ -4625,13 +4758,14 @@
             await pc.setLocalDescription(offer);
             await sendVoiceSignal(targetId, 'call-offer', {
                 type: offer.type,
-                sdp: normalizeSdp(offer.sdp)
+                sdp: normalizeSdp(offer.sdp),
+                call_uuid: callUuid
             });
             playIncomingRingtone();
         } catch (err) {
             console.error('Error starting direct voice call:', err);
             showToast('Gagal memulai panggilan suara: ' + err.message, 'error');
-            handleDisconnectVoiceCall();
+            handleDisconnectVoiceCall(true);
         }
     };
 
@@ -4648,10 +4782,11 @@
 
         const callerId = Number(incoming.sender_id);
         const callerName = incoming.sender_name || 'Kontak';
+        const callUuid = incoming.call_uuid || (incoming.data && incoming.data.call_uuid) || null;
 
         const stream = await getMediaStream();
         if (!stream) {
-            sendVoiceSignal(callerId, 'call-rejected', {});
+            sendVoiceSignal(callerId, 'call-rejected', { call_uuid: callUuid });
             return;
         }
 
@@ -4660,6 +4795,7 @@
         state.voice.groupId = null;
         state.voice.targetUserId = callerId;
         state.voice.targetName = callerName;
+        state.voice.callUuid = callUuid;
         state.voice.participants = [
             { id: callerId, name: callerName, is_muted: false },
             { id: state.user.id, name: state.user.display_name || state.user.username, is_muted: false }
@@ -4693,7 +4829,8 @@
 
             await sendVoiceSignal(callerId, 'call-answer', {
                 type: answer.type,
-                sdp: normalizeSdp(answer.sdp)
+                sdp: normalizeSdp(answer.sdp),
+                call_uuid: callUuid
             });
 
             startCallDurationTimer();
@@ -4702,7 +4839,7 @@
         } catch (err) {
             console.error('Error accepting voice call:', err);
             showToast('Gagal menghubungkan obrolan suara: ' + err.message, 'error');
-            handleDisconnectVoiceCall();
+            handleDisconnectVoiceCall(true);
         }
     };
 
@@ -4716,8 +4853,11 @@
             modal.style.display = 'none';
         }
         if (incoming) {
-            sendVoiceSignal(incoming.sender_id, 'call-rejected', {});
+            const callUuid = incoming.call_uuid || (incoming.data && incoming.data.call_uuid) || null;
+            sendVoiceSignal(incoming.sender_id, 'call-rejected', { call_uuid: callUuid });
             state.voice.incomingCall = null;
+            handleDisconnectVoiceCall(false);
+            fetchCallLogs();
         }
     };
 
@@ -4767,9 +4907,10 @@
         }
     };
 
-    window.handleDisconnectVoiceCall = function () {
+    window.handleDisconnectVoiceCall = function (notifyPeer = true) {
         stopCallTitleFlash();
         stopIncomingRingtone();
+
         const incomingModal = document.getElementById('incomingCallModal');
         if (incomingModal) {
             incomingModal.classList.remove('active');
@@ -4780,52 +4921,107 @@
             stageModal.classList.remove('active');
             stageModal.style.display = 'none';
         }
-        if (!state.voice.active) return;
+        hideVoiceDock();
 
-        if (state.voice.roomType === 'group' && state.voice.groupId) {
-            apiRequest(`/voice/groups/${state.voice.groupId}/leave`, { method: 'POST' }).catch(() => { });
-        } else if (state.voice.roomType === 'direct' && state.voice.targetUserId) {
-            sendVoiceSignal(state.voice.targetUserId, 'call-ended', {});
+        const currentCallUuid = state.voice.callUuid;
+        const currentTargetId = state.voice.targetUserId;
+        const currentSeconds = state.voice.callSeconds || 0;
+        const currentRoomType = state.voice.roomType;
+        const currentGroupId = state.voice.groupId;
+        const wasActive = state.voice.active;
+
+        if (notifyPeer) {
+            if (currentRoomType === 'group' && currentGroupId) {
+                apiRequest(`/voice/groups/${currentGroupId}/leave`, { method: 'POST' }).catch(() => { });
+            } else if (currentTargetId) {
+                sendVoiceSignal(currentTargetId, 'call-ended', {
+                    call_uuid: currentCallUuid,
+                    duration: currentSeconds
+                });
+            } else if (state.voice.incomingCall && state.voice.incomingCall.sender_id) {
+                sendVoiceSignal(state.voice.incomingCall.sender_id, 'call-rejected', {
+                    call_uuid: state.voice.incomingCall.call_uuid || currentCallUuid
+                });
+            }
         }
 
-        for (const peerId in state.voice.peerConnections) {
-            try { state.voice.peerConnections[peerId].close(); } catch (e) { }
-        }
-        state.voice.peerConnections = {};
-
-        for (const peerId in state.voice.audioElements) {
-            try { state.voice.audioElements[peerId].remove(); } catch (e) { }
-        }
-        state.voice.audioElements = {};
-        state.voice.remoteStreams = {};
-
+        // 1. Terminate all local audio tracks
         if (state.voice.localStream) {
-            state.voice.localStream.getTracks().forEach(track => track.stop());
+            state.voice.localStream.getTracks().forEach(track => {
+                try { track.stop(); } catch (e) { }
+            });
             state.voice.localStream = null;
         }
 
+        // 2. Terminate all remote audio tracks
+        for (const peerId in state.voice.remoteStreams) {
+            const rs = state.voice.remoteStreams[peerId];
+            if (rs && rs.getTracks) {
+                rs.getTracks().forEach(t => { try { t.stop(); } catch (e) { } });
+            }
+        }
+        state.voice.remoteStreams = {};
+
+        // 3. Remove and pause all remote audio DOM elements
+        for (const peerId in state.voice.audioElements) {
+            try {
+                const el = state.voice.audioElements[peerId];
+                el.pause();
+                el.srcObject = null;
+                el.remove();
+            } catch (e) { }
+        }
+        state.voice.audioElements = {};
+
+        // 4. Close and clean up all RTCPeerConnections
+        for (const peerId in state.voice.peerConnections) {
+            try {
+                const pc = state.voice.peerConnections[peerId];
+                pc.ontrack = null;
+                pc.onicecandidate = null;
+                pc.onconnectionstatechange = null;
+                pc.oniceconnectionstatechange = null;
+                pc.close();
+            } catch (e) { }
+        }
+        state.voice.peerConnections = {};
+
+        // 5. Clean up AudioContext & VAD analyser
+        if (state.voice.audioContext) {
+            try { state.voice.audioContext.close(); } catch (e) { }
+            state.voice.audioContext = null;
+        }
         if (state.voice.analyserInterval) {
             clearInterval(state.voice.analyserInterval);
             state.voice.analyserInterval = null;
         }
 
+        // 6. Stop and clear duration timer
         if (state.voice.callTimer) {
             clearInterval(state.voice.callTimer);
             state.voice.callTimer = null;
         }
 
+        // 7. Reset all voice state flags
         state.voice.active = false;
         state.voice.roomType = null;
         state.voice.groupId = null;
         state.voice.targetUserId = null;
+        state.voice.targetName = '';
         state.voice.callSeconds = 0;
         state.voice.isMuted = false;
         state.voice.isDeafened = false;
         state.voice.participants = [];
+        state.voice.incomingCall = null;
+        state.voice.pendingIceCandidates = {};
+        state.voice.callUuid = null;
 
-        hideVoiceDock();
-        window.minimizeVoiceStage();
-        showToast('Obrolan suara selesai.', 'info');
+        // 8. Refresh call logs
+        fetchCallLogs();
+
+        if (wasActive && notifyPeer) {
+            showToast('Panggilan suara selesai.', 'info');
+        }
     };
 
     window.toggleVoiceMute = function () {
@@ -4975,6 +5171,8 @@
     window.handleLocalFilter = function (query) {
         if (state.activeTab === 'contacts') {
             renderContactsList(query);
+        } else if (state.activeTab === 'calls') {
+            renderCallLogsList(query);
         } else {
             renderChatsList(query);
         }

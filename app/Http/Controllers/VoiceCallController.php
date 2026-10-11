@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Events\VoiceSignalSent;
+use App\Models\CallLog;
 use App\Models\Group;
 use App\Models\GroupMember;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 class VoiceCallController extends Controller
 {
@@ -22,6 +24,8 @@ class VoiceCallController extends Controller
 
         $sender = $request->user();
         $targetId = (int) $data['target_id'];
+        $signalType = $data['signal_type'];
+        $roomType = $data['room_type'];
 
         // Normalize SDP line endings if present (ensure valid RFC-4566 CRLF terminating each line)
         if (isset($data['data']) && is_array($data['data']) && isset($data['data']['sdp']) && is_string($data['data']['sdp'])) {
@@ -31,9 +35,49 @@ class VoiceCallController extends Controller
             $data['data']['sdp'] = implode("\r\n", $cleanLines) . "\r\n";
         }
 
-        \Illuminate\Support\Facades\Log::info('VOICE_SIGNAL: from=' . $sender->id . ' (' . $sender->username . ') to=' . $targetId . ' type=' . $data['signal_type']);
+        \Illuminate\Support\Facades\Log::info('VOICE_SIGNAL: from=' . $sender->id . ' (' . $sender->username . ') to=' . $targetId . ' type=' . $signalType);
 
-        if ($data['signal_type'] === 'call-offer' && $data['room_type'] === 'direct') {
+        $pairKey = min($sender->id, $targetId) . '_' . max($sender->id, $targetId);
+
+        // Extract or generate Call UUID
+        $callUuid = null;
+        if (isset($data['data']) && is_array($data['data']) && !empty($data['data']['call_uuid'])) {
+            $callUuid = (string) $data['data']['call_uuid'];
+        }
+
+        if ($signalType === 'call-offer' && $roomType === 'direct') {
+            if (!$callUuid) {
+                $callUuid = 'call_' . Str::random(16);
+                if (is_array($data['data'])) {
+                    $data['data']['call_uuid'] = $callUuid;
+                } else {
+                    $data['data'] = ['call_uuid' => $callUuid];
+                }
+            }
+
+            // Create initial CallLog record (status: missed until answered/rejected)
+            try {
+                CallLog::create([
+                    'call_uuid'        => $callUuid,
+                    'caller_id'        => $sender->id,
+                    'receiver_id'      => $targetId,
+                    'room_type'        => 'direct',
+                    'status'           => 'missed',
+                    'duration'         => 0,
+                    'started_at'       => now(),
+                ]);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('CallLog create error: ' . $e->getMessage());
+            }
+
+            Cache::put("active_call_pair_{$pairKey}", [
+                'call_uuid'  => $callUuid,
+                'caller_id'  => $sender->id,
+                'target_id'  => $targetId,
+                'status'     => 'calling',
+                'started_at' => now()->timestamp,
+            ], 3600);
+
             Cache::put("incoming_call_direct_{$targetId}", [
                 'sender_id'     => $sender->id,
                 'sender_name'   => $sender->display_name ?: $sender->username,
@@ -42,10 +86,31 @@ class VoiceCallController extends Controller
                 'signal_type'   => 'call-offer',
                 'room_type'     => 'direct',
                 'group_id'      => null,
+                'call_uuid'     => $callUuid,
                 'data'          => $data['data'] ?? null,
                 'created_at'    => now()->timestamp
             ], 35);
-        } elseif ($data['signal_type'] === 'call-answer' && $data['room_type'] === 'direct') {
+        } elseif ($signalType === 'call-answer' && $roomType === 'direct') {
+            $activePair = Cache::get("active_call_pair_{$pairKey}");
+            $callUuid = $callUuid ?: ($activePair['call_uuid'] ?? null);
+
+            if ($callUuid) {
+                try {
+                    CallLog::where('call_uuid', $callUuid)->update([
+                        'status'     => 'answered',
+                        'started_at' => now(),
+                    ]);
+                } catch (\Exception $e) { }
+            }
+
+            Cache::put("active_call_pair_{$pairKey}", [
+                'call_uuid'  => $callUuid,
+                'caller_id'  => $targetId,
+                'target_id'  => $sender->id,
+                'status'     => 'answered',
+                'started_at' => now()->timestamp,
+            ], 7200);
+
             Cache::forget("incoming_call_direct_{$sender->id}");
             Cache::put("call_answer_direct_{$targetId}", [
                 'sender_id'     => $sender->id,
@@ -55,26 +120,102 @@ class VoiceCallController extends Controller
                 'signal_type'   => 'call-answer',
                 'room_type'     => 'direct',
                 'group_id'      => null,
+                'call_uuid'     => $callUuid,
                 'data'          => $data['data'] ?? null,
                 'created_at'    => now()->timestamp
             ], 30);
-        } elseif (in_array($data['signal_type'], ['call-rejected', 'call-ended', 'call-busy'])) {
+        } elseif ($signalType === 'call-rejected' && $roomType === 'direct') {
+            $activePair = Cache::get("active_call_pair_{$pairKey}");
+            $callUuid = $callUuid ?: ($activePair['call_uuid'] ?? null);
+
+            if ($callUuid) {
+                try {
+                    CallLog::where('call_uuid', $callUuid)->update([
+                        'status'            => 'rejected',
+                        'ended_at'          => now(),
+                        'ended_by_user_id'  => $sender->id,
+                        'duration'          => 0,
+                    ]);
+                } catch (\Exception $e) { }
+            }
+
+            Cache::forget("active_call_pair_{$pairKey}");
             Cache::forget("incoming_call_direct_{$targetId}");
             Cache::forget("incoming_call_direct_{$sender->id}");
             Cache::forget("call_answer_direct_{$targetId}");
             Cache::forget("call_answer_direct_{$sender->id}");
+            Cache::put("call_ended_direct_{$targetId}", ['call_uuid' => $callUuid, 'reason' => 'rejected', 'ended_by' => $sender->id], 15);
+        } elseif ($signalType === 'call-busy' && $roomType === 'direct') {
+            $activePair = Cache::get("active_call_pair_{$pairKey}");
+            $callUuid = $callUuid ?: ($activePair['call_uuid'] ?? null);
+
+            if ($callUuid) {
+                try {
+                    CallLog::where('call_uuid', $callUuid)->update([
+                        'status'            => 'busy',
+                        'ended_at'          => now(),
+                        'ended_by_user_id'  => $sender->id,
+                        'duration'          => 0,
+                    ]);
+                } catch (\Exception $e) { }
+            }
+
+            Cache::forget("active_call_pair_{$pairKey}");
+            Cache::forget("incoming_call_direct_{$targetId}");
+            Cache::forget("incoming_call_direct_{$sender->id}");
+            Cache::forget("call_answer_direct_{$targetId}");
+            Cache::forget("call_answer_direct_{$sender->id}");
+            Cache::put("call_ended_direct_{$targetId}", ['call_uuid' => $callUuid, 'reason' => 'busy', 'ended_by' => $sender->id], 15);
+        } elseif ($signalType === 'call-ended' && $roomType === 'direct') {
+            $activePair = Cache::get("active_call_pair_{$pairKey}");
+            $callUuid = $callUuid ?: ($activePair['call_uuid'] ?? null);
+            $clientDuration = (isset($data['data']) && is_array($data['data']) && isset($data['data']['duration']))
+                ? (int) $data['data']['duration']
+                : null;
+
+            try {
+                $callLog = $callUuid ? CallLog::where('call_uuid', $callUuid)->first() : null;
+                if (!$callLog) {
+                    $callLog = CallLog::where(function($q) use ($sender, $targetId) {
+                        $q->where('caller_id', $sender->id)->where('receiver_id', $targetId);
+                    })->orWhere(function($q) use ($sender, $targetId) {
+                        $q->where('caller_id', $targetId)->where('receiver_id', $sender->id);
+                    })->latest()->first();
+                }
+
+                if ($callLog && !$callLog->ended_at) {
+                    $duration = $clientDuration !== null
+                        ? $clientDuration
+                        : ($callLog->status === 'answered' ? max(0, now()->diffInSeconds($callLog->started_at ?? now())) : 0);
+
+                    $callLog->update([
+                        'ended_at'          => now(),
+                        'ended_by_user_id'  => $sender->id,
+                        'duration'          => $duration,
+                    ]);
+                }
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('CallLog end update error: ' . $e->getMessage());
+            }
+
+            Cache::forget("active_call_pair_{$pairKey}");
+            Cache::forget("incoming_call_direct_{$targetId}");
+            Cache::forget("incoming_call_direct_{$sender->id}");
+            Cache::forget("call_answer_direct_{$targetId}");
+            Cache::forget("call_answer_direct_{$sender->id}");
+            Cache::put("call_ended_direct_{$targetId}", ['call_uuid' => $callUuid, 'reason' => 'ended', 'ended_by' => $sender->id], 15);
         }
 
         broadcast(new VoiceSignalSent(
             sender: $sender,
             recipientId: $targetId,
-            signalType: $data['signal_type'],
-            roomType: $data['room_type'],
+            signalType: $signalType,
+            roomType: $roomType,
             groupId: $data['group_id'] ?? null,
             data: $data['data'] ?? null
         ));
 
-        return response()->json(['status' => 'sent']);
+        return response()->json(['status' => 'sent', 'call_uuid' => $callUuid]);
     }
 
     public function getActiveCall(Request $request)
@@ -101,7 +242,90 @@ class VoiceCallController extends Controller
             }
         }
 
+        // 3. Check if active direct call was ended by peer
+        $ended = Cache::get("call_ended_direct_{$userId}");
+        if ($ended) {
+            Cache::forget("call_ended_direct_{$userId}");
+            return response()->json(['has_call' => false, 'call_ended' => true, 'ended' => $ended]);
+        }
+
         return response()->json(['has_call' => false]);
+    }
+
+    public function getCallLogs(Request $request)
+    {
+        $userId = $request->user()->id;
+        $logs = CallLog::with([
+                'caller:id,username,display_name,avatar',
+                'receiver:id,username,display_name,avatar',
+                'endedBy:id,username,display_name'
+            ])
+            ->where(function ($q) use ($userId) {
+                $q->where('caller_id', $userId)
+                  ->orWhere('receiver_id', $userId);
+            })
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get();
+
+        $data = $logs->map(function ($log) use ($userId) {
+            $isCaller = (int) $log->caller_id === (int) $userId;
+            $otherUser = $isCaller ? $log->receiver : $log->caller;
+
+            $statusLabel = match($log->status) {
+                'answered' => 'Terjawab',
+                'rejected' => 'Ditolak',
+                'missed'   => $isCaller ? 'Tidak Terjawab' : 'Panggilan Tak Terjawab',
+                'busy'     => 'Sedang Sibuk',
+                default    => 'Selesai'
+            };
+
+            $endedByName = null;
+            if ($log->endedBy) {
+                $endedByName = ((int) $log->ended_by_user_id === (int) $userId)
+                    ? 'Anda'
+                    : ($log->endedBy->display_name ?: $log->endedBy->username);
+            }
+
+            $mins = floor($log->duration / 60);
+            $secs = $log->duration % 60;
+            $formattedDuration = sprintf('%02d:%02d', $mins, $secs);
+
+            return [
+                'id'                 => $log->id,
+                'call_uuid'          => $log->call_uuid,
+                'direction'          => $isCaller ? 'outgoing' : 'incoming',
+                'room_type'          => $log->room_type,
+                'other_user'         => $otherUser ? [
+                    'id'           => $otherUser->id,
+                    'username'     => $otherUser->username,
+                    'display_name' => $otherUser->display_name ?: $otherUser->username,
+                    'avatar'       => $otherUser->avatar,
+                ] : null,
+                'caller'             => $log->caller ? [
+                    'id'           => $log->caller->id,
+                    'name'         => $log->caller->display_name ?: $log->caller->username,
+                    'avatar'       => $log->caller->avatar,
+                ] : null,
+                'receiver'           => $log->receiver ? [
+                    'id'           => $log->receiver->id,
+                    'name'         => $log->receiver->display_name ?: $log->receiver->username,
+                    'avatar'       => $log->receiver->avatar,
+                ] : null,
+                'status'             => $log->status,
+                'status_label'       => $statusLabel,
+                'duration'           => $log->duration,
+                'duration_formatted' => $formattedDuration,
+                'started_at'         => $log->started_at?->toIso8601String(),
+                'ended_at'           => $log->ended_at?->toIso8601String(),
+                'ended_by_name'      => $endedByName,
+                'created_at_human'   => $log->created_at ? $log->created_at->diffForHumans() : '',
+                'created_at_time'    => $log->created_at ? $log->created_at->format('H:i') : '',
+                'created_at_date'    => $log->created_at ? $log->created_at->format('d M Y') : '',
+            ];
+        });
+
+        return response()->json(['call_logs' => $data]);
     }
 
     public function joinGroupVoice(Request $request, $id)
