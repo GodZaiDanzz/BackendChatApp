@@ -21,7 +21,7 @@ class GroupController extends Controller
         $groups = Group::whereHas('members', function ($q) use ($userId) {
             $q->where('user_id', $userId);
         })
-            ->with(['members.user:id,username,display_name', 'creator:id,username,display_name'])
+            ->with(['members.user:id,username,display_name,avatar', 'creator:id,username,display_name,avatar'])
             ->get()
             ->map(function ($group) use ($userId) {
                 $myMember = $group->members->firstWhere('user_id', $userId);
@@ -45,6 +45,7 @@ class GroupController extends Controller
                             'user_id'      => $m->user_id,
                             'username'     => $m->user?->username,
                             'display_name' => $m->user?->display_name ?: $m->user?->username,
+                            'avatar'       => $m->user?->avatar,
                             'role'         => $m->role,
                             'joined_at'    => $m->joined_at?->toIso8601String(),
                         ];
@@ -106,7 +107,7 @@ class GroupController extends Controller
             return $grp;
         });
 
-        $group->load(['members.user:id,username,display_name', 'creator:id,username,display_name']);
+        $group->load(['members.user:id,username,display_name,avatar', 'creator:id,username,display_name,avatar']);
 
         return response()->json([
             'id'            => $group->id,
@@ -121,6 +122,7 @@ class GroupController extends Controller
                 'user_id'      => $m->user_id,
                 'username'     => $m->user?->username,
                 'display_name' => $m->user?->display_name ?: $m->user?->username,
+                'avatar'       => $m->user?->avatar,
                 'role'         => $m->role,
             ]),
         ], 201);
@@ -185,7 +187,7 @@ class GroupController extends Controller
 
     public function show(Request $request, $id)
     {
-        $group = Group::with(['members.user:id,username,display_name', 'creator:id,username,display_name'])->findOrFail($id);
+        $group = Group::with(['members.user:id,username,display_name,avatar', 'creator:id,username,display_name,avatar'])->findOrFail($id);
 
         $myMember = $group->members->firstWhere('user_id', $request->user()->id);
         if (!$myMember) {
@@ -206,6 +208,7 @@ class GroupController extends Controller
                 'user_id'      => $m->user_id,
                 'username'     => $m->user?->username,
                 'display_name' => $m->user?->display_name ?: $m->user?->username,
+                'avatar'       => $m->user?->avatar,
                 'role'         => $m->role,
                 'joined_at'    => $m->joined_at?->toIso8601String(),
             ]),
@@ -247,7 +250,7 @@ class GroupController extends Controller
 
         $group->update($updateData);
 
-        $group->load(['members.user:id,username,display_name', 'creator:id,username,display_name']);
+        $group->load(['members.user:id,username,display_name,avatar', 'creator:id,username,display_name,avatar']);
 
         return response()->json([
             'id'            => $group->id,
@@ -263,6 +266,7 @@ class GroupController extends Controller
                 'user_id'      => $m->user_id,
                 'username'     => $m->user?->username,
                 'display_name' => $m->user?->display_name ?: $m->user?->username,
+                'avatar'       => $m->user?->avatar,
                 'role'         => $m->role,
                 'joined_at'    => $m->joined_at?->toIso8601String(),
             ]),
@@ -297,7 +301,7 @@ class GroupController extends Controller
             );
         }
 
-        $group->load('members.user:id,username,display_name');
+        $group->load('members.user:id,username,display_name,avatar');
 
         return response()->json([
             'message'       => 'Anggota berhasil ditambahkan',
@@ -306,6 +310,7 @@ class GroupController extends Controller
                 'user_id'      => $m->user_id,
                 'username'     => $m->user?->username,
                 'display_name' => $m->user?->display_name ?: $m->user?->username,
+                'avatar'       => $m->user?->avatar,
                 'role'         => $m->role,
                 'joined_at'    => $m->joined_at?->toIso8601String(),
             ]),

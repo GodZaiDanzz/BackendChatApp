@@ -13,25 +13,25 @@
 
         <div class="contact-info-profile">
             <div class="avatar-container">
-                <div id="infoAvatarCircle" class="avatar-circle contact-info-avatar">?</div>
-                <span id="infoStatusDot" class="status-indicator-dot offline" style="width: 15px; height: 15px; border-width: 3px;"></span>
+                <div id="contactModalAvatarCircle" class="avatar-circle contact-info-avatar" style="overflow: hidden; display: flex; align-items: center; justify-content: center;">?</div>
+                <span id="contactModalStatusDot" class="status-indicator-dot offline" style="width: 15px; height: 15px; border-width: 3px;"></span>
             </div>
 
             <div>
-                <h3 id="infoDisplayName" class="contact-info-name">-</h3>
-                <div id="infoUsername" class="contact-info-handle">@username</div>
+                <h3 id="contactModalDisplayName" class="contact-info-name">-</h3>
+                <div id="contactModalUsername" class="contact-info-handle">@username</div>
             </div>
 
-            <div id="infoStatusBadge" class="contact-status-badge offline">
+            <div id="contactModalStatusBadge" class="contact-status-badge offline">
                 <span style="width: 6px; height: 6px; border-radius: 50%; background-color: currentColor;"></span>
-                <span id="infoStatusText">Offline</span>
+                <span id="contactModalStatusText">Offline</span>
             </div>
         </div>
 
         <div class="contact-details-list">
             <div class="contact-detail-row">
                 <span class="contact-detail-label">Status Kehadiran</span>
-                <span id="infoPresenceText" class="contact-detail-val">Offline</span>
+                <span id="contactModalPresenceText" class="contact-detail-val">Offline</span>
             </div>
             <div class="contact-detail-row">
                 <span class="contact-detail-label">Hubungan Akun</span>
@@ -39,11 +39,11 @@
             </div>
             <div class="contact-detail-row">
                 <span class="contact-detail-label">Bergabung Sejak</span>
-                <span id="infoJoinedDate" class="contact-detail-val">Pengguna ZChat</span>
+                <span id="contactModalJoinedDate" class="contact-detail-val">Pengguna ZChat</span>
             </div>
             <div class="contact-detail-row">
                 <span class="contact-detail-label">Total Percakapan</span>
-                <span id="infoTotalMessages" class="contact-detail-val">0 pesan</span>
+                <span id="contactModalTotalMessages" class="contact-detail-val">0 pesan</span>
             </div>
             <div class="contact-detail-row">
                 <span class="contact-detail-label">Keamanan Obrolan</span>

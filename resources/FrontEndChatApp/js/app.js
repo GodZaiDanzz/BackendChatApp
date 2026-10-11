@@ -559,10 +559,18 @@
         if (nameEl) nameEl.textContent = state.user.display_name;
         if (userEl) userEl.textContent = `@${state.user.username}`;
         if (avatarEl) {
-            const initials = state.user.display_name
-                ? state.user.display_name.split(' ').map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase()
-                : (state.user.username || 'RA').substring(0, 2).toUpperCase();
-            avatarEl.textContent = initials;
+            if (state.user.avatar) {
+                avatarEl.innerHTML = `<img src="${escapeHtml(state.user.avatar)}" alt="${escapeHtml(state.user.display_name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;">`;
+                avatarEl.style.padding = '0';
+                avatarEl.style.overflow = 'hidden';
+            } else {
+                const initials = state.user.display_name
+                    ? state.user.display_name.split(' ').map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase()
+                    : (state.user.username || 'RA').substring(0, 2).toUpperCase();
+                avatarEl.textContent = initials;
+                avatarEl.style.padding = '';
+                avatarEl.style.overflow = '';
+            }
             avatarEl.title = `Profil: ${state.user.display_name} (@${state.user.username}) - Klik untuk info / keluar`;
         }
     }
@@ -982,11 +990,14 @@
             const initial = (contact.display_name || contact.username).charAt(0).toUpperCase();
             const isActive = state.activeContact && state.activeContact.id === contact.id ? 'active' : '';
             const isOnline = Boolean(contact.is_online);
+            const avatarHtml = contact.avatar
+                ? `<img src="${escapeHtml(contact.avatar)}" alt="${escapeHtml(contact.display_name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;">`
+                : initial;
 
             return `
                 <div class="list-item ${isActive}" onclick="selectContact(${contact.id})" role="button" tabindex="0">
                     <div class="avatar-container">
-                        <div class="avatar-circle">${initial}</div>
+                        <div class="avatar-circle" style="overflow: hidden; display: flex; align-items: center; justify-content: center;">${avatarHtml}</div>
                         <span class="status-indicator-dot ${isOnline ? 'online' : 'offline'}" title="${isOnline ? 'Online' : 'Offline'}"></span>
                     </div>
                     <div class="list-item-content">
@@ -1182,11 +1193,14 @@
             const isOnline = Boolean(contact.is_online);
             const isMeLastMsg = Boolean(lastMsg && state.user && Number(lastMsg.sender_id) === Number(state.user.id));
             const statusCheckHtml = isMeLastMsg ? renderListStatusCheck(lastMsg.status) : '';
+            const avatarContent = contact.avatar
+                ? `<img src="${escapeHtml(contact.avatar)}" alt="${escapeHtml(contact.display_name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;">`
+                : initials;
 
             return `
                 <div class="list-item ${isActive}" onclick="selectContact(${contact.id})" role="button" tabindex="0">
                     <div class="avatar-container">
-                        <div class="avatar-circle ${pastelClass}">${initials}</div>
+                        <div class="avatar-circle ${contact.avatar ? '' : pastelClass}" style="overflow: hidden; display: flex; align-items: center; justify-content: center;">${avatarContent}</div>
                         <span class="status-indicator-dot ${isOnline ? 'online' : 'offline'}" title="${isOnline ? 'Online' : 'Offline'}"></span>
                     </div>
                     <div class="list-item-content">
@@ -1219,10 +1233,13 @@
 
         container.innerHTML = state.requests.map(req => {
             const initial = (req.display_name || req.username).charAt(0).toUpperCase();
+            const avatarHtml = req.avatar
+                ? `<img src="${escapeHtml(req.avatar)}" alt="${escapeHtml(req.display_name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;">`
+                : initial;
             return `
                 <div class="request-item">
                     <div class="request-item-info">
-                        <div class="avatar-circle">${initial}</div>
+                        <div class="avatar-circle" style="overflow: hidden; display: flex; align-items: center; justify-content: center;">${avatarHtml}</div>
                         <div>
                             <div class="list-item-title">${escapeHtml(req.display_name)}</div>
                             <div class="user-username">@${escapeHtml(req.username)}</div>
@@ -1602,6 +1619,203 @@
         }
     };
 
+    /**
+     * Konversi & Kompresi Foto Profil ke Standar WhatsApp:
+     * - Aspek rasio 1:1 Square (Center-crop)
+     * - Resolusi 500x500 piksel (standar WhatsApp)
+     * - Format WebP kualitas 0.85 (fallback JPEG)
+     * - Mengurangi foto kamera ponsel 5MB-10MB menjadi hanya ~35-65 KB tanpa pecah
+     */
+    function compressAndCropProfileImage(file, targetSize = 500, quality = 0.85) {
+        return new Promise((resolve, reject) => {
+            if (!file || !file.type.match(/^image\//i)) {
+                return reject(new Error('File yang dipilih bukan berkas gambar valid.'));
+            }
+            const reader = new FileReader();
+            reader.onerror = () => reject(new Error('Gagal membaca file gambar.'));
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onerror = () => reject(new Error('Gagal memproses data gambar.'));
+                img.onload = () => {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = targetSize;
+                        canvas.height = targetSize;
+                        const ctx = canvas.getContext('2d');
+
+                        // 1:1 Center crop (seperti WhatsApp avatar crop)
+                        const minDim = Math.min(img.width, img.height);
+                        const sx = (img.width - minDim) / 2;
+                        const sy = (img.height - minDim) / 2;
+
+                        ctx.imageSmoothingEnabled = true;
+                        ctx.imageSmoothingQuality = 'high';
+                        ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, targetSize, targetSize);
+
+                        // Export ke WebP (fallback JPEG)
+                        canvas.toBlob((blob) => {
+                            if (blob) {
+                                const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
+                                const convertedFile = new File([blob], `avatar_${Date.now()}.${ext}`, { type: blob.type });
+                                resolve({
+                                    file: convertedFile,
+                                    dataUrl: canvas.toDataURL(blob.type, quality),
+                                    originalSize: file.size,
+                                    compressedSize: blob.size
+                                });
+                            } else {
+                                canvas.toBlob((jpegBlob) => {
+                                    if (!jpegBlob) return reject(new Error('Gagal mengompresi gambar.'));
+                                    const convertedFile = new File([jpegBlob], `avatar_${Date.now()}.jpg`, { type: 'image/jpeg' });
+                                    resolve({
+                                        file: convertedFile,
+                                        dataUrl: canvas.toDataURL('image/jpeg', quality),
+                                        originalSize: file.size,
+                                        compressedSize: jpegBlob.size
+                                    });
+                                }, 'image/jpeg', quality);
+                            }
+                        }, 'image/webp', quality);
+                    } catch (err) {
+                        reject(err);
+                    }
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    window.handleUserAvatarSelected = async function (e) {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+
+        // Reset input value agar dapat memilih file yang sama bila diinginkan
+        e.target.value = '';
+
+        const MAX_SIZE_BYTES = 10 * 1024 * 1024; // Maksimal 10MB sebelum kompresi
+        if (file.size > MAX_SIZE_BYTES) {
+            showToast('Ukuran foto terlalu besar! Maksimal 10MB.', 'error');
+            return;
+        }
+
+        const avatarEl = document.getElementById('profileModalAvatar');
+        const badgeEl = document.getElementById('userAvatarInfoBadge');
+        const btnDelete = document.getElementById('btnDeleteUserAvatar');
+
+        if (badgeEl) {
+            badgeEl.innerHTML = `<span style="color: #a78bfa;">Mengonversi ke 500x500 WebP...</span>`;
+        }
+
+        try {
+            const result = await compressAndCropProfileImage(file, 500, 0.85);
+
+            // Tampilkan preview instan
+            if (avatarEl) {
+                avatarEl.innerHTML = `<img src="${result.dataUrl}" alt="Preview" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;">`;
+                avatarEl.className = 'avatar-circle';
+            }
+
+            const origKb = Math.round(result.originalSize / 1024);
+            const compKb = Math.round(result.compressedSize / 1024);
+            if (badgeEl) {
+                badgeEl.innerHTML = `<span style="color: #10b981;">Terkonversi: ${compKb} KB (dari ${origKb} KB) • Mengunggah...</span>`;
+            }
+
+            // Unggah ke endpoint server
+            const formData = new FormData();
+            formData.append('avatar', result.file);
+
+            const token = localStorage.getItem('zchat_token') || sessionStorage.getItem('zchat_token');
+            const res = await fetch('/api/user/avatar', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: formData
+            });
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.message || 'Gagal menyimpan foto profil ke server.');
+            }
+
+            const data = await res.json();
+            if (data && data.avatar) {
+                state.user.avatar = data.avatar;
+                localStorage.setItem('zchat_user', JSON.stringify(state.user));
+                updateCurrentUserUI();
+                if (btnDelete) btnDelete.style.display = 'inline-flex';
+                if (badgeEl) {
+                    badgeEl.innerHTML = `<span style="color: #10b981;">Foto WhatsApp terpasang (${compKb} KB)!</span>`;
+                }
+                showToast('Foto profil WhatsApp berhasil diperbarui!', 'success');
+            }
+        } catch (err) {
+            console.error('Avatar upload error:', err);
+            showToast(err.message || 'Gagal mengunggah foto profil', 'error');
+            if (badgeEl) {
+                badgeEl.textContent = 'Ukuran standar WhatsApp (500x500) • Maks 10MB';
+                badgeEl.style.color = 'var(--text-muted)';
+            }
+            if (avatarEl) {
+                if (state.user && state.user.avatar) {
+                    avatarEl.innerHTML = `<img src="${state.user.avatar}" alt="${escapeHtml(state.user.display_name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;">`;
+                } else {
+                    const initials = (state.user ? (state.user.display_name || state.user.username) : 'U').split(' ').map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase();
+                    avatarEl.className = 'avatar-circle avatar-pastel-purple';
+                    avatarEl.textContent = initials;
+                }
+            }
+        }
+    };
+
+    window.handleDeleteUserAvatar = async function () {
+        if (!state.user || !state.user.avatar) return;
+        if (!confirm('Apakah Anda yakin ingin menghapus foto profil?')) return;
+
+        const avatarEl = document.getElementById('profileModalAvatar');
+        const badgeEl = document.getElementById('userAvatarInfoBadge');
+        const btnDelete = document.getElementById('btnDeleteUserAvatar');
+
+        try {
+            const token = localStorage.getItem('zchat_token') || sessionStorage.getItem('zchat_token');
+            const res = await fetch('/api/user/avatar', {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.message || 'Gagal menghapus foto profil.');
+            }
+
+            state.user.avatar = null;
+            localStorage.setItem('zchat_user', JSON.stringify(state.user));
+            updateCurrentUserUI();
+
+            if (avatarEl) {
+                const pastelClass = getPastelColorClass(state.user.display_name || state.user.username);
+                const initials = (state.user.display_name || state.user.username).split(' ').map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase() || 'U';
+                avatarEl.className = `avatar-circle ${pastelClass}`;
+                avatarEl.textContent = initials;
+            }
+            if (btnDelete) btnDelete.style.display = 'none';
+            if (badgeEl) {
+                badgeEl.textContent = 'Ukuran standar WhatsApp (500x500) • Maks 10MB';
+                badgeEl.style.color = 'var(--text-muted)';
+            }
+            showToast('Foto profil berhasil dihapus.', 'info');
+        } catch (err) {
+            console.error('Delete avatar error:', err);
+            showToast(err.message || 'Gagal menghapus foto profil', 'error');
+        }
+    };
+
     window.openUserProfileModal = function () {
         if (!state.user) return;
         const modal = document.getElementById('userProfileModal');
@@ -1610,6 +1824,8 @@
         const emailInput = document.getElementById('profileEmailInput');
         const avatarEl = document.getElementById('profileModalAvatar');
         const soundToggle = document.getElementById('profileSoundToggle');
+        const btnDelete = document.getElementById('btnDeleteUserAvatar');
+        const badgeEl = document.getElementById('userAvatarInfoBadge');
 
         if (nameInput) nameInput.value = state.user.display_name || '';
         if (userInput) userInput.value = `@${state.user.username || ''}`;
@@ -1617,10 +1833,22 @@
         if (soundToggle) soundToggle.checked = Boolean(state.soundEnabled);
 
         if (avatarEl) {
-            const pastelClass = getPastelColorClass(state.user.display_name || state.user.username);
-            const initials = (state.user.display_name || state.user.username).split(' ').map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase() || 'U';
-            avatarEl.className = `avatar-circle info-avatar-large ${pastelClass}`;
-            avatarEl.textContent = initials;
+            if (state.user.avatar) {
+                avatarEl.className = 'avatar-circle';
+                avatarEl.innerHTML = `<img src="${state.user.avatar}" alt="${escapeHtml(state.user.display_name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;">`;
+                if (btnDelete) btnDelete.style.display = 'inline-flex';
+            } else {
+                const pastelClass = getPastelColorClass(state.user.display_name || state.user.username);
+                const initials = (state.user.display_name || state.user.username).split(' ').map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase() || 'U';
+                avatarEl.className = `avatar-circle ${pastelClass}`;
+                avatarEl.textContent = initials;
+                if (btnDelete) btnDelete.style.display = 'none';
+            }
+        }
+
+        if (badgeEl) {
+            badgeEl.textContent = 'Ukuran standar WhatsApp (500x500) • Maks 10MB';
+            badgeEl.style.color = 'var(--text-muted)';
         }
 
         if (modal) {
@@ -1662,6 +1890,9 @@
 
             if (updated) {
                 state.user.display_name = updated.display_name || newName;
+                if (updated.avatar !== undefined) {
+                    state.user.avatar = updated.avatar;
+                }
                 localStorage.setItem('zchat_user', JSON.stringify(state.user));
                 updateCurrentUserUI();
                 showToast('Profil berhasil diperbarui.', 'success');
@@ -2003,11 +2234,14 @@
             list.innerHTML = users.map(user => {
                 const initial = (user.display_name || user.username).charAt(0).toUpperCase();
                 const isFriend = state.contacts.some(c => c.id === user.id);
+                const userAvatarHtml = user.avatar
+                    ? `<img src="${escapeHtml(user.avatar)}" alt="${escapeHtml(user.display_name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;">`
+                    : initial;
 
                 return `
                     <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.625rem; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
                         <div style="display: flex; align-items: center; gap: 0.75rem;">
-                            <div class="avatar-circle" style="width: 34px; height: 34px; font-size: 0.875rem;">${initial}</div>
+                            <div class="avatar-circle" style="width: 34px; height: 34px; font-size: 0.875rem; overflow: hidden; display: flex; align-items: center; justify-content: center;">${userAvatarHtml}</div>
                             <div>
                                 <div style="font-weight: 600; font-size: 0.875rem; color: var(--text-primary);">${escapeHtml(user.display_name)}</div>
                                 <div style="font-size: 0.75rem; color: var(--text-secondary);">@${escapeHtml(user.username)}</div>
@@ -2087,8 +2321,15 @@
         document.getElementById('activeChatUsername').textContent = `@${contact.username}`;
         const activeAvatarEl = document.getElementById('activeAvatarCircle');
         if (activeAvatarEl) {
-            activeAvatarEl.className = `avatar-circle ${pastelClass}`;
-            activeAvatarEl.textContent = initials;
+            if (contact.avatar) {
+                activeAvatarEl.className = 'avatar-circle';
+                activeAvatarEl.style.overflow = 'hidden';
+                activeAvatarEl.innerHTML = `<img src="${escapeHtml(contact.avatar)}" alt="${escapeHtml(contact.display_name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;">`;
+            } else {
+                activeAvatarEl.className = `avatar-circle ${pastelClass}`;
+                activeAvatarEl.style.overflow = '';
+                activeAvatarEl.textContent = initials;
+            }
         }
 
         const dot = document.getElementById('activeStatusDot');
@@ -2122,8 +2363,15 @@
         const infoUser = document.getElementById('infoUsername');
         const infoDot = document.getElementById('infoStatusDot');
         if (infoAvatar) {
-            infoAvatar.className = `avatar-circle info-avatar-large ${pastelClass}`;
-            infoAvatar.textContent = initials;
+            if (contact.avatar) {
+                infoAvatar.className = 'avatar-circle info-avatar-large';
+                infoAvatar.style.overflow = 'hidden';
+                infoAvatar.innerHTML = `<img src="${escapeHtml(contact.avatar)}" alt="${escapeHtml(contact.display_name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;">`;
+            } else {
+                infoAvatar.className = `avatar-circle info-avatar-large ${pastelClass}`;
+                infoAvatar.style.overflow = '';
+                infoAvatar.textContent = initials;
+            }
         }
         if (infoName) infoName.textContent = contact.display_name;
         if (infoUser) infoUser.textContent = contact.email || `@${contact.username}`;
@@ -2379,11 +2627,14 @@
                 const isTargetCreator = Number(m.user_id) === Number(group.created_by);
                 // Admin can kick members; only creator can kick another admin; creator cannot be kicked by other admins
                 const canKick = isAdmin && !isMe && (!isTargetCreator || isCurrentCreator);
+                const memAvatarHtml = m.avatar
+                    ? `<img src="${escapeHtml(m.avatar)}" alt="${escapeHtml(m.display_name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;">`
+                    : initial;
 
                 return `
                     <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.45rem 0.65rem; border-radius: 8px; background: var(--bg-surface-elevated, rgba(255,255,255,0.03)); border: 1px solid var(--border-subtle, rgba(255,255,255,0.06)); font-size: 0.8125rem;">
                         <div style="display: flex; align-items: center; gap: 0.5rem; overflow: hidden; min-width: 0;">
-                            <div class="avatar-circle" style="width: 30px; height: 30px; font-size: 0.75rem; flex-shrink: 0; background: linear-gradient(135deg, rgba(124, 58, 237, 0.3), rgba(139, 92, 246, 0.15)); color: #c4b5fd;">${initial}</div>
+                            <div class="avatar-circle" style="width: 30px; height: 30px; font-size: 0.75rem; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(124, 58, 237, 0.3), rgba(139, 92, 237, 0.15)); color: #c4b5fd;">${memAvatarHtml}</div>
                             <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                                 <div style="font-weight: 600; color: var(--text-primary); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
                                     ${escapeHtml(m.display_name)}${isMe ? ' <span style="color: var(--accent-primary); font-size: 0.7rem; font-weight: 500;">(Anda)</span>' : ''}
@@ -2976,17 +3227,25 @@
         const isOnline = Boolean(contact.is_online);
 
         const modal = document.getElementById('contactInfoModal');
-        const avatarEl = document.getElementById('infoAvatarCircle');
-        const dotEl = document.getElementById('infoStatusDot');
-        const nameEl = document.getElementById('infoDisplayName');
-        const userEl = document.getElementById('infoUsername');
-        const badgeEl = document.getElementById('infoStatusBadge');
-        const statusTextEl = document.getElementById('infoStatusText');
-        const presenceEl = document.getElementById('infoPresenceText');
-        const joinedEl = document.getElementById('infoJoinedDate');
-        const msgsEl = document.getElementById('infoTotalMessages');
+        const avatarEl = document.getElementById('contactModalAvatarCircle') || document.getElementById('infoAvatarCircle');
+        const dotEl = document.getElementById('contactModalStatusDot') || document.getElementById('infoStatusDot');
+        const nameEl = document.getElementById('contactModalDisplayName') || document.getElementById('infoDisplayName');
+        const userEl = document.getElementById('contactModalUsername') || document.getElementById('infoUsername');
+        const badgeEl = document.getElementById('contactModalStatusBadge') || document.getElementById('infoStatusBadge');
+        const statusTextEl = document.getElementById('contactModalStatusText') || document.getElementById('infoStatusText');
+        const presenceEl = document.getElementById('contactModalPresenceText') || document.getElementById('infoPresenceText');
+        const joinedEl = document.getElementById('contactModalJoinedDate') || document.getElementById('infoJoinedDate');
+        const msgsEl = document.getElementById('contactModalTotalMessages') || document.getElementById('infoTotalMessages');
 
-        if (avatarEl) avatarEl.textContent = initial;
+        if (avatarEl) {
+            if (contact.avatar) {
+                avatarEl.innerHTML = `<img src="${escapeHtml(contact.avatar)}" alt="${escapeHtml(contact.display_name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;">`;
+                avatarEl.style.overflow = 'hidden';
+            } else {
+                avatarEl.textContent = initial;
+                avatarEl.style.overflow = '';
+            }
+        }
         if (dotEl) {
             dotEl.className = `status-indicator-dot ${isOnline ? 'online' : 'offline'}`;
             dotEl.title = isOnline ? 'Online' : 'Offline';

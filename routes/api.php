@@ -23,6 +23,9 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::put('/user/profile', [UserController::class, 'updateProfile']);
+    Route::post('/user/profile', [UserController::class, 'updateProfile']);
+    Route::post('/user/avatar', [UserController::class, 'uploadAvatar']);
+    Route::delete('/user/avatar', [UserController::class, 'deleteAvatar']);
     Route::get('/users/search', [UserController::class, 'search']);
     Route::get('/contacts', [ContactController::class, 'index']);
     Route::get('/contacts/requests', [ContactController::class, 'requests']);

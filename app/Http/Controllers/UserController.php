@@ -21,7 +21,7 @@ class UserController extends Controller
                   ->orWhere('display_name', 'like', "%{$query}%");
             })
             ->limit(20)
-            ->get(['id', 'username', 'display_name']);
+            ->get(['id', 'username', 'display_name', 'avatar']);
 
         return response()->json($users);
     }
@@ -30,10 +30,31 @@ class UserController extends Controller
     {
         $data = $request->validate([
             'display_name' => 'required|string|max:100',
+            'avatar'       => 'nullable|image|max:10240',
         ]);
 
         $user = $request->user();
-        $user->display_name = $data['display_name'];
+        $user->display_name = trim($data['display_name']);
+
+        if ($request->hasFile('avatar')) {
+            $file = $request->file('avatar');
+            $dir = public_path('uploads/avatars');
+            if (!file_exists($dir)) {
+                mkdir($dir, 0755, true);
+            }
+
+            if ($user->avatar && str_starts_with($user->avatar, '/uploads/avatars/')) {
+                $oldPath = public_path(ltrim($user->avatar, '/'));
+                if (file_exists($oldPath)) {
+                    @unlink($oldPath);
+                }
+            }
+
+            $filename = 'user_' . $user->id . '_' . time() . '.' . $file->getClientOriginalExtension();
+            $file->move($dir, $filename);
+            $user->avatar = '/uploads/avatars/' . $filename;
+        }
+
         $user->save();
 
         return response()->json([
@@ -41,6 +62,65 @@ class UserController extends Controller
             'username'     => $user->username,
             'display_name' => $user->display_name,
             'email'        => $user->email,
+            'avatar'       => $user->avatar,
+        ]);
+    }
+
+    public function uploadAvatar(Request $request)
+    {
+        $request->validate([
+            'avatar' => 'required|image|max:10240',
+        ]);
+
+        $user = $request->user();
+        $file = $request->file('avatar');
+        $dir = public_path('uploads/avatars');
+        if (!file_exists($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        if ($user->avatar && str_starts_with($user->avatar, '/uploads/avatars/')) {
+            $oldPath = public_path(ltrim($user->avatar, '/'));
+            if (file_exists($oldPath)) {
+                @unlink($oldPath);
+            }
+        }
+
+        $filename = 'user_' . $user->id . '_' . time() . '.' . $file->getClientOriginalExtension();
+        $file->move($dir, $filename);
+        $user->avatar = '/uploads/avatars/' . $filename;
+        $user->save();
+
+        return response()->json([
+            'message'      => 'Foto profil berhasil diperbarui',
+            'id'           => $user->id,
+            'username'     => $user->username,
+            'display_name' => $user->display_name,
+            'email'        => $user->email,
+            'avatar'       => $user->avatar,
+        ]);
+    }
+
+    public function deleteAvatar(Request $request)
+    {
+        $user = $request->user();
+        if ($user->avatar && str_starts_with($user->avatar, '/uploads/avatars/')) {
+            $oldPath = public_path(ltrim($user->avatar, '/'));
+            if (file_exists($oldPath)) {
+                @unlink($oldPath);
+            }
+        }
+
+        $user->avatar = null;
+        $user->save();
+
+        return response()->json([
+            'message'      => 'Foto profil berhasil dihapus',
+            'id'           => $user->id,
+            'username'     => $user->username,
+            'display_name' => $user->display_name,
+            'email'        => $user->email,
+            'avatar'       => null,
         ]);
     }
 }
