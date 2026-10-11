@@ -25,6 +25,23 @@ class VoiceCallController extends Controller
 
         \Illuminate\Support\Facades\Log::info('VOICE_SIGNAL: from=' . $sender->id . ' (' . $sender->username . ') to=' . $targetId . ' type=' . $data['signal_type']);
 
+        if ($data['signal_type'] === 'call-offer' && $data['room_type'] === 'direct') {
+            Cache::put("incoming_call_direct_{$targetId}", [
+                'sender_id'     => $sender->id,
+                'sender_name'   => $sender->display_name ?: $sender->username,
+                'sender_avatar' => $sender->avatar,
+                'target_id'     => $targetId,
+                'signal_type'   => 'call-offer',
+                'room_type'     => 'direct',
+                'group_id'      => null,
+                'data'          => $data['data'] ?? null,
+                'created_at'    => now()->timestamp
+            ], 35);
+        } elseif (in_array($data['signal_type'], ['call-answer', 'call-rejected', 'call-ended', 'call-busy'])) {
+            Cache::forget("incoming_call_direct_{$targetId}");
+            Cache::forget("incoming_call_direct_{$sender->id}");
+        }
+
         broadcast(new VoiceSignalSent(
             sender: $sender,
             recipientId: $targetId,
@@ -35,6 +52,20 @@ class VoiceCallController extends Controller
         ));
 
         return response()->json(['status' => 'sent']);
+    }
+
+    public function getActiveCall(Request $request)
+    {
+        $userId = $request->user()->id;
+        $call = Cache::get("incoming_call_direct_{$userId}");
+        if ($call) {
+            if (now()->timestamp - ($call['created_at'] ?? 0) > 30) {
+                Cache::forget("incoming_call_direct_{$userId}");
+                return response()->json(['has_call' => false]);
+            }
+            return response()->json(['has_call' => true, 'call' => $call]);
+        }
+        return response()->json(['has_call' => false]);
     }
 
     public function joinGroupVoice(Request $request, $id)

@@ -58,6 +58,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // WebRTC Voice Channels and Calls
     Route::post('/voice/signal', [\App\Http\Controllers\VoiceCallController::class, 'sendSignal']);
+    Route::get('/voice/active-call', [\App\Http\Controllers\VoiceCallController::class, 'getActiveCall']);
     Route::post('/voice/groups/{id}/join', [\App\Http\Controllers\VoiceCallController::class, 'joinGroupVoice']);
     Route::post('/voice/groups/{id}/leave', [\App\Http\Controllers\VoiceCallController::class, 'leaveGroupVoice']);
     Route::get('/voice/groups/{id}/status', [\App\Http\Controllers\VoiceCallController::class, 'getGroupVoiceStatus']);

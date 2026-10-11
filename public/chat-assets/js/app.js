@@ -3627,12 +3627,29 @@
                 wssPort: 443,
                 forceTLS: isHttps,
                 enabledTransports: ['ws', 'wss'],
+                activityTimeout: 25000,
+                pongTimeout: 10000,
                 channelAuthorization: {
                     endpoint: '/api/broadcasting/auth',
                     headers: {
                         Authorization: 'Bearer ' + state.token,
                         Accept: 'application/json'
                     }
+                },
+                authEndpoint: '/api/broadcasting/auth',
+                auth: {
+                    headers: {
+                        Authorization: 'Bearer ' + state.token,
+                        Accept: 'application/json'
+                    }
+                }
+            });
+
+            state.reverbSocket.connection.bind('state_change', (states) => {
+                if (states.current === 'unavailable' || states.current === 'failed') {
+                    setTimeout(() => {
+                        try { state.reverbSocket.connect(); } catch (e) { }
+                    }, 2000);
                 }
             });
 
@@ -3667,6 +3684,12 @@
 
             channel.bind('voice.signal', onVoiceSignal);
             channel.bind('.voice.signal', onVoiceSignal);
+
+            state.reverbSocket.bind_global(async (eventName, rawSignal) => {
+                if (eventName === 'voice.signal' || eventName === '.voice.signal') {
+                    onVoiceSignal(rawSignal);
+                }
+            });
         } catch (e) {
             console.warn('Reverb WebSocket initialization error:', e);
         }
@@ -3913,6 +3936,35 @@
         } catch (e) { }
     }
 
+    async function syncIncomingVoiceCall() {
+        if (!state.token || !state.user) return;
+        try {
+            const res = await apiRequest('/voice/active-call');
+            if (res && res.has_call && res.call) {
+                if (!state.voice.active && !state.voice.incomingCall) {
+                    await handleIncomingVoiceSignal(res.call);
+                }
+            } else if (res && !res.has_call && state.voice.incomingCall) {
+                stopCallTitleFlash();
+                stopIncomingRingtone();
+                state.voice.incomingCall = null;
+                const modal = document.getElementById('incomingCallModal');
+                if (modal) {
+                    modal.classList.remove('active');
+                    modal.style.display = 'none';
+                }
+            }
+        } catch (e) { }
+
+        // Reconnect WebSocket if disconnected
+        if (state.reverbSocket && state.reverbSocket.connection) {
+            const s = state.reverbSocket.connection.state;
+            if (s === 'disconnected' || s === 'failed') {
+                try { state.reverbSocket.connect(); } catch (e) { }
+            }
+        }
+    }
+
     function startDataSync() {
         if (state.syncInterval) clearInterval(state.syncInterval);
         if (state.heartbeatInterval) clearInterval(state.heartbeatInterval);
@@ -3925,6 +3977,7 @@
         syncPendingMessages();
         syncMessageStatuses();
         syncGroupMessages();
+        syncIncomingVoiceCall();
 
         state.heartbeatInterval = setInterval(() => {
             sendHeartbeat();
@@ -3937,6 +3990,7 @@
             syncMessageStatuses();
             syncGroupMessages();
             fetchRequests();
+            syncIncomingVoiceCall();
 
             if (state.activeContact && !state.activeContact.is_group) {
                 checkActiveContactTyping();
