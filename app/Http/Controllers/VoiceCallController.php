@@ -256,8 +256,8 @@ class VoiceCallController extends Controller
     {
         $userId = $request->user()->id;
         $logs = CallLog::with([
-                'caller:id,username,display_name,avatar',
-                'receiver:id,username,display_name,avatar',
+                'caller:id,username,display_name',
+                'receiver:id,username,display_name',
                 'endedBy:id,username,display_name'
             ])
             ->where(function ($q) use ($userId) {
@@ -300,17 +300,17 @@ class VoiceCallController extends Controller
                     'id'           => $otherUser->id,
                     'username'     => $otherUser->username,
                     'display_name' => $otherUser->display_name ?: $otherUser->username,
-                    'avatar'       => $otherUser->avatar,
+                    'avatar'       => null,
                 ] : null,
                 'caller'             => $log->caller ? [
                     'id'           => $log->caller->id,
                     'name'         => $log->caller->display_name ?: $log->caller->username,
-                    'avatar'       => $log->caller->avatar,
+                    'avatar'       => null,
                 ] : null,
                 'receiver'           => $log->receiver ? [
                     'id'           => $log->receiver->id,
                     'name'         => $log->receiver->display_name ?: $log->receiver->username,
-                    'avatar'       => $log->receiver->avatar,
+                    'avatar'       => null,
                 ] : null,
                 'status'             => $log->status,
                 'status_label'       => $statusLabel,
