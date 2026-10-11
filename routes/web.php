@@ -6,8 +6,7 @@ Route::get('/', function (\Illuminate\Http\Request $request) {
     if (str_contains($request->getHost(), 'chat.') || $request->getHost() === 'chat.ismc.my.id') {
         return view('index');
     }
-    return view('welcome');
-});
+})->name('login');
 
 Route::get('/chat', function (\Illuminate\Http\Request $request) {
     if (str_contains($request->getHost(), 'api.')) {
