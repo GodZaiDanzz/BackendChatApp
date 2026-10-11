@@ -21,6 +21,7 @@ Route::middleware('auth:sanctum')->group(function () {
         return response()->json($request->user());
     });
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::put('/user/profile', [UserController::class, 'updateProfile']);
     Route::get('/users/search', [UserController::class, 'search']);
     Route::get('/contacts', [ContactController::class, 'index']);
     Route::get('/contacts/requests', [ContactController::class, 'requests']);

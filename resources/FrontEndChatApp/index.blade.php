@@ -44,6 +44,7 @@
     @include('components.auth-modal')
     @include('components.add-friend-modal')
     @include('components.contact-info-modal')
+    @include('components.user-profile-modal')
     @include('components.toast')
 
     {{-- Application Logic Script --}}

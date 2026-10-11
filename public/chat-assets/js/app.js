@@ -181,6 +181,11 @@
         activeTab: 'chats',
         reverbSocket: null,
         editingMessageId: null,
+        replyingTo: null,
+        selectedAttachment: null,
+        soundEnabled: localStorage.getItem('zchat_sound_enabled') !== 'false',
+        inChatSearchQuery: '',
+        activeEmojiCategory: 'popular',
         typingUsers: {},
         typingTimers: {},
         isCurrentlyTyping: false,
@@ -1037,15 +1042,349 @@
     };
 
     window.handleSimulatedAction = function (name) {
-        showToast(`Fitur "${name}" siap digunakan!`, 'info');
+        showToast(`${name} sedang disiapkan.`, 'info');
+    };
+
+    function playMessageChime() {
+        if (!state.soundEnabled) return;
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            const ctx = new AudioCtx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12);
+            gain.gain.setValueAtTime(0.12, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.32);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.32);
+        } catch (e) {}
+    }
+
+    window.toggleSoundNotification = function (enabled) {
+        state.soundEnabled = Boolean(enabled);
+        try {
+            localStorage.setItem('zchat_sound_enabled', String(state.soundEnabled));
+        } catch (e) {}
+        if (state.soundEnabled) {
+            playMessageChime();
+            showToast('Suara notifikasi diaktifkan.', 'info');
+        } else {
+            showToast('Suara notifikasi dinonaktifkan.', 'info');
+        }
     };
 
     window.openUserProfileModal = function () {
         if (!state.user) return;
-        const confirmed = window.confirm(`Profil Akun:\nNama: ${state.user.display_name}\nUsername: @${state.user.username}\nEmail: ${state.user.email || '-'}\n\nApakah Anda ingin keluar dari akun?`);
-        if (confirmed) {
-            handleLogout();
+        const modal = document.getElementById('userProfileModal');
+        const nameInput = document.getElementById('profileDisplayNameInput');
+        const userInput = document.getElementById('profileUsernameInput');
+        const emailInput = document.getElementById('profileEmailInput');
+        const avatarEl = document.getElementById('profileModalAvatar');
+        const soundToggle = document.getElementById('profileSoundToggle');
+
+        if (nameInput) nameInput.value = state.user.display_name || '';
+        if (userInput) userInput.value = `@${state.user.username || ''}`;
+        if (emailInput) emailInput.value = state.user.email || 'Belum diatur';
+        if (soundToggle) soundToggle.checked = Boolean(state.soundEnabled);
+
+        if (avatarEl) {
+            const pastelClass = getPastelColorClass(state.user.display_name || state.user.username);
+            const initials = (state.user.display_name || state.user.username).split(' ').map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase() || 'U';
+            avatarEl.className = `avatar-circle info-avatar-large ${pastelClass}`;
+            avatarEl.textContent = initials;
         }
+
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+            if (nameInput) nameInput.focus();
+        }
+    };
+
+    window.closeUserProfileModal = function () {
+        const modal = document.getElementById('userProfileModal');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('active');
+        }
+    };
+
+    window.handleSaveProfile = async function (e) {
+        if (e) e.preventDefault();
+        const nameInput = document.getElementById('profileDisplayNameInput');
+        const btnSave = document.getElementById('btnSaveProfile');
+        const newName = (nameInput ? nameInput.value : '').trim();
+
+        if (!newName) {
+            showToast('Nama tampilan tidak boleh kosong.', 'error');
+            return;
+        }
+
+        if (btnSave) {
+            btnSave.disabled = true;
+            btnSave.textContent = 'Menyimpan...';
+        }
+
+        try {
+            const updated = await apiRequest('/user/profile', {
+                method: 'PUT',
+                body: JSON.stringify({ display_name: newName })
+            });
+
+            if (updated) {
+                state.user.display_name = updated.display_name || newName;
+                localStorage.setItem('zchat_user', JSON.stringify(state.user));
+                updateCurrentUserUI();
+                showToast('Profil berhasil diperbarui.', 'success');
+                window.closeUserProfileModal();
+            }
+        } catch (err) {
+            showToast('Gagal memperbarui profil: ' + err.message, 'error');
+        } finally {
+            if (btnSave) {
+                btnSave.disabled = false;
+                btnSave.textContent = 'Simpan Perubahan';
+            }
+        }
+    };
+
+    const EMOJI_CATEGORIES = {
+        popular: ['👍', '❤️', '😂', '🔥', '✨', '🎉', '🙏', '😊', '😍', '👏', '🙌', '💯', '🚀', '😎'],
+        smileys: ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '😉', '😌', '😍', '🥰', '😘', '😋', '😛', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '🥺', '😢', '😭', '😤', '😠', '😡', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', '🤔', '🤭', '🤫', '🤥', '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '🥱', '😴'],
+        gestures: ['👍', '👎', '👌', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '👇', '☝️', '✋', '🤚', '🖐️', '🖖', '👋', '💪', '✍️', '🙏', '🤝', '👏', '🙌', '👐', '🤲'],
+        hearts: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝'],
+        objects: ['🎉', '🎊', '🎈', '🎁', '🏆', '🥇', '🥈', '🥉', '⚽', '🏀', '🔥', '⭐', '🌟', '💡', '📌', '📎', '💼', '💻', '📱', '🔔', '📢', '🚀', '💯']
+    };
+
+    window.toggleEmojiPicker = function (eOrForce) {
+        const popover = document.getElementById('emojiPickerPopover');
+        if (!popover) return;
+        const willShow = typeof eOrForce === 'boolean' ? eOrForce : popover.style.display === 'none';
+        if (willShow) {
+            popover.style.display = 'flex';
+            renderEmojiGrid(state.activeEmojiCategory || 'popular');
+        } else {
+            popover.style.display = 'none';
+        }
+    };
+
+    window.switchEmojiCategory = function (category) {
+        state.activeEmojiCategory = category;
+        const tabs = document.querySelectorAll('.emoji-tab-btn');
+        tabs.forEach(t => t.classList.remove('active'));
+        const activeTab = Array.from(tabs).find(t => t.getAttribute('onclick')?.includes(category));
+        if (activeTab) activeTab.classList.add('active');
+        renderEmojiGrid(category);
+    };
+
+    function renderEmojiGrid(category) {
+        const grid = document.getElementById('emojiGridList');
+        if (!grid) return;
+        const list = EMOJI_CATEGORIES[category] || EMOJI_CATEGORIES.popular;
+        grid.innerHTML = list.map(em => `
+            <button type="button" class="emoji-item-btn" onclick="insertEmoji('${em}')" aria-label="${em}">${em}</button>
+        `).join('');
+    }
+
+    window.insertEmoji = function (emoji) {
+        const textarea = document.getElementById('messageInput');
+        if (!textarea) return;
+        const start = textarea.selectionStart || textarea.value.length;
+        const end = textarea.selectionEnd || textarea.value.length;
+        const val = textarea.value;
+        textarea.value = val.substring(0, start) + emoji + val.substring(end);
+        textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+        textarea.focus();
+        handleMessageInput();
+    };
+
+    window.startReplyMessage = function (msgIdentifier) {
+        if (!state.activeContact) return;
+        const msgs = state.chats[state.activeContact.id] || [];
+        const target = msgs.find(m => String(m.id) === String(msgIdentifier) || (m.client_uuid && String(m.client_uuid) === String(msgIdentifier)));
+        if (!target) return;
+
+        state.replyingTo = target;
+        const banner = document.getElementById('replyMessageBanner');
+        const authorEl = document.getElementById('replyRecipientName');
+        const snippetEl = document.getElementById('replyMessageSnippet');
+
+        const isTargetMe = Number(target.sender_id) === Number(state.user.id);
+        const name = isTargetMe ? 'Anda' : (state.activeContact.display_name || state.activeContact.username);
+
+        if (authorEl) authorEl.textContent = `Membalas ${name}`;
+        if (snippetEl) snippetEl.textContent = target.body ? target.body.substring(0, 80) : '[Lampiran]';
+        if (banner) banner.style.display = 'flex';
+
+        const textarea = document.getElementById('messageInput');
+        if (textarea) textarea.focus();
+    };
+
+    window.cancelReplyMessage = function () {
+        state.replyingTo = null;
+        const banner = document.getElementById('replyMessageBanner');
+        if (banner) banner.style.display = 'none';
+    };
+
+    window.scrollToMessage = function (msgId) {
+        const row = document.querySelector(`.message-row[data-msg-id="${msgId}"]`);
+        if (row) {
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            row.style.transition = 'background-color 0.4s ease';
+            row.style.backgroundColor = 'rgba(124, 58, 237, 0.15)';
+            setTimeout(() => {
+                row.style.backgroundColor = 'transparent';
+            }, 1200);
+        }
+    };
+
+    window.triggerFileAttachment = function () {
+        const fileInput = document.getElementById('chatFileInput');
+        if (fileInput) fileInput.click();
+    };
+
+    window.handleFileSelected = function (e) {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+
+        // Batasi ukuran maksimal berkas sebesar 5 MB
+        if (file.size > 5 * 1024 * 1024) {
+            showToast('Ukuran berkas melebihi batas maksimal 5 MB.', 'error');
+            e.target.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function (evt) {
+            state.selectedAttachment = {
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                dataUrl: evt.target.result
+            };
+
+            const banner = document.getElementById('attachmentPreviewBanner');
+            const nameEl = document.getElementById('attachmentFileName');
+            const sizeEl = document.getElementById('attachmentFileSize');
+            const thumbContainer = document.getElementById('attachmentThumbnailContainer');
+
+            if (nameEl) nameEl.textContent = file.name;
+            if (sizeEl) sizeEl.textContent = formatFileSize(file.size);
+
+            if (thumbContainer) {
+                if (file.type.startsWith('image/')) {
+                    thumbContainer.innerHTML = `<img src="${evt.target.result}" alt="${file.name}">`;
+                } else {
+                    thumbContainer.innerHTML = `
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                        </svg>
+                    `;
+                }
+            }
+
+            if (banner) banner.style.display = 'flex';
+        };
+        reader.readAsDataURL(file);
+    };
+
+    window.cancelAttachment = function () {
+        state.selectedAttachment = null;
+        const banner = document.getElementById('attachmentPreviewBanner');
+        const fileInput = document.getElementById('chatFileInput');
+        if (banner) banner.style.display = 'none';
+        if (fileInput) fileInput.value = '';
+    };
+
+    function formatFileSize(bytes) {
+        if (!bytes || isNaN(bytes)) return '0 B';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function escapeRegex(str) {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    window.toggleInChatSearch = function (forceState) {
+        const bar = document.getElementById('inChatSearchBar');
+        const input = document.getElementById('inChatSearchInput');
+        if (!bar) return;
+        const willShow = typeof forceState === 'boolean' ? forceState : bar.style.display === 'none';
+        if (willShow) {
+            bar.style.display = 'block';
+            if (input) {
+                input.value = state.inChatSearchQuery || '';
+                input.focus();
+            }
+        } else {
+            bar.style.display = 'none';
+            state.inChatSearchQuery = '';
+            if (input) input.value = '';
+            renderActiveMessages();
+        }
+    };
+
+    window.handleInChatSearch = function (e) {
+        const query = (e.target.value || '').trim();
+        state.inChatSearchQuery = query;
+        renderActiveMessages();
+
+        const countEl = document.getElementById('inChatSearchCount');
+        if (!countEl) return;
+
+        if (!query) {
+            countEl.textContent = '0 hasil';
+            return;
+        }
+
+        const msgs = (state.activeContact && state.chats[state.activeContact.id]) || [];
+        const matches = msgs.filter(m => !m.is_deleted && m.body && m.body.toLowerCase().includes(query.toLowerCase()));
+        countEl.textContent = `${matches.length} ditemukan`;
+
+        if (matches.length > 0) {
+            const firstMatch = matches[matches.length - 1];
+            const targetId = firstMatch.id || firstMatch.client_uuid;
+            scrollToMessage(targetId);
+        }
+    };
+
+    window.handleInChatSearchKeydown = function (e) {
+        if (e.key === 'Escape') {
+            toggleInChatSearch(false);
+        }
+    };
+
+    window.toggleMessageReaction = function (msgIdentifier, emoji) {
+        if (!state.activeContact || !state.user) return;
+        const msgs = state.chats[state.activeContact.id] || [];
+        const target = msgs.find(m => String(m.id) === String(msgIdentifier) || (m.client_uuid && String(m.client_uuid) === String(msgIdentifier)));
+        if (!target) return;
+
+        if (!target.reactions) target.reactions = {};
+        const userName = state.user.display_name || state.user.username;
+
+        if (!target.reactions[emoji]) {
+            target.reactions[emoji] = [userName];
+        } else {
+            const idx = target.reactions[emoji].indexOf(userName);
+            if (idx >= 0) {
+                target.reactions[emoji].splice(idx, 1);
+                if (target.reactions[emoji].length === 0) delete target.reactions[emoji];
+            } else {
+                target.reactions[emoji].push(userName);
+            }
+        }
+
+        persistMessages();
+        renderActiveMessages();
     };
 
     window.openAddFriendModal = function () {
@@ -1500,22 +1839,101 @@
                 `;
             }
 
+            let renderedBody = escapeHtml(msg.body).replace(/\n/g, '<br>');
+            if (state.inChatSearchQuery && !isDeleted) {
+                try {
+                    const regex = new RegExp(`(${escapeRegex(state.inChatSearchQuery)})`, 'gi');
+                    renderedBody = renderedBody.replace(regex, '<mark class="chat-search-highlight">$1</mark>');
+                } catch (e) {}
+            }
+
+            let quoteHtml = '';
+            if (msg.reply_to && !isDeleted) {
+                const targetReplyId = escapeHtml(msg.reply_to.id || msg.reply_to.client_uuid || '');
+                const authorName = escapeHtml(msg.reply_to.sender_name || 'Balasan');
+                const snippetText = escapeHtml((msg.reply_to.body || '[Lampiran]').substring(0, 75));
+                quoteHtml = `
+                    <div class="bubble-quote-card" onclick="scrollToMessage('${targetReplyId}')" role="button" tabindex="0" title="Loncat ke pesan asal">
+                        <span class="bubble-quote-author">${authorName}</span>
+                        <span class="bubble-quote-snippet">${snippetText}</span>
+                    </div>
+                `;
+            }
+
+            let attachmentHtml = '';
+            if (msg.attachment && !isDeleted) {
+                const att = msg.attachment;
+                if (att.type && att.type.startsWith('image/')) {
+                    attachmentHtml = `
+                        <div class="bubble-attachment-image">
+                            <a href="${att.dataUrl}" target="_blank" rel="noopener noreferrer" title="Buka gambar penuh">
+                                <img src="${att.dataUrl}" alt="${escapeHtml(att.name || 'Gambar')}">
+                            </a>
+                        </div>
+                    `;
+                } else {
+                    attachmentHtml = `
+                        <a class="bubble-attachment-file" href="${att.dataUrl}" download="${escapeHtml(att.name || 'berkas')}" title="Unduh berkas">
+                            <div class="bubble-file-icon">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                </svg>
+                            </div>
+                            <div class="bubble-file-details">
+                                <span class="bubble-file-name">${escapeHtml(att.name || 'Dokumen')}</span>
+                                <span class="bubble-file-size">${formatFileSize(att.size)}</span>
+                            </div>
+                        </a>
+                    `;
+                }
+            }
+
+            let reactionsHtml = '';
+            if (msg.reactions && typeof msg.reactions === 'object' && Object.keys(msg.reactions).length > 0 && !isDeleted) {
+                const currentName = state.user ? (state.user.display_name || state.user.username) : '';
+                reactionsHtml = `
+                    <div class="message-reactions-row">
+                        ${Object.entries(msg.reactions).map(([em, users]) => {
+                            const isMyReaction = users.includes(currentName);
+                            return `
+                                <button type="button" class="reaction-pill ${isMyReaction ? 'active' : ''}" onclick="toggleMessageReaction('${safeIdAttr}', '${em}')" title="${escapeHtml(users.join(', '))}">
+                                    <span>${em}</span>
+                                    <span class="reaction-count">${users.length}</span>
+                                </button>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            }
+
             return `
                 <div class="message-row ${rowClass} ${groupClass}" data-msg-id="${safeIdAttr}">
                     <div class="message-bubble-wrapper">
                         <div class="message-bubble">
-                            <span class="bubble-content">${escapeHtml(msg.body).replace(/\n/g, '<br>')}</span>
+                            ${quoteHtml}
+                            ${attachmentHtml}
+                            <span class="bubble-content">${renderedBody}</span>
                             ${isEdited ? '<span class="edited-label">(diedit)</span>' : ''}
                             <span class="bubble-meta">
                                 <span class="meta-time">${timeText}</span>
                                 ${statusMarker}
                             </span>
+                            ${reactionsHtml}
                         </div>
-                        ${isMe ? `
-                            <div class="message-actions" role="toolbar" aria-label="Aksi pesan">
+                        <div class="message-actions" role="toolbar" aria-label="Aksi pesan">
+                            <button type="button" class="btn-msg-action" onclick="startReplyMessage('${safeIdAttr}')" title="Balas pesan" aria-label="Balas pesan">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="9 17 4 12 9 7"></polyline>
+                                    <path d="M20 18v-2a4 4 0 0 0-4-4H4"></path>
+                                </svg>
+                            </button>
+                            <button type="button" class="btn-msg-action" onclick="toggleMessageReaction('${safeIdAttr}', '👍')" title="Suka" aria-label="Suka">👍</button>
+                            <button type="button" class="btn-msg-action" onclick="toggleMessageReaction('${safeIdAttr}', '❤️')" title="Cinta" aria-label="Cinta">❤️</button>
+                            ${isMe ? `
                                 <button type="button" class="btn-msg-action" onclick="startEditMessage('${safeIdAttr}')" title="Edit pesan" aria-label="Edit pesan">
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                        <path d="M11 4H4a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                                         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                                     </svg>
                                 </button>
@@ -1525,8 +1943,8 @@
                                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                                     </svg>
                                 </button>
-                            </div>
-                        ` : ''}
+                            ` : ''}
+                        </div>
                     </div>
                 </div>
             `;
@@ -1634,12 +2052,11 @@
 
         const textarea = document.getElementById('messageInput');
         const body = (textarea ? textarea.value : '').trim();
-        if (!body) return;
+        const hasAttachment = Boolean(state.selectedAttachment);
+        if (!body && !hasAttachment) return;
 
-        // Segera reset status mengetik saat pesan dikirim
         clearMyTypingState();
 
-        // Jika sedang dalam mode edit pesan
         if (state.editingMessageId) {
             await handleUpdateMessage(state.editingMessageId, body);
             return;
@@ -1649,20 +2066,33 @@
             ? crypto.randomUUID()
             : 'uuid-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
 
-        // Pesan baru awalnya berstatus 'sent' (Ceklis 1)
+        const replyData = state.replyingTo ? {
+            id: state.replyingTo.id || state.replyingTo.client_uuid,
+            client_uuid: state.replyingTo.client_uuid,
+            sender_name: Number(state.replyingTo.sender_id) === Number(state.user.id)
+                ? 'Anda'
+                : (state.activeContact.display_name || state.activeContact.username),
+            body: state.replyingTo.body
+        } : null;
+
+        const attachmentData = state.selectedAttachment ? { ...state.selectedAttachment } : null;
+        const messageBody = body || (attachmentData ? `[Berkas: ${attachmentData.name}]` : '');
+
         const newMsg = {
             id: null,
             client_uuid: clientUuid,
             sender_id: state.user.id,
             receiver_id: state.activeContact.id,
-            body: body,
+            body: messageBody,
+            reply_to: replyData,
+            attachment: attachmentData,
+            reactions: {},
             status: 'sent',
             is_edited: false,
             is_deleted: false,
             created_at: new Date().toISOString()
         };
 
-        // Simpan & render secara optimistik
         if (!state.chats[state.activeContact.id]) {
             state.chats[state.activeContact.id] = [];
         }
@@ -1674,17 +2104,19 @@
         textarea.value = '';
         textarea.style.height = 'auto';
 
+        window.cancelReplyMessage();
+        window.cancelAttachment();
+
         try {
             const savedMsg = await apiRequest('/messages', {
                 method: 'POST',
                 body: JSON.stringify({
                     client_uuid: clientUuid,
                     receiver_id: state.activeContact.id,
-                    body: body
+                    body: messageBody
                 })
             });
 
-            // Perbarui ID setelah tersimpan di server
             if (savedMsg && savedMsg.id) {
                 const target = state.chats[state.activeContact.id].find(m => m.client_uuid === clientUuid);
                 if (target) {
@@ -1922,14 +2354,13 @@
                 const isCurrentActive = state.activeContact && state.activeContact.id === partnerId;
 
                 if (!existingMsg) {
+                    playMessageChime();
                     if (isCurrentActive) {
-                        // Jika chat dengan orang ini sedang dibuka, langsung tandai 'read'
                         msg.status = 'read';
                         state.chats[partnerId].push(msg);
                         readAckIds.push(msg.id);
                         activeUpdated = true;
                     } else {
-                        // Jika di luar chat, tandai 'delivered' (Ceklis 2) dan tambah unread count
                         msg.status = 'delivered';
                         state.chats[partnerId].push(msg);
                         deliveredAckIds.push(msg.id);
@@ -1938,6 +2369,15 @@
                         const sender = state.contacts.find(c => c.id === partnerId);
                         const senderName = sender ? sender.display_name : 'Seseorang';
                         showToast(`Pesan baru dari ${senderName}: "${msg.body.substring(0, 40)}"`, 'info');
+
+                        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                            try {
+                                new Notification(senderName, {
+                                    body: msg.body.substring(0, 80),
+                                    icon: '/favicon.ico'
+                                });
+                            } catch (e) {}
+                        }
                     }
                 } else {
                     // Update pesan jika ada perubahan (misal body diedit atau status berubah)
@@ -2133,7 +2573,7 @@
             .replace(/'/g, '&#039;');
     }
 
-    // Tutup dropdown menu saat klik di luar
+    // Tutup dropdown menu atau emoji picker saat klik di luar
     document.addEventListener('click', (e) => {
         const menu = document.getElementById('chatDropdownMenu');
         const btn = document.getElementById('btnChatMenu');
@@ -2142,13 +2582,29 @@
                 window.closeChatDropdown();
             }
         }
+
+        const emojiPopover = document.getElementById('emojiPickerPopover');
+        const btnEmoji = document.getElementById('btnEmojiToggle');
+        if (emojiPopover && emojiPopover.style.display === 'flex') {
+            if (!emojiPopover.contains(e.target) && (!btnEmoji || !btnEmoji.contains(e.target))) {
+                window.toggleEmojiPicker(false);
+            }
+        }
     });
 
-    // Aksesibilitas Keyboard: Escape dan Focus Trap (R-32 & R-26)
+    // Aksesibilitas Keyboard: Escape dan Focus Trap
     document.addEventListener('keydown', (e) => {
-        // Tombol Escape menutup dialog aktif atau dropdown
         if (e.key === 'Escape') {
             window.closeChatDropdown();
+            window.toggleEmojiPicker(false);
+            window.toggleInChatSearch(false);
+            window.cancelReplyMessage();
+            window.cancelAttachment();
+
+            const profileModal = document.getElementById('userProfileModal');
+            if (profileModal && (profileModal.classList.contains('active') || profileModal.style.display === 'flex')) {
+                window.closeUserProfileModal();
+            }
 
             const infoModal = document.getElementById('contactInfoModal');
             if (infoModal && infoModal.classList.contains('active')) {

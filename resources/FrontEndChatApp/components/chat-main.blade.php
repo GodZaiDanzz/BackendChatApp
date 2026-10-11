@@ -41,8 +41,15 @@
                 </div>
             </div>
 
-            {{-- Right Header Action Icons: Phone, Video, More --}}
+            {{-- Right Header Action Icons: Search, Phone, Video, More --}}
             <div class="chat-header-actions">
+                <button type="button" id="btnToggleInChatSearch" class="btn-header-action" onclick="toggleInChatSearch()" title="Cari pesan dalam percakapan" aria-label="Cari pesan">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </button>
+
                 <button type="button" class="btn-header-action" onclick="handleSimulatedAction('Panggilan Suara')" title="Panggilan Suara" aria-label="Panggilan Suara">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
@@ -91,8 +98,31 @@
                         </button>
                     </div>
                 </div>
-            </div>
         </header>
+
+        {{-- In-Chat Search Bar --}}
+        <div id="inChatSearchBar" class="in-chat-search-bar" style="display: none;">
+            <div class="in-chat-search-inner">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted); flex-shrink: 0;">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input
+                    type="text"
+                    id="inChatSearchInput"
+                    placeholder="Cari pesan dalam obrolan..."
+                    oninput="handleInChatSearch(event)"
+                    onkeydown="handleInChatSearchKeydown(event)"
+                >
+                <span id="inChatSearchCount" class="in-chat-search-count">0 hasil</span>
+                <button type="button" class="btn-icon-subtle" onclick="toggleInChatSearch(false)" title="Tutup pencarian" aria-label="Tutup pencarian">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="6"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
 
         {{-- Message Stream Loading Skeleton --}}
         <div id="chatLoadingSkeleton" class="chat-skeleton-container" style="display: none;" aria-hidden="true">
@@ -125,6 +155,45 @@
             </div>
         </div>
 
+        {{-- Reply Message Banner --}}
+        <div id="replyMessageBanner" class="reply-bar-banner" style="display: none;">
+            <div class="reply-bar-content">
+                <div class="reply-bar-indicator"></div>
+                <div class="reply-bar-text-group">
+                    <span id="replyRecipientName" class="reply-bar-author">Membalas</span>
+                    <span id="replyMessageSnippet" class="reply-bar-snippet">...</span>
+                </div>
+            </div>
+            <button type="button" class="btn-cancel-reply" onclick="cancelReplyMessage()" title="Batal balas" aria-label="Batal balas">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="6"></line>
+                </svg>
+            </button>
+        </div>
+
+        {{-- Attachment Preview Banner --}}
+        <div id="attachmentPreviewBanner" class="attachment-preview-banner" style="display: none;">
+            <div class="attachment-info-group">
+                <div id="attachmentThumbnailContainer" class="attachment-thumb-box">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                </div>
+                <div class="attachment-meta-text">
+                    <span id="attachmentFileName" class="attachment-name">dokumen.pdf</span>
+                    <span id="attachmentFileSize" class="attachment-size">0 KB</span>
+                </div>
+            </div>
+            <button type="button" class="btn-cancel-reply" onclick="cancelAttachment()" title="Batal lampiran" aria-label="Batal lampiran">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="6"></line>
+                </svg>
+            </button>
+        </div>
+
         {{-- Edit Message Banner (shown when editing) --}}
         <div id="editMessageBanner" class="edit-bar-banner" style="display: none;">
             <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -139,10 +208,36 @@
         </div>
 
         {{-- Message Input Footer --}}
-        <footer class="chat-input-area">
+        <footer class="chat-input-area" style="position: relative;">
+            {{-- Hidden File Upload Input --}}
+            <input type="file" id="chatFileInput" style="display: none;" accept="image/*,.pdf,.doc,.docx,.txt" onchange="handleFileSelected(event)">
+
+            {{-- Interactive Emoji Picker Popover --}}
+            <div id="emojiPickerPopover" class="emoji-picker-popover" style="display: none;" role="dialog" aria-label="Pemilih Emoji">
+                <div class="emoji-picker-header">
+                    <span class="emoji-picker-title">Pilih Emoji</span>
+                    <button type="button" class="btn-icon-subtle" onclick="toggleEmojiPicker(false)" aria-label="Tutup pemilih emoji">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="6"></line>
+                        </svg>
+                    </button>
+                </div>
+                <div class="emoji-tabs-row">
+                    <button type="button" class="emoji-tab-btn active" onclick="switchEmojiCategory('popular')">⚡ Populer</button>
+                    <button type="button" class="emoji-tab-btn" onclick="switchEmojiCategory('smileys')">😀 Wajah</button>
+                    <button type="button" class="emoji-tab-btn" onclick="switchEmojiCategory('gestures')">👍 Gestur</button>
+                    <button type="button" class="emoji-tab-btn" onclick="switchEmojiCategory('hearts')">❤️ Hati</button>
+                    <button type="button" class="emoji-tab-btn" onclick="switchEmojiCategory('objects')">🎉 Objek</button>
+                </div>
+                <div id="emojiGridList" class="emoji-grid-list">
+                    {{-- Populated via JavaScript --}}
+                </div>
+            </div>
+
             <form id="messageForm" class="chat-input-pill-wrapper" onsubmit="handleSendMessage(event)">
                 {{-- Paperclip Attachment Button --}}
-                <button type="button" class="btn-input-accessory" onclick="handleSimulatedAction('Unggah Lampiran')" title="Lampirkan Dokumen / Media" aria-label="Lampirkan Dokumen">
+                <button type="button" class="btn-input-accessory" onclick="triggerFileAttachment()" title="Lampirkan Dokumen / Media" aria-label="Lampirkan Dokumen">
                     <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
                     </svg>
@@ -159,7 +254,7 @@
                 ></textarea>
 
                 {{-- Emoji Smile Button --}}
-                <button type="button" class="btn-input-accessory" onclick="handleSimulatedAction('Buka Emoji')" title="Pilih Emoji" aria-label="Pilih Emoji">
+                <button type="button" id="btnEmojiToggle" class="btn-input-accessory" onclick="toggleEmojiPicker(event)" title="Pilih Emoji" aria-label="Pilih Emoji">
                     <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="10"></circle>
                         <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>

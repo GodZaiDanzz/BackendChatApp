@@ -1987,3 +1987,434 @@ html, body {
     max-width: 100%;
   }
 }
+
+/* In-chat search bar */
+.in-chat-search-bar {
+  padding: 0.5rem 1.25rem;
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--border-card);
+  animation: slideDownFade 0.2s ease-out;
+}
+
+.in-chat-search-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-full);
+  padding: 0.35rem 0.85rem;
+}
+
+.in-chat-search-inner input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.84rem;
+  outline: none;
+}
+
+.in-chat-search-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.btn-icon-subtle {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast);
+}
+
+.btn-icon-subtle:hover {
+  color: var(--text-primary);
+}
+
+.chat-search-highlight {
+  background-color: rgba(234, 179, 8, 0.35);
+  color: #fef08a;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/* Quoted message reply banner */
+.reply-bar-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1rem;
+  margin: 0 1rem 0.5rem;
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  animation: slideDownFade 0.2s ease-out;
+}
+
+.reply-bar-content {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  overflow: hidden;
+}
+
+.reply-bar-indicator {
+  width: 3.5px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background-color: var(--accent-primary);
+  flex-shrink: 0;
+}
+
+.reply-bar-text-group {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.reply-bar-author {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent-hover);
+}
+
+.reply-bar-snippet {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-cancel-reply {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.btn-cancel-reply:hover {
+  color: var(--text-primary);
+}
+
+/* Attachment preview banner */
+.attachment-preview-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1rem;
+  margin: 0 1rem 0.5rem;
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+  animation: slideDownFade 0.2s ease-out;
+}
+
+.attachment-info-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  overflow: hidden;
+}
+
+.attachment-thumb-box {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  background-color: var(--accent-soft);
+  color: var(--accent-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.attachment-thumb-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.attachment-meta-text {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.attachment-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attachment-size {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* Interactive emoji picker popover */
+.emoji-picker-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 1.5rem;
+  width: 320px;
+  max-width: calc(100vw - 3rem);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-dropdown);
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUpFade 0.18s ease-out;
+}
+
+.emoji-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.emoji-picker-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.emoji-tabs-row {
+  display: flex;
+  gap: 0.2rem;
+  padding: 0.35rem 0.5rem;
+  background-color: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  overflow-x: auto;
+}
+
+.emoji-tab-btn {
+  background: transparent;
+  border: none;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+
+.emoji-tab-btn:hover {
+  color: var(--text-primary);
+}
+
+.emoji-tab-btn.active {
+  background-color: var(--bg-surface-elevated);
+  color: var(--accent-hover);
+  font-weight: 600;
+}
+
+.emoji-grid-list {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  padding: 0.6rem;
+  max-height: 190px;
+  overflow-y: auto;
+}
+
+.emoji-item-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.25rem;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--transition-fast), background-color var(--transition-fast);
+}
+
+.emoji-item-btn:hover {
+  transform: scale(1.18);
+  background-color: var(--bg-surface-elevated);
+}
+
+/* Quoted reply inside message bubble */
+.bubble-reply-quote {
+  display: flex;
+  flex-direction: column;
+  padding: 0.35rem 0.6rem;
+  margin-bottom: 0.4rem;
+  border-radius: var(--radius-sm);
+  background-color: rgba(0, 0, 0, 0.2);
+  border-left: 3px solid #a78bfa;
+  cursor: pointer;
+}
+
+.message-row.other .bubble-reply-quote {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-left-color: var(--accent-primary);
+}
+
+.quote-author {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #c4b5fd;
+  margin-bottom: 1px;
+}
+
+.message-row.other .quote-author {
+  color: #a78bfa;
+}
+
+.quote-text {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.message-row.other .quote-text {
+  color: var(--text-secondary);
+}
+
+/* Media and file attachments inside bubble */
+.bubble-attachment-image {
+  margin: 0.2rem 0 0.4rem;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  max-width: 280px;
+  max-height: 240px;
+  cursor: pointer;
+}
+
+.bubble-attachment-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: var(--radius-md);
+  transition: transform var(--transition-fast);
+}
+
+.bubble-attachment-image:hover img {
+  transform: scale(1.02);
+}
+
+.bubble-attachment-file {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.4rem;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: inherit;
+  transition: background-color var(--transition-fast);
+}
+
+.message-row.other .bubble-attachment-file {
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-card);
+}
+
+.bubble-attachment-file:hover {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.bubble-doc-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background-color: rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.bubble-doc-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.bubble-doc-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bubble-doc-meta {
+  font-size: 0.6875rem;
+  opacity: 0.75;
+}
+
+/* Message reaction badges on bubble */
+.bubble-reactions-row {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+  position: absolute;
+  bottom: -10px;
+  right: 12px;
+}
+
+.message-row.other .bubble-reactions-row {
+  right: auto;
+  left: 12px;
+}
+
+.bubble-reaction-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-full);
+  padding: 1px 6px;
+  font-size: 0.72rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  user-select: none;
+  transition: transform var(--transition-fast);
+}
+
+.bubble-reaction-pill:hover {
+  transform: scale(1.12);
+}
+
+/* Animations */
+@keyframes slideDownFade {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
