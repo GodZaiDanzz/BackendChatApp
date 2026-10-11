@@ -2259,7 +2259,8 @@ html, body {
 }
 
 /* Quoted reply inside message bubble */
-.bubble-reply-quote {
+.bubble-reply-quote,
+.bubble-quote-card {
   display: flex;
   flex-direction: column;
   padding: 0.35rem 0.6rem;
@@ -2268,25 +2269,30 @@ html, body {
   background-color: rgba(0, 0, 0, 0.2);
   border-left: 3px solid #a78bfa;
   cursor: pointer;
+  text-align: left;
 }
 
-.message-row.other .bubble-reply-quote {
+.message-row.other .bubble-reply-quote,
+.message-row.other .bubble-quote-card {
   background-color: rgba(255, 255, 255, 0.05);
   border-left-color: var(--accent-primary);
 }
 
-.quote-author {
+.quote-author,
+.bubble-quote-author {
   font-size: 0.7rem;
   font-weight: 700;
   color: #c4b5fd;
   margin-bottom: 1px;
 }
 
-.message-row.other .quote-author {
+.message-row.other .quote-author,
+.message-row.other .bubble-quote-author {
   color: #a78bfa;
 }
 
-.quote-text {
+.quote-text,
+.bubble-quote-snippet {
   font-size: 0.75rem;
   color: rgba(255, 255, 255, 0.85);
   white-space: nowrap;
@@ -2294,7 +2300,8 @@ html, body {
   text-overflow: ellipsis;
 }
 
-.message-row.other .quote-text {
+.message-row.other .quote-text,
+.message-row.other .bubble-quote-snippet {
   color: var(--text-secondary);
 }
 
