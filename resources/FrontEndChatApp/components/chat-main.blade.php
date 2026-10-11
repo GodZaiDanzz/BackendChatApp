@@ -32,7 +32,7 @@
 
                 {{-- Name & Status ("Aktif sekarang") --}}
                 <div class="chat-header-text" onclick="toggleRightInfoPanel()" style="cursor: pointer;" title="Lihat profil">
-                    <h2 id="activeChatDisplayName" class="chat-title">Nadia Putri</h2>
+                    <h2 id="activeChatDisplayName" class="chat-title">Memuat...</h2>
                     <div class="chat-presence-row">
                         <span id="activeStatusSmallDot" class="presence-dot online"></span>
                         <span id="activeUserOnlineStatus" class="user-status-text online">Aktif sekarang</span>
@@ -121,7 +121,7 @@
                 <span class="typing-dots-pill">
                     <span>•</span><span>•</span><span>•</span>
                 </span>
-                <span id="activeTypingNameText" class="typing-label-text">Nadia sedang mengetik</span>
+                <span id="activeTypingNameText" class="typing-label-text">Sedang mengetik...</span>
             </div>
         </div>
 

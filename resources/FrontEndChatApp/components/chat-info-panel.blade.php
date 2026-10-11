@@ -5,13 +5,13 @@
         <div class="info-profile-section">
             <div class="avatar-container info-avatar-container">
                 <div id="infoAvatarCircle" class="avatar-circle info-avatar-large avatar-pastel-pink">
-                    NP
+                    U
                 </div>
                 <span id="infoStatusDot" class="status-indicator-dot online" style="width: 14px; height: 14px; border-width: 2.5px;"></span>
             </div>
 
-            <h3 id="infoDisplayName" class="info-profile-name">Nadia Putri</h3>
-            <p id="infoUsername" class="info-profile-handle">nadia.putri@email.com</p>
+            <h3 id="infoDisplayName" class="info-profile-name">Info Kontak</h3>
+            <p id="infoUsername" class="info-profile-handle">@kontak</p>
 
             {{-- 3 Quick Action Round Buttons: Telepon, Video, Senyap --}}
             <div class="info-quick-actions-row">

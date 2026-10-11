@@ -1213,6 +1213,11 @@
         if (typingBadge) {
             typingBadge.style.display = isTyping ? 'flex' : 'none';
         }
+        const typingNameText = document.getElementById('activeTypingNameText');
+        if (typingNameText) {
+            const activeName = contact.display_name || contact.name || contact.username || 'Kontak';
+            typingNameText.textContent = `${activeName} sedang mengetik`;
+        }
 
         // Sinkronisasi Right Contact Info Panel
         const infoAvatar = document.getElementById('infoAvatarCircle');
@@ -1549,9 +1554,14 @@
 
         if (state.activeContact && Number(state.activeContact.id) === contactId) {
             const typingBadge = document.getElementById('activeTypingStatus');
+            const typingNameText = document.getElementById('activeTypingNameText');
             const statusLabel = document.getElementById('activeUserOnlineStatus');
             if (typingBadge) {
                 typingBadge.style.display = isTyping ? 'inline-flex' : 'none';
+            }
+            if (typingNameText && isTyping) {
+                const partnerName = state.activeContact.display_name || state.activeContact.name || state.activeContact.username || 'Kontak';
+                typingNameText.textContent = `${partnerName} sedang mengetik`;
             }
             if (statusLabel) {
                 statusLabel.style.display = isTyping ? 'none' : 'inline';
