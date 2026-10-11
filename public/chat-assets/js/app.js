@@ -942,25 +942,65 @@
     async function fetchRequests() {
         try {
             const data = await apiRequest('/contacts/requests');
-            const previousCount = state.requests.length;
-            state.requests = data || [];
+            const incomingList = Array.isArray(data) ? data : [];
 
-            // Update badge counter permintaan
-            const badge = document.getElementById('requestCounterBadge');
-            if (badge) {
-                if (state.requests.length > 0) {
-                    badge.style.display = 'inline-block';
-                    badge.textContent = state.requests.length;
+            if (!state.knownRequestIds) {
+                state.knownRequestIds = new Set();
+                state.requestsInitialLoaded = false;
+            }
+
+            state.requests = incomingList;
+            const reqCount = state.requests.length;
+
+            // Update badge counter permintaan di Nav Rail & Sidebar
+            const railReqBadge = document.getElementById('railRequestsBadge');
+            const sidebarBadge = document.getElementById('requestCounterBadge');
+
+            if (railReqBadge) {
+                if (reqCount > 0) {
+                    railReqBadge.style.display = 'inline-flex';
+                    railReqBadge.textContent = reqCount > 99 ? '99+' : reqCount;
                 } else {
-                    badge.style.display = 'none';
+                    railReqBadge.style.display = 'none';
                 }
             }
 
-            // Notifikasi jika ada permintaan baru masuk
-            if (state.requests.length > previousCount && previousCount > 0) {
-                const latest = state.requests[state.requests.length - 1];
-                showToast(`Permintaan pertemanan baru dari ${latest.display_name} (@${latest.username})`, 'info');
+            if (sidebarBadge) {
+                if (reqCount > 0) {
+                    sidebarBadge.style.display = 'inline-block';
+                    sidebarBadge.textContent = reqCount;
+                } else {
+                    sidebarBadge.style.display = 'none';
+                }
             }
+
+            // Deteksi permintaan pertemanan baru yang belum pernah diterima di sesi ini
+            const newRequests = incomingList.filter(r => !state.knownRequestIds.has(r.id));
+            if (state.requestsInitialLoaded && newRequests.length > 0) {
+                newRequests.forEach(req => {
+                    playMessageChime();
+                    const reqName = req.display_name || req.username || 'Pengguna';
+                    const reqUser = req.username ? ` (@${req.username})` : '';
+                    showToast(`Permintaan pertemanan baru dari ${reqName}${reqUser}!`, 'info');
+
+                    if (window.Notification && Notification.permission === 'granted') {
+                        try {
+                            new Notification('ZChat - Permintaan Pertemanan', {
+                                body: `${reqName}${reqUser} mengirimkan permintaan pertemanan kepada Anda.`,
+                                icon: req.avatar || undefined
+                            });
+                        } catch (e) { }
+                    }
+                });
+
+                if (railReqBadge) {
+                    railReqBadge.classList.add('pulse');
+                    setTimeout(() => railReqBadge.classList.remove('pulse'), 4000);
+                }
+            }
+
+            state.knownRequestIds = new Set(incomingList.map(r => r.id));
+            state.requestsInitialLoaded = true;
 
             renderRequestsList();
         } catch (e) {
@@ -1265,6 +1305,7 @@
                 body: JSON.stringify({ requester_id: requesterId })
             });
             showToast('Permintaan pertemanan diterima!', 'success');
+            if (state.knownRequestIds) state.knownRequestIds.delete(requesterId);
             await fetchRequests();
             await fetchContacts();
         } catch (e) {
@@ -1279,6 +1320,7 @@
                 body: JSON.stringify({ requester_id: requesterId })
             });
             showToast('Permintaan pertemanan ditolak.', 'info');
+            if (state.knownRequestIds) state.knownRequestIds.delete(requesterId);
             await fetchRequests();
         } catch (e) {
             showToast(e.message, 'error');
@@ -4378,6 +4420,33 @@
 
             channel.bind('voice.signal', onVoiceSignal);
             channel.bind('.voice.signal', onVoiceSignal);
+
+            const onFriendRequest = async (data) => {
+                const requester = data.requester || data;
+                const reqName = requester.display_name || requester.username || 'Seseorang';
+                const reqUser = requester.username ? ` (@${requester.username})` : '';
+                playMessageChime();
+                showToast(`Permintaan pertemanan baru dari ${reqName}${reqUser}!`, 'info');
+
+                const railReqBadge = document.getElementById('railRequestsBadge');
+                if (railReqBadge) {
+                    railReqBadge.classList.add('pulse');
+                    setTimeout(() => railReqBadge.classList.remove('pulse'), 4000);
+                }
+                await fetchRequests();
+            };
+            channel.bind('friend.request', onFriendRequest);
+            channel.bind('.friend.request', onFriendRequest);
+
+            const onFriendAccepted = async (data) => {
+                const accepter = data.accepter || data;
+                const name = accepter.display_name || accepter.username || 'Teman';
+                playMessageChime();
+                showToast(`${name} telah menerima permintaan pertemanan Anda!`, 'success');
+                await fetchContacts();
+            };
+            channel.bind('friend.accepted', onFriendAccepted);
+            channel.bind('.friend.accepted', onFriendAccepted);
         } catch (e) {
             console.warn('Reverb WebSocket initialization error:', e);
         }

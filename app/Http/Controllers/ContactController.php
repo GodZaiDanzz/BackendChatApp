@@ -80,7 +80,11 @@ class ContactController extends Controller
         $userId = $request->user()->id;
 
         $requesterIds = Contact::where('contact_id', $userId)->where('status', 'pending')->pluck('user_id');
-        $requesters = User::whereIn('id', $requesterIds)->get(['id', 'username', 'display_name']);
+        $columns = ['id', 'username', 'display_name'];
+        if (\Illuminate\Support\Facades\Schema::hasColumn('users', 'avatar')) {
+            $columns[] = 'avatar';
+        }
+        $requesters = User::whereIn('id', $requesterIds)->get($columns);
 
         return response()->json($requesters);
     }
@@ -122,9 +126,9 @@ class ContactController extends Controller
             'status'     => 'pending',
         ]);
 
-        // Broadcast real-time friend request event to receiver (failsafe if Reverb is offline)
+        // Broadcast real-time friend request event to receiver
         try {
-            broadcast(new FriendRequestSent($request->user(), $targetId))->toOthers();
+            broadcast(new FriendRequestSent($request->user(), $targetId));
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning('WebSocket broadcast failed (FriendRequestSent): ' . $e->getMessage());
         }
@@ -155,9 +159,9 @@ class ContactController extends Controller
 
         $contact->update(['status' => 'accepted']);
 
-        // Broadcast real-time friend accepted event to requester (failsafe if Reverb is offline)
+        // Broadcast real-time friend accepted event to requester
         try {
-            broadcast(new FriendRequestAccepted($request->user(), $requesterId))->toOthers();
+            broadcast(new FriendRequestAccepted($request->user(), $requesterId));
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning('WebSocket broadcast failed (FriendRequestAccepted): ' . $e->getMessage());
         }
