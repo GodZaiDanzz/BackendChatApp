@@ -23,6 +23,14 @@ class VoiceCallController extends Controller
         $sender = $request->user();
         $targetId = (int) $data['target_id'];
 
+        // Normalize SDP line endings if present (ensure valid RFC-4566 CRLF terminating each line)
+        if (isset($data['data']) && is_array($data['data']) && isset($data['data']['sdp']) && is_string($data['data']['sdp'])) {
+            $rawSdp = $data['data']['sdp'];
+            $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", trim($rawSdp)));
+            $cleanLines = array_filter(array_map('rtrim', $lines), fn($l) => strlen($l) > 0);
+            $data['data']['sdp'] = implode("\r\n", $cleanLines) . "\r\n";
+        }
+
         \Illuminate\Support\Facades\Log::info('VOICE_SIGNAL: from=' . $sender->id . ' (' . $sender->username . ') to=' . $targetId . ' type=' . $data['signal_type']);
 
         if ($data['signal_type'] === 'call-offer' && $data['room_type'] === 'direct') {

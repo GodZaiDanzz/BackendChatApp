@@ -13,7 +13,16 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->trimStrings(except: [
+            'data',
+            'data.sdp',
+            'sdp',
+        ]);
+        $middleware->convertEmptyStringsToNull(except: [
+            'data',
+            'data.sdp',
+            'sdp',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

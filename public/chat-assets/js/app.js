@@ -4171,6 +4171,13 @@
         }
     }
 
+    function normalizeSdp(sdp) {
+        if (!sdp || typeof sdp !== 'string') return '';
+        const lines = sdp.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n');
+        const cleanLines = lines.map(l => l.trimEnd()).filter(l => l.length > 0);
+        return cleanLines.join('\r\n') + '\r\n';
+    }
+
     function addOrQueueIceCandidate(peerId, candidate) {
         if (!candidate) return;
         const pc = state.voice.peerConnections[peerId];
@@ -4334,15 +4341,17 @@
                     if (typeof sdpOffer === 'string') {
                         try { sdpOffer = JSON.parse(sdpOffer); } catch (e) { }
                     }
-                    const offerDesc = (typeof sdpOffer === 'object' && sdpOffer !== null)
-                        ? { type: sdpOffer.type || 'offer', sdp: sdpOffer.sdp || '' }
-                        : { type: 'offer', sdp: String(sdpOffer || '') };
+                    const rawSdp = (typeof sdpOffer === 'object' && sdpOffer !== null) ? (sdpOffer.sdp || '') : String(sdpOffer || '');
+                    const offerDesc = {
+                        type: (typeof sdpOffer === 'object' && sdpOffer && sdpOffer.type) || 'offer',
+                        sdp: normalizeSdp(rawSdp)
+                    };
                     try {
                         await pc.setRemoteDescription(offerDesc);
                         await drainPendingIceCandidates(senderId);
                         const answer = await pc.createAnswer();
                         await pc.setLocalDescription(answer);
-                        sendVoiceSignal(senderId, 'call-answer', { type: answer.type, sdp: answer.sdp });
+                        sendVoiceSignal(senderId, 'call-answer', { type: answer.type, sdp: normalizeSdp(answer.sdp) });
                     } catch (e) {
                         console.error('Group voice offer handling error:', e);
                     }
@@ -4395,9 +4404,11 @@
                     if (typeof sdpAnswer === 'string') {
                         try { sdpAnswer = JSON.parse(sdpAnswer); } catch (e) { }
                     }
-                    const answerDesc = (typeof sdpAnswer === 'object' && sdpAnswer !== null)
-                        ? { type: sdpAnswer.type || 'answer', sdp: sdpAnswer.sdp || '' }
-                        : { type: 'answer', sdp: String(sdpAnswer || '') };
+                    const rawSdp = (typeof sdpAnswer === 'object' && sdpAnswer !== null) ? (sdpAnswer.sdp || '') : String(sdpAnswer || '');
+                    const answerDesc = {
+                        type: (typeof sdpAnswer === 'object' && sdpAnswer && sdpAnswer.type) || 'answer',
+                        sdp: normalizeSdp(rawSdp)
+                    };
                     try {
                         await pc.setRemoteDescription(answerDesc);
                         await drainPendingIceCandidates(senderId);
@@ -4549,7 +4560,7 @@
             await pc.setLocalDescription(offer);
             await sendVoiceSignal(targetId, 'call-offer', {
                 type: offer.type,
-                sdp: offer.sdp
+                sdp: normalizeSdp(offer.sdp)
             });
             playIncomingRingtone();
         } catch (err) {
@@ -4600,9 +4611,11 @@
             }
 
             const pc = createPeerConnection(callerId);
-            const offerDesc = (typeof sdpOffer === 'object' && sdpOffer !== null)
-                ? { type: sdpOffer.type || 'offer', sdp: sdpOffer.sdp || '' }
-                : { type: 'offer', sdp: String(sdpOffer || '') };
+            const rawSdp = (typeof sdpOffer === 'object' && sdpOffer !== null) ? (sdpOffer.sdp || '') : String(sdpOffer || '');
+            const offerDesc = {
+                type: (typeof sdpOffer === 'object' && sdpOffer && sdpOffer.type) || 'offer',
+                sdp: normalizeSdp(rawSdp)
+            };
 
             await pc.setRemoteDescription(offerDesc);
             await drainPendingIceCandidates(callerId);
@@ -4612,7 +4625,7 @@
 
             await sendVoiceSignal(callerId, 'call-answer', {
                 type: answer.type,
-                sdp: answer.sdp
+                sdp: normalizeSdp(answer.sdp)
             });
 
             startCallDurationTimer();
@@ -4672,7 +4685,7 @@
                     await pc.setLocalDescription(offer);
                     sendVoiceSignal(other.id, 'call-offer', {
                         type: offer.type,
-                        sdp: offer.sdp
+                        sdp: normalizeSdp(offer.sdp)
                     });
                 } catch (e) {
                     console.error('Error connecting to group participant:', e);
