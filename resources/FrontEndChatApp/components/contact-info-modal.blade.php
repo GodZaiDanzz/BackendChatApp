@@ -45,6 +45,16 @@
                 <span class="contact-detail-label">Total Percakapan</span>
                 <span id="infoTotalMessages" class="contact-detail-val">0 pesan</span>
             </div>
+            <div class="contact-detail-row">
+                <span class="contact-detail-label">Keamanan Obrolan</span>
+                <span class="contact-detail-val" style="color: #10b981; display: inline-flex; align-items: center; gap: 4px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                    Terenkripsi End-to-End
+                </span>
+            </div>
         </div>
 
         <div style="display: flex; gap: 0.75rem; margin-top: 0.25rem; flex-wrap: wrap;">

@@ -6,6 +6,7 @@ use App\Events\FriendRequestAccepted;
 use App\Events\FriendRequestSent;
 use App\Models\Contact;
 use App\Models\User;
+use App\Services\ChatEncryption;
 use Illuminate\Http\Request;
 
 class ContactController extends Controller
@@ -32,19 +33,20 @@ class ContactController extends Controller
             $columns[] = 'last_seen_at';
         }
 
-        $contacts = User::whereIn('id', $allFriendIds)->get($columns)->map(function ($u) {
+        $contacts = User::whereIn('id', $allFriendIds)->get($columns)->map(function ($u) use ($userId) {
             $isOnline = false;
             if (!empty($u->last_seen_at)) {
                 $isOnline = $u->last_seen_at->gt(now()->subSeconds(45));
             }
 
             return [
-                'id'           => $u->id,
-                'username'     => $u->username,
-                'display_name' => $u->display_name,
-                'created_at'   => $u->created_at ? $u->created_at->toISOString() : null,
-                'last_seen_at' => $u->last_seen_at ? $u->last_seen_at->toISOString() : null,
-                'is_online'    => $isOnline,
+                'id'               => $u->id,
+                'username'         => $u->username,
+                'display_name'     => $u->display_name,
+                'created_at'       => $u->created_at ? $u->created_at->toISOString() : null,
+                'last_seen_at'     => $u->last_seen_at ? $u->last_seen_at->toISOString() : null,
+                'is_online'        => $isOnline,
+                'conversation_key' => ChatEncryption::deriveKey($userId, $u->id),
             ];
         });
 

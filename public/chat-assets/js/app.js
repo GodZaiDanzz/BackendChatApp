@@ -190,8 +190,109 @@
         typingTimers: {},
         isCurrentlyTyping: false,
         lastTypingSentAt: 0,
-        myTypingTimeout: null
+        myTypingTimeout: null,
+        conversationKeys: {}
     };
+
+    const cryptoKeyCache = new Map();
+
+    async function getCryptoKey(hexKey) {
+        if (!hexKey) return null;
+        if (cryptoKeyCache.has(hexKey)) {
+            return cryptoKeyCache.get(hexKey);
+        }
+        try {
+            const rawBytes = new Uint8Array(hexKey.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+            const cryptoKey = await window.crypto.subtle.importKey(
+                'raw',
+                rawBytes,
+                { name: 'AES-GCM' },
+                false,
+                ['encrypt', 'decrypt']
+            );
+            cryptoKeyCache.set(hexKey, cryptoKey);
+            return cryptoKey;
+        } catch (e) {
+            console.warn('Gagal import crypto key:', e);
+            return null;
+        }
+    }
+
+    function getConversationKeyForContact(contactId) {
+        if (!contactId) return null;
+        const id = Number(contactId);
+        if (state.conversationKeys && state.conversationKeys[id]) {
+            return state.conversationKeys[id];
+        }
+        const contact = state.contacts.find(c => Number(c.id) === id);
+        if (contact && contact.conversation_key) {
+            state.conversationKeys[id] = contact.conversation_key;
+            return contact.conversation_key;
+        }
+        if (state.activeContact && Number(state.activeContact.id) === id && state.activeContact.conversation_key) {
+            return state.activeContact.conversation_key;
+        }
+        return null;
+    }
+
+    async function encryptMessageBody(text, hexKey) {
+        if (!text || !hexKey || typeof text !== 'string') return text;
+        try {
+            const cryptoKey = await getCryptoKey(hexKey);
+            if (!cryptoKey) return text;
+
+            const iv = window.crypto.getRandomValues(new Uint8Array(12));
+            const encoded = new TextEncoder().encode(text);
+            const cipherBuffer = await window.crypto.subtle.encrypt(
+                { name: 'AES-GCM', iv },
+                cryptoKey,
+                encoded
+            );
+            const cipherArray = new Uint8Array(cipherBuffer);
+
+            let ivBinary = '';
+            for (let i = 0; i < iv.length; i++) ivBinary += String.fromCharCode(iv[i]);
+
+            let cipherBinary = '';
+            for (let i = 0; i < cipherArray.length; i++) cipherBinary += String.fromCharCode(cipherArray[i]);
+
+            return `enc:v1:${btoa(ivBinary)}:${btoa(cipherBinary)}`;
+        } catch (e) {
+            console.warn('Enkripsi pesan gagal:', e);
+            return text;
+        }
+    }
+
+    async function decryptMessageBody(payload, hexKey) {
+        if (!payload || typeof payload !== 'string' || !payload.startsWith('enc:v1:') || !hexKey) {
+            return payload;
+        }
+        try {
+            const parts = payload.slice(7).split(':');
+            if (parts.length !== 2) return payload;
+
+            const ivBinary = atob(parts[0]);
+            const iv = new Uint8Array(ivBinary.length);
+            for (let i = 0; i < ivBinary.length; i++) iv[i] = ivBinary.charCodeAt(i);
+
+            const cipherBinary = atob(parts[1]);
+            const cipherBytes = new Uint8Array(cipherBinary.length);
+            for (let i = 0; i < cipherBinary.length; i++) cipherBytes[i] = cipherBinary.charCodeAt(i);
+
+            const cryptoKey = await getCryptoKey(hexKey);
+            if (!cryptoKey) return payload;
+
+            const decryptedBuffer = await window.crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv },
+                cryptoKey,
+                cipherBytes
+            );
+            return new TextDecoder().decode(decryptedBuffer);
+        } catch (e) {
+            console.warn('Gagal mendekripsi pesan:', e);
+            return payload;
+        }
+    }
 
     // Helper: Save messages to IndexedDB (local storage) and localStorage
     function persistMessages() {
@@ -718,6 +819,11 @@
         try {
             const data = await apiRequest('/contacts');
             state.contacts = data || [];
+            state.contacts.forEach(c => {
+                if (c.id && c.conversation_key) {
+                    state.conversationKeys[c.id] = c.conversation_key;
+                }
+            });
 
             // Sinkronisasi status online kontak yang sedang aktif di chat window
             if (state.activeContact) {
@@ -1541,7 +1647,7 @@
     // Percakapan & Pengiriman Pesan
     // ==========================================
 
-    window.selectContact = function (contactId) {
+    window.selectContact = async function (contactId) {
         const contact = state.contacts.find(c => c.id === contactId);
         if (!contact) return;
 
@@ -1625,6 +1731,20 @@
         if (skeleton && msgsContainer) {
             skeleton.style.display = 'flex';
             msgsContainer.style.display = 'none';
+        }
+
+        const hexKey = getConversationKeyForContact(contact.id);
+        if (hexKey && state.chats[contact.id]) {
+            let decryptedAny = false;
+            for (const m of state.chats[contact.id]) {
+                if (m.body && m.body.startsWith('enc:v1:')) {
+                    m.body = await decryptMessageBody(m.body, hexKey);
+                    decryptedAny = true;
+                }
+            }
+            if (decryptedAny) {
+                persistMessages();
+            }
         }
 
         try {
@@ -1860,13 +1980,23 @@
             return;
         }
 
+        const encryptionBannerHtml = `
+            <div class="e2ee-encryption-banner" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin: 0.5rem auto 1rem; padding: 0.45rem 0.95rem; border-radius: 999px; background: rgba(124, 58, 237, 0.08); border: 1px solid rgba(124, 58, 237, 0.2); font-size: 0.72rem; color: var(--text-muted); text-align: center; max-width: 90%;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <span>Pesan dalam obrolan ini diamankan dengan enkripsi end-to-end (AES-256).</span>
+            </div>
+        `;
+
         const dateDividerHtml = `
             <div class="date-divider">
                 <span class="date-divider-text">HARI INI</span>
             </div>
         `;
 
-        container.innerHTML = dateDividerHtml + messages.map((msg, idx) => {
+        container.innerHTML = encryptionBannerHtml + dateDividerHtml + messages.map((msg, idx) => {
             const isMe = Boolean(state.user && msg.sender_id === state.user.id);
             const rowClass = isMe ? 'me' : 'other';
             const timeText = formatTime(msg.created_at);
@@ -2250,12 +2380,15 @@
         window.cancelAttachment();
 
         try {
+            const hexKey = getConversationKeyForContact(state.activeContact.id);
+            const encryptedPayload = await encryptMessageBody(messageBody, hexKey);
+
             const savedMsg = await apiRequest('/messages', {
                 method: 'POST',
                 body: JSON.stringify({
                     client_uuid: clientUuid,
                     receiver_id: state.activeContact.id,
-                    body: messageBody,
+                    body: encryptedPayload,
                     attachment: finalAttachment,
                     reply_to: replyData
                 })
@@ -2352,10 +2485,13 @@
 
         try {
             const idToCall = target.id || target.client_uuid;
+            const hexKey = getConversationKeyForContact(state.activeContact.id);
+            const encryptedBody = await encryptMessageBody(newBody, hexKey);
+
             const res = await apiRequest(`/messages/${idToCall}`, {
                 method: 'PUT',
                 body: JSON.stringify({
-                    body: newBody,
+                    body: encryptedBody,
                     receiver_id: state.activeContact.id,
                     client_uuid: target.client_uuid
                 })
@@ -2363,7 +2499,7 @@
 
             if (res) {
                 if (res.id && !target.id) target.id = res.id;
-                target.body = res.body || newBody;
+                target.body = newBody;
                 target.is_edited = true;
                 persistMessages();
                 renderActiveMessages();
@@ -2486,8 +2622,13 @@
             const deliveredAckIds = [];
             let activeUpdated = false;
 
-            pendingList.forEach(msg => {
+            for (const msg of pendingList) {
                 const partnerId = msg.sender_id;
+                const hexKey = getConversationKeyForContact(partnerId);
+                if (msg.body && msg.body.startsWith('enc:v1:')) {
+                    msg.body = await decryptMessageBody(msg.body, hexKey);
+                }
+
                 if (!state.chats[partnerId]) {
                     state.chats[partnerId] = [];
                 }
@@ -2546,7 +2687,7 @@
                         activeUpdated = true;
                     }
                 }
-            });
+            }
 
             if (readAckIds.length > 0 || deliveredAckIds.length > 0) {
                 persistMessages();
@@ -2591,7 +2732,7 @@
             if (!updates || updates.length === 0) return;
 
             let hasChanges = false;
-            updates.forEach(u => {
+            for (const u of updates) {
                 for (const partnerId in state.chats) {
                     const list = state.chats[partnerId];
                     const msg = list.find(m => (m.id && m.id === u.id) || (m.client_uuid && m.client_uuid === u.client_uuid));
@@ -2610,8 +2751,15 @@
 
                         // Perbarui teks jika diedit
                         if (u.body && msg.body !== u.body) {
-                            msg.body = u.body;
-                            msgChanged = true;
+                            let decryptedBody = u.body;
+                            if (u.body.startsWith('enc:v1:')) {
+                                const hexKey = getConversationKeyForContact(partnerId);
+                                decryptedBody = await decryptMessageBody(u.body, hexKey);
+                            }
+                            if (msg.body !== decryptedBody) {
+                                msg.body = decryptedBody;
+                                msgChanged = true;
+                            }
                         }
 
                         // Perbarui status edit jika ada
@@ -2633,7 +2781,7 @@
                         }
                     }
                 }
-            });
+            }
 
             if (hasChanges) {
                 persistMessages();

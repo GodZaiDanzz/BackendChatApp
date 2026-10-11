@@ -8,6 +8,7 @@ use App\Events\UserTyping;
 use App\Jobs\SendPushNotification;
 use App\Models\Message;
 use App\Models\MessageReceipt;
+use App\Services\ChatEncryption;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -54,16 +55,23 @@ class MessageController extends Controller
             'reply_to'    => 'nullable|array',
         ]);
 
+        $senderId = $request->user()->id;
+        $receiverId = (int) $data['receiver_id'];
+
         $body = $data['body'] ?? '';
         if (trim($body) === '' && !empty($data['attachment']['name'])) {
             $body = '[Berkas: ' . $data['attachment']['name'] . ']';
         }
 
+        if (!ChatEncryption::isEncrypted($body)) {
+            $body = ChatEncryption::encrypt($body, $senderId, $receiverId);
+        }
+
         $msg = Message::firstOrCreate(
             ['client_uuid' => $data['client_uuid']],
             [
-                'sender_id'   => $request->user()->id,
-                'receiver_id' => $data['receiver_id'],
+                'sender_id'   => $senderId,
+                'receiver_id' => $receiverId,
                 'body'        => $body,
                 'attachment'  => $data['attachment'] ?? null,
                 'reply_to'    => $data['reply_to'] ?? null,
@@ -96,7 +104,13 @@ class MessageController extends Controller
         $messages = Message::where('receiver_id', $request->user()->id)
             ->where('status', 'sent')
             ->orderBy('created_at', 'asc')
-            ->get();
+            ->get()
+            ->map(function ($msg) {
+                if (!ChatEncryption::isEncrypted($msg->body) && !$msg->is_deleted) {
+                    $msg->body = ChatEncryption::encrypt($msg->body, $msg->sender_id, $msg->receiver_id);
+                }
+                return $msg;
+            });
 
         return response()->json($messages);
     }
@@ -169,14 +183,18 @@ class MessageController extends Controller
             })
             ->first();
 
-        $receiverId = $request->input('receiver_id');
+        $targetReceiverId = $msg ? (int) $msg->receiver_id : (int) $receiverId;
+        $updatedBody = $data['body'];
+        if ($targetReceiverId && !ChatEncryption::isEncrypted($updatedBody)) {
+            $updatedBody = ChatEncryption::encrypt($updatedBody, $request->user()->id, $targetReceiverId);
+        }
 
         if ($msg) {
             if ($msg->is_deleted || $msg->body === 'Pesan ini telah dihapus') {
                 return response()->json(['message' => 'Pesan yang sudah dihapus tidak dapat diedit'], 422);
             }
 
-            $msg->body = $data['body'];
+            $msg->body = $updatedBody;
             if (Schema::hasColumn('messages', 'is_edited')) {
                 $msg->is_edited = true;
             }
@@ -204,7 +222,7 @@ class MessageController extends Controller
                     [
                         'sender_id'   => $request->user()->id,
                         'receiver_id' => $receiverId,
-                        'body'        => $data['body'],
+                        'body'        => $updatedBody,
                         'status'      => 'sent',
                         'is_edited'   => true,
                     ]
@@ -217,7 +235,7 @@ class MessageController extends Controller
 
             return response()->json([
                 'client_uuid' => $clientUuid,
-                'body'        => $data['body'],
+                'body'        => $updatedBody,
                 'is_edited'   => true,
             ]);
         }

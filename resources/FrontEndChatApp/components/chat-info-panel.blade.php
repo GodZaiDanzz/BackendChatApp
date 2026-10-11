@@ -49,6 +49,21 @@
             </div>
         </div>
 
+        <div class="info-section" style="padding-top: 0.5rem; padding-bottom: 0.5rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-radius: 10px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2);">
+                <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(16, 185, 129, 0.15); display: flex; align-items: center; justify-content: center; color: #10b981; flex-shrink: 0;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                </div>
+                <div>
+                    <div style="font-size: 0.8125rem; font-weight: 600; color: #10b981;">Terenkripsi End-to-End</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.3;">Pesan diamankan dengan enkripsi AES-256</div>
+                </div>
+            </div>
+        </div>
+
         {{-- Section 1: Media Bersama --}}
         <div class="info-section">
             <div class="info-section-header">
