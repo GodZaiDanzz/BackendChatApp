@@ -18,11 +18,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'data.sdp',
             'sdp',
         ]);
-        $middleware->convertEmptyStringsToNull(except: [
-            'data',
-            'data.sdp',
-            'sdp',
-        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
