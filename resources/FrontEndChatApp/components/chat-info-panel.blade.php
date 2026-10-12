@@ -1,5 +1,15 @@
 {{-- Right Contact Info Panel (Fourth Column: Profile Details, Media & Documents) --}}
 <aside id="chatInfoPanel" class="info-sidebar" aria-label="Informasi Kontak & Media">
+    {{-- Header Bar with Close Button for Mobile & Tablet --}}
+    <div class="info-sidebar-top-bar">
+        <span class="info-sidebar-top-title">Detail Kontak</span>
+        <button type="button" class="btn-icon info-close-btn" onclick="toggleRightInfoPanel(false)" aria-label="Tutup panel info" title="Tutup">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="6"></line>
+            </svg>
+        </button>
+    </div>
     <div class="info-sidebar-content">
         {{-- Profile Header Card --}}
         <div class="info-profile-section">

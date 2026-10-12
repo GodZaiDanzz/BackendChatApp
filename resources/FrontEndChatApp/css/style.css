@@ -134,6 +134,7 @@ html, body {
 .app-viewport {
   display: flex;
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
   background-color: var(--bg-canvas);
   position: relative;
@@ -2003,48 +2004,181 @@ body.streamer-mode #btnStreamerMode {
   background-color: #fef2f2;
 }
 
-/* Mobile Responsive */
-@media (max-width: 1200px) {
+/* ==========================================================================
+   Responsive Layout & Mobile Support (antislop-layoutmobile)
+   Tier 1: Desktop (>1024px) - 3/4 Columns
+   Tier 2: Tablet (768px - 1024px) - Slim Rail + Sidebar + Chat, Overlay Drawer
+   Tier 3: Mobile (<768px down to 320px) - Master-Detail Reflow + Bottom Nav
+   ========================================================================== */
+
+/* Global Drawer Backdrop & Header Controls */
+.info-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 140;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+}
+
+.info-panel-backdrop.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.info-sidebar-top-bar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.85rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  width: 100%;
+}
+
+.info-sidebar-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.info-close-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-full);
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-card);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.info-close-btn:hover {
+  background-color: var(--accent-soft);
+  color: var(--accent-primary);
+}
+
+.mobile-only-action {
+  display: none;
+}
+
+/* ==========================================================================
+   Tier 2: Tablet Screens (768px to 1024px)
+   ========================================================================== */
+@media (max-width: 1024px) {
+  .nav-rail {
+    width: 60px;
+    padding: 1rem 0.35rem;
+  }
+
+  .rail-nav-btn {
+    width: 38px;
+    height: 38px;
+  }
+
+  .sidebar {
+    width: 300px;
+    min-width: 280px;
+    max-width: 320px;
+  }
+
+  /* Info panel slides as an overlay drawer above the chat stream */
   .info-sidebar {
-    position: absolute;
+    position: fixed;
     right: 0;
     top: 0;
     bottom: 0;
-    box-shadow: var(--shadow-dropdown);
+    width: 340px;
+    max-width: 85vw;
+    z-index: 150;
+    box-shadow: var(--shadow-elevation);
     transform: translateX(100%);
-    transition: transform var(--transition-fast);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .info-sidebar.open {
     transform: translateX(0);
   }
+
+  .info-sidebar-top-bar {
+    display: flex;
+  }
 }
 
+/* ==========================================================================
+   Tier 3: Mobile Phone Screens (< 768px down to 320px)
+   Master-Detail Single View Reflow + Ergonomic Thumb Navigation
+   ========================================================================== */
 @media (max-width: 768px) {
+  /* Enforce dynamic viewport height & no background scroll */
+  html, body {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .app-viewport {
+    height: 100vh;
+    height: 100dvh;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Show mobile quick theme toggle */
+  .mobile-only-action {
+    display: inline-flex;
+  }
+
+  /* Bottom Navigation Rail */
   .nav-rail {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     width: 100%;
-    height: 60px;
+    height: auto;
+    min-height: 58px;
     flex-direction: row;
-    padding: 0 1rem;
+    justify-content: space-around;
+    align-items: center;
+    padding: 0.35rem 0.75rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
     border-right: none;
     border-top: 1px solid var(--border-subtle);
+    background-color: var(--bg-surface);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
+    z-index: 120;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* When conversation is active on mobile, hide the bottom rail so chat input takes full space */
+  .app-viewport.show-chat .nav-rail {
+    transform: translateY(115%);
+    pointer-events: none;
   }
 
   .nav-rail-top {
     flex-direction: row;
     justify-content: space-around;
-    width: auto;
+    align-items: center;
+    width: 100%;
     flex: 1;
+    margin: 0;
   }
 
   .rail-nav-group {
     flex-direction: row;
+    justify-content: space-around;
+    align-items: center;
     margin-top: 0;
-    gap: 1.5rem;
+    gap: 0.5rem;
+    width: 100%;
   }
 
   .rail-brand-avatar {
@@ -2053,51 +2187,209 @@ body.streamer-mode #btnStreamerMode {
 
   .nav-rail-bottom {
     flex-direction: row;
-    width: auto;
-    gap: 1rem;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
   }
 
+  /* Hide rail theme toggle, streamer mode, and extra settings btn from mobile bottom bar */
+  .nav-rail-bottom #btnThemeToggle,
+  .nav-rail-bottom #btnStreamerMode,
+  .nav-rail-bottom button[onclick="openUserProfileModal()"] {
+    display: none;
+  }
+
+  /* Ergonomic touch targets for rail buttons */
+  .rail-nav-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .rail-user-avatar {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+  }
+
+  /* Master: Sidebar List full view */
   .sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px));
     width: 100%;
     max-width: 100%;
-    position: absolute;
-    inset: 0 0 60px 0;
+    height: auto;
+    border-right: none;
+    z-index: 20;
+    transform: translateX(0);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
+  /* Detail: Chat Conversation stream */
   .chat-main {
-    width: 100%;
     position: absolute;
     inset: 0;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    z-index: 30;
     transform: translateX(100%);
-    transition: transform var(--transition-fast);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    background-color: var(--bg-canvas);
   }
 
+  /* Transition into Active Chat on Mobile */
   .app-viewport.show-chat .sidebar {
     transform: translateX(-100%);
+    pointer-events: none;
   }
 
   .app-viewport.show-chat .chat-main {
     transform: translateX(0);
+    pointer-events: auto;
+  }
+
+  /* Chat Top Bar & Back Button */
+  .chat-header {
+    padding: 0.65rem 0.85rem;
+    gap: 0.5rem;
   }
 
   .chat-back-btn {
-    display: inline-flex;
+    display: inline-flex !important;
     align-items: center;
     justify-content: center;
     min-width: 44px;
     min-height: 44px;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-full);
+    color: var(--text-primary);
+    background: transparent;
   }
 
+  .chat-back-btn:active {
+    background-color: var(--bg-surface-elevated);
+  }
+
+  /* Action Buttons Touch Target >= 44px */
   .btn-header-action,
-  .btn-compose-circle,
-  .btn-send-purple {
+  .btn-compose-circle {
     min-width: 44px;
     min-height: 44px;
+    width: 44px;
+    height: 44px;
   }
 
+  .btn-send-purple {
+    min-width: 46px;
+    min-height: 46px;
+    width: 46px;
+    height: 46px;
+  }
+
+  /* Input bar ergonomically padded above virtual keyboard & home indicator */
+  .chat-input-bar-container {
+    padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Enforce font-size 16px to prevent iOS Safari auto-zoom jumping */
+  .chat-textarea-pill,
+  .search-input-field,
+  .form-input,
+  .input-clean {
+    font-size: 16px !important;
+  }
+
+  /* Message Bubbles Width Reflow */
+  .message-bubble {
+    max-width: 86%;
+  }
+
+  /* Right Info Panel as Full Sheet Drawer on Mobile */
   .info-sidebar {
+    position: fixed;
+    inset: 0;
     width: 100%;
     max-width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    z-index: 160;
+    transform: translateX(100%);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: none;
+    padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .info-sidebar.open {
+    transform: translateX(0);
+  }
+
+  .info-sidebar-top-bar {
+    display: flex;
+  }
+
+  /* Mobile Modals: Sized to 94-96vw and max 88dvh with proper internal scroll */
+  .modal-overlay {
+    padding: 0.75rem;
+    align-items: flex-end;
+  }
+
+  .modal-box,
+  .modal-container,
+  .modal-content,
+  .modal-card {
+    width: 96vw !important;
+    max-width: 96vw !important;
+    max-height: 88dvh !important;
+    border-radius: var(--radius-lg) var(--radius-lg) var(--radius-md) var(--radius-md) !important;
+    margin: 0 auto;
+    overflow-y: auto;
+  }
+
+  /* Voice Call Floating Widget & Overlay on Mobile */
+  .voice-call-overlay {
+    padding: 1rem;
+  }
+
+  .voice-controls-bar {
+    gap: 0.75rem;
+  }
+}
+
+/* ==========================================================================
+   Tier 4: Ultra-Narrow Phone Screens (< 380px)
+   ========================================================================== */
+@media (max-width: 380px) {
+  .sidebar-header-row {
+    padding: 1rem 0.75rem 0.5rem;
+  }
+
+  .sidebar-main-title {
+    font-size: 1.25rem;
+  }
+
+  .chat-header {
+    padding: 0.5rem 0.5rem;
+  }
+
+  .chat-header-actions {
+    gap: 0.25rem;
+  }
+
+  .message-bubble {
+    max-width: 90%;
+  }
+
+  .bubble-inner {
+    padding: 0.55rem 0.75rem;
   }
 }
 

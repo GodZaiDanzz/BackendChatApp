@@ -1330,6 +1330,15 @@
     // Navigation Rail Tab Switching & Controls
     window.switchRailTab = function (tab) {
         state.activeTab = tab;
+
+        // On mobile screen, tapping a rail tab closes active chat to return to list view
+        if (window.innerWidth <= 768) {
+            const viewport = document.querySelector('.app-viewport');
+            if (viewport && viewport.classList.contains('show-chat')) {
+                window.closeActiveChat();
+            }
+        }
+
         const btnChats = document.getElementById('railBtnChats');
         const btnContacts = document.getElementById('railBtnContacts');
         const btnRequests = document.getElementById('railBtnRequests');
@@ -1493,16 +1502,29 @@
         showToast('Semua percakapan telah ditandai dibaca.', 'success');
     };
 
-    window.toggleRightInfoPanel = function (openOnly = false) {
+    window.toggleRightInfoPanel = function (action) {
         const panel = document.getElementById('chatInfoPanel');
+        const backdrop = document.getElementById('infoPanelBackdrop');
         if (!panel) return;
-        if (openOnly) {
-            panel.classList.add('open');
+
+        let shouldOpen;
+        if (action === true) {
+            shouldOpen = true;
+        } else if (action === false) {
+            shouldOpen = false;
         } else {
-            panel.classList.toggle('open');
+            shouldOpen = !panel.classList.contains('open');
         }
-        if (state.activeContact) {
-            updateRightPanelMediaAndDocs(state.activeContact.id);
+
+        if (shouldOpen) {
+            panel.classList.add('open');
+            if (backdrop) backdrop.classList.add('active');
+            if (state.activeContact) {
+                updateRightPanelMediaAndDocs(state.activeContact.id);
+            }
+        } else {
+            panel.classList.remove('open');
+            if (backdrop) backdrop.classList.remove('active');
         }
     };
 
@@ -3200,10 +3222,14 @@
         const activeWindow = document.getElementById('activeChatWindow');
         const emptyState = document.getElementById('noChatSelected');
         const viewport = document.querySelector('.app-viewport');
+        const infoPanel = document.getElementById('chatInfoPanel');
+        const infoBackdrop = document.getElementById('infoPanelBackdrop');
 
         if (activeWindow) activeWindow.style.display = 'none';
         if (emptyState) emptyState.style.display = 'flex';
         if (viewport) viewport.classList.remove('show-chat');
+        if (infoPanel) infoPanel.classList.remove('open');
+        if (infoBackdrop) infoBackdrop.classList.remove('active');
 
         document.querySelectorAll('.chat-item.active, .contact-card-item.active').forEach(el => {
             el.classList.remove('active');
@@ -5948,6 +5974,18 @@
             } else {
                 darkIcon.style.display = 'none';
                 lightIcon.style.display = 'block';
+            }
+        }
+
+        const mobDark = document.getElementById('mobileThemeIconDark');
+        const mobLight = document.getElementById('mobileThemeIconLight');
+        if (mobDark && mobLight) {
+            if (theme === 'dark') {
+                mobDark.style.display = 'block';
+                mobLight.style.display = 'none';
+            } else {
+                mobDark.style.display = 'none';
+                mobLight.style.display = 'block';
             }
         }
     }
