@@ -47,8 +47,9 @@ class UserController extends Controller
                 mkdir($dir, 0755, true);
             }
 
-            if ($user->avatar && str_starts_with($user->avatar, '/uploads/avatars/')) {
-                $oldPath = public_path(ltrim($user->avatar, '/'));
+            $rawAvatar = $user->getRawOriginal('avatar');
+            if ($rawAvatar && str_contains($rawAvatar, '/uploads/avatars/')) {
+                $oldPath = public_path(ltrim(parse_url($rawAvatar, PHP_URL_PATH) ?? $rawAvatar, '/'));
                 if (file_exists($oldPath)) {
                     @unlink($oldPath);
                 }
@@ -84,8 +85,9 @@ class UserController extends Controller
             mkdir($dir, 0755, true);
         }
 
-        if ($user->avatar && str_starts_with($user->avatar, '/uploads/avatars/')) {
-            $oldPath = public_path(ltrim($user->avatar, '/'));
+        $rawAvatar = $user->getRawOriginal('avatar');
+        if ($rawAvatar && str_contains($rawAvatar, '/uploads/avatars/')) {
+            $oldPath = public_path(ltrim(parse_url($rawAvatar, PHP_URL_PATH) ?? $rawAvatar, '/'));
             if (file_exists($oldPath)) {
                 @unlink($oldPath);
             }
@@ -109,8 +111,9 @@ class UserController extends Controller
     public function deleteAvatar(Request $request)
     {
         $user = $request->user();
-        if ($user->avatar && str_starts_with($user->avatar, '/uploads/avatars/')) {
-            $oldPath = public_path(ltrim($user->avatar, '/'));
+        $rawAvatar = $user->getRawOriginal('avatar');
+        if ($rawAvatar && str_contains($rawAvatar, '/uploads/avatars/')) {
+            $oldPath = public_path(ltrim(parse_url($rawAvatar, PHP_URL_PATH) ?? $rawAvatar, '/'));
             if (file_exists($oldPath)) {
                 @unlink($oldPath);
             }

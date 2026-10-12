@@ -53,6 +53,17 @@ class User extends Authenticatable
         return $this->belongsToMany(User::class, 'contacts', 'user_id', 'contact_id')->withTimestamps();
     }
 
+    public function getAvatarAttribute($value)
+    {
+        if (!$value) {
+            return null;
+        }
+        if (str_starts_with($value, 'http://') || str_starts_with($value, 'https://') || str_starts_with($value, 'data:')) {
+            return $value;
+        }
+        return url($value);
+    }
+
     public function groups()
     {
         return $this->belongsToMany(Group::class, 'group_members')
