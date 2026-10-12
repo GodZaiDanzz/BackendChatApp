@@ -35,4 +35,14 @@ return [
         ],
     ],
 
+    'turn' => [
+        'url'    => env('TURN_URL', 'turn:turn.ismc.my.id:3478'),
+        'secret' => env('TURN_SECRET'),
+    ],
+
+    'fcm' => [
+        'project_id'       => env('FCM_PROJECT_ID'),
+        'credentials_path' => env('FCM_CREDENTIALS_PATH', storage_path('app/firebase.json')),
+    ],
+
 ];

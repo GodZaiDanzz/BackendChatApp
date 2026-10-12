@@ -25,6 +25,7 @@ class User extends Authenticatable
         'last_seen_at',
         'otp_code',
         'otp_expires_at',
+        'fcm_token',
     ];
 
     protected $hidden = [
@@ -51,6 +52,16 @@ class User extends Authenticatable
     public function contacts()
     {
         return $this->belongsToMany(User::class, 'contacts', 'user_id', 'contact_id')->withTimestamps();
+    }
+
+    public function callsAsCaller()
+    {
+        return $this->hasMany(Call::class, 'caller_id');
+    }
+
+    public function callsAsCallee()
+    {
+        return $this->hasMany(Call::class, 'callee_id');
     }
 
     public function getAvatarAttribute($value)

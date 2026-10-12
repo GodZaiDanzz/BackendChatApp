@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CallController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\GroupController;
@@ -67,4 +68,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/voice/groups/{id}/join', [\App\Http\Controllers\VoiceCallController::class, 'joinGroupVoice']);
     Route::post('/voice/groups/{id}/leave', [\App\Http\Controllers\VoiceCallController::class, 'leaveGroupVoice']);
     Route::get('/voice/groups/{id}/status', [\App\Http\Controllers\VoiceCallController::class, 'getGroupVoiceStatus']);
+
+    // Device token registration
+    Route::post('/device-token', [CallController::class, 'updateDeviceToken']);
+
+    // 1-on-1 WebRTC Calls
+    Route::get('/calls/ice-servers', [CallController::class, 'iceServers']);
+    Route::get('/calls', [CallController::class, 'index']);
+    Route::post('/calls', [CallController::class, 'store']);
+    Route::post('/calls/{call}/accept', [CallController::class, 'accept']);
+    Route::post('/calls/{call}/reject', [CallController::class, 'reject']);
+    Route::post('/calls/{call}/end', [CallController::class, 'end']);
+    Route::post('/calls/{call}/signal', [CallController::class, 'signal']);
 });

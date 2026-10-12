@@ -14,3 +14,5 @@ Schedule::call(function () {
         ->where('created_at', '<', now()->subDays(7))
         ->delete();
 })->daily();
+
+Schedule::command('calls:check-missed')->everyMinute();
