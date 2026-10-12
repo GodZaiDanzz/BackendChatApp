@@ -4446,6 +4446,34 @@
                 await handleIncomingDirectMessage(msg);
             });
 
+            const onMessageStatus = async (data) => {
+                const msg = data.message || data;
+                if (!msg || !msg.status) return;
+
+                let hasChanges = false;
+                for (const partnerId in state.chats) {
+                    const list = state.chats[partnerId];
+                    const found = list.find(m => (m.client_uuid && m.client_uuid === msg.client_uuid) || (m.id && m.id === (msg.id || msg.message_id)));
+                    if (found) {
+                        if (found.status !== msg.status && !(found.status === 'read' && msg.status === 'delivered')) {
+                            found.status = msg.status;
+                            hasChanges = true;
+                        }
+                    }
+                }
+                if (hasChanges) {
+                    persistMessages();
+                    if (state.activeContact) {
+                        renderActiveMessages();
+                    }
+                    renderChatsList();
+                }
+            };
+
+            channel.bind('message.status', onMessageStatus);
+            channel.bind('.message.status', onMessageStatus);
+            channel.bind('message.status_updated', onMessageStatus);
+
             const onVoiceSignal = async (rawSignal) => {
                 let signal = rawSignal;
                 if (typeof signal === 'string') {

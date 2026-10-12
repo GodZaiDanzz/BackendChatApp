@@ -140,14 +140,18 @@ class MessageController extends Controller
                 ->get();
 
             foreach ($messages as $msg) {
-                // 1. Simpan receipt sementara untuk pengirim agar ceklis terupdate
+                // 1. Simpan receipt sementara untuk pengirim agar ceklis terupdate (updateOrCreate jika status naik)
                 try {
-                    MessageReceipt::create([
-                        'sender_id'   => $msg->sender_id,
-                        'client_uuid' => $msg->client_uuid,
-                        'message_id'  => $msg->id,
-                        'status'      => $data['status'],
-                    ]);
+                    MessageReceipt::updateOrCreate(
+                        [
+                            'sender_id'   => $msg->sender_id,
+                            'client_uuid' => $msg->client_uuid,
+                        ],
+                        [
+                            'message_id'  => $msg->id,
+                            'status'      => $data['status'],
+                        ]
+                    );
                 } catch (\Throwable $e) {
                     Log::warning('Failed saving message receipt: ' . $e->getMessage());
                 }
@@ -165,13 +169,13 @@ class MessageController extends Controller
             }
         }
 
-        // Jika penerima menandai status 'read' dengan client_uuids dan sender_id
-        if ($data['status'] === 'read' && !empty($data['client_uuids']) && !empty($data['sender_id'])) {
+        // Jika penerima menandai status dengan client_uuids dan sender_id (delivered atau read)
+        if (!empty($data['client_uuids']) && !empty($data['sender_id'])) {
             foreach ($data['client_uuids'] as $uuid) {
                 try {
                     MessageReceipt::updateOrCreate(
                         ['sender_id' => (int)$data['sender_id'], 'client_uuid' => $uuid],
-                        ['status' => 'read']
+                        ['status' => $data['status']]
                     );
                 } catch (\Throwable $e) {}
 
@@ -180,7 +184,7 @@ class MessageController extends Controller
                         'sender_id'   => (int)$data['sender_id'],
                         'receiver_id' => $userId,
                         'client_uuid' => $uuid,
-                        'status'      => 'read',
+                        'status'      => $data['status'],
                     ]);
                     broadcast(new MessageStatusUpdated($dummy));
                 } catch (\Throwable $e) {}
@@ -348,22 +352,27 @@ class MessageController extends Controller
     {
         $userId = $request->user()->id;
 
-        // Ambil ephemeral receipts untuk status pesan yang telah diterima lawan bicara
-        $receipts = MessageReceipt::where('sender_id', $userId)->get();
+        // Ambil ephemeral receipts untuk status pesan yang telah diterima lawan bicara (dalam 5 menit terakhir)
+        $receipts = MessageReceipt::where('sender_id', $userId)
+            ->where('created_at', '>=', now()->subMinutes(5))
+            ->get();
 
         $results = [];
         if ($receipts->isNotEmpty()) {
             foreach ($receipts as $r) {
                 $results[] = [
                     'id'          => $r->message_id,
+                    'message_id'  => $r->message_id,
                     'client_uuid' => $r->client_uuid,
                     'status'      => $r->status,
                 ];
             }
-
-            // Hapus receipts yang sudah diambil pengirim agar MySQL tetap bersih
-            MessageReceipt::whereIn('id', $receipts->pluck('id'))->delete();
         }
+
+        // Hapus receipts yang sudah kedaluwarsa (> 5 menit) agar tabel tetap bersih
+        try {
+            MessageReceipt::where('created_at', '<', now()->subMinutes(5))->delete();
+        } catch (\Throwable $e) {}
 
         // Cek juga jika ada antrean pesan di tabel messages yang statusnya berubah
         $columns = ['id', 'client_uuid', 'sender_id', 'receiver_id', 'body', 'status', 'updated_at'];
