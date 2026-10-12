@@ -109,6 +109,7 @@ class MessageController extends Controller
                 if (!ChatEncryption::isEncrypted($msg->body) && !$msg->is_deleted) {
                     $msg->body = ChatEncryption::encrypt($msg->body, $msg->sender_id, $msg->receiver_id);
                 }
+                $msg->plain_body = ChatEncryption::decrypt($msg->body, $msg->sender_id, $msg->receiver_id);
                 return $msg;
             });
 
