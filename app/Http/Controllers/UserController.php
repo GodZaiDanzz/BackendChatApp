@@ -30,11 +30,15 @@ class UserController extends Controller
     {
         $data = $request->validate([
             'display_name' => 'required|string|max:100',
+            'phone_number' => 'nullable|string|max:25',
             'avatar'       => 'nullable|image|max:10240',
         ]);
 
         $user = $request->user();
         $user->display_name = trim($data['display_name']);
+        if (isset($data['phone_number'])) {
+            $user->phone_number = trim($data['phone_number']);
+        }
 
         if ($request->hasFile('avatar')) {
             $file = $request->file('avatar');
@@ -62,6 +66,7 @@ class UserController extends Controller
             'username'     => $user->username,
             'display_name' => $user->display_name,
             'email'        => $user->email,
+            'phone_number' => $user->phone_number,
             'avatar'       => $user->avatar,
         ]);
     }

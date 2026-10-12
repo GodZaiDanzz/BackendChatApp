@@ -34,6 +34,10 @@
                 <span id="contactModalPresenceText" class="contact-detail-val">Offline</span>
             </div>
             <div class="contact-detail-row">
+                <span class="contact-detail-label">Nomor Telepon</span>
+                <span id="contactModalPhoneText" class="contact-detail-val">-</span>
+            </div>
+            <div class="contact-detail-row">
                 <span class="contact-detail-label">Hubungan Akun</span>
                 <span class="contact-detail-val" style="color: var(--status-online);">Teman Terhubung</span>
             </div>

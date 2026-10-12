@@ -91,6 +91,17 @@
                 >
             </div>
 
+            <div class="form-group">
+                <label for="profilePhoneInput" class="form-label">Nomor Telepon</label>
+                <input
+                    type="tel"
+                    id="profilePhoneInput"
+                    class="form-input"
+                    maxlength="25"
+                    placeholder="Contoh: 081234567890 / +62812..."
+                >
+            </div>
+
             <div class="form-group" style="margin-top: 1rem; padding: 0.75rem; background: var(--bg-surface-elevated); border-radius: var(--radius-md); border: 1px solid var(--border-card);">
                 <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; user-select: none;">
                     <input type="checkbox" id="profileSoundToggle" onchange="toggleSoundNotification(this.checked)" style="width: 17px; height: 17px; accent-color: var(--accent-primary);">

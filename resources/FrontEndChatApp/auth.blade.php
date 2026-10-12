@@ -123,6 +123,19 @@
                     </div>
 
                     <div class="auth-input-group">
+                        <label for="regPhone" class="auth-input-label">Nomor Telepon</label>
+                        <input
+                            id="regPhone"
+                            type="tel"
+                            class="auth-text-input"
+                            required
+                            placeholder="Contoh: 081234567890 / +62812..."
+                            autocomplete="tel"
+                        >
+                        <span class="auth-input-helper">Nomor telepon aktif untuk identitas akun.</span>
+                    </div>
+
+                    <div class="auth-input-group">
                         <label for="regPassword" class="auth-input-label">Password</label>
                         <input
                             id="regPassword"
@@ -352,10 +365,11 @@
             const displayName = document.getElementById('regDisplayName').value.trim();
             const username = document.getElementById('regUsername').value.trim();
             const email = document.getElementById('regEmail').value.trim();
+            const phone = document.getElementById('regPhone').value.trim();
             const password = document.getElementById('regPassword').value;
             const btn = document.getElementById('registerBtn');
 
-            if (!displayName || !username || !email || !password) {
+            if (!displayName || !username || !email || !phone || !password) {
                 showToast('Semua kolom pendaftaran wajib diisi.', 'error');
                 return;
             }
@@ -367,7 +381,7 @@
                 const res = await fetch('/api/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: JSON.stringify({ display_name: displayName, username, email, password })
+                    body: JSON.stringify({ display_name: displayName, username, email, phone_number: phone, password })
                 });
 
                 const data = await res.json();

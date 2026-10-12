@@ -19,13 +19,16 @@ class AuthController extends Controller
             'username'     => ['required', 'alpha_dash', 'min:3', 'max:30'],
             'display_name' => ['required', 'string', 'max:60'],
             'email'        => ['required', 'email', 'max:100'],
+            'phone_number' => ['required', 'string', 'min:8', 'max:25'],
             'password'     => ['required', 'string', 'min:8'],
             'invite_code'  => ['nullable', 'string'],
         ], [
-            'username.alpha_dash' => 'Username hanya boleh berisi huruf, angka, strip, dan garis bawah.',
-            'username.min'        => 'Username minimal 3 karakter.',
-            'email.email'         => 'Format email tidak valid. Masukkan alamat email yang aktif.',
-            'password.min'        => 'Password minimal 8 karakter.',
+            'username.alpha_dash'   => 'Username hanya boleh berisi huruf, angka, strip, dan garis bawah.',
+            'username.min'          => 'Username minimal 3 karakter.',
+            'email.email'           => 'Format email tidak valid. Masukkan alamat email yang aktif.',
+            'phone_number.required' => 'Nomor telepon wajib diisi.',
+            'phone_number.min'      => 'Nomor telepon minimal 8 karakter.',
+            'password.min'          => 'Password minimal 8 karakter.',
         ]);
 
         // Cek apakah username sudah dipakai oleh akun yang sudah terverifikasi
@@ -59,6 +62,7 @@ class AuthController extends Controller
         $user->username = $data['username'];
         $user->display_name = $data['display_name'];
         $user->email = strtolower(trim($data['email']));
+        $user->phone_number = trim($data['phone_number']);
         $user->password = Hash::make($data['password']);
         $user->email_verified_at = null; // Belum diverifikasi
         $user->otp_code = $otp;
@@ -192,9 +196,10 @@ class AuthController extends Controller
 
         $loginInput = trim($request->username);
 
-        // Cari user berdasarkan username ATAU email
+        // Cari user berdasarkan username, email, ATAU nomor telepon
         $user = User::where('username', $loginInput)
             ->orWhere('email', strtolower($loginInput))
+            ->orWhere('phone_number', $loginInput)
             ->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {

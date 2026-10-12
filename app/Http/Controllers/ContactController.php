@@ -35,6 +35,9 @@ class ContactController extends Controller
         if (\Illuminate\Support\Facades\Schema::hasColumn('users', 'avatar')) {
             $columns[] = 'avatar';
         }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('users', 'phone_number')) {
+            $columns[] = 'phone_number';
+        }
 
         $contacts = User::whereIn('id', $allFriendIds)->get($columns)->map(function ($u) use ($userId) {
             $isOnline = false;
@@ -47,6 +50,7 @@ class ContactController extends Controller
                 'username'         => $u->username,
                 'display_name'     => $u->display_name,
                 'avatar'           => $u->avatar ?? null,
+                'phone_number'     => $u->phone_number ?? null,
                 'created_at'       => $u->created_at ? $u->created_at->toISOString() : null,
                 'last_seen_at'     => $u->last_seen_at ? $u->last_seen_at->toISOString() : null,
                 'is_online'        => $isOnline,

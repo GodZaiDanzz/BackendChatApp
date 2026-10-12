@@ -20,6 +20,7 @@ class User extends Authenticatable
         'display_name',
         'avatar',
         'email',
+        'phone_number',
         'password',
         'last_seen_at',
         'otp_code',

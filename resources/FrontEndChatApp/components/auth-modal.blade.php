@@ -61,6 +61,11 @@
             </div>
 
             <div class="form-group">
+                <label for="regPhone" class="form-label">Nomor Telepon</label>
+                <input id="regPhone" type="tel" class="form-input" required placeholder="Contoh: 081234567890 / +62812..." autocomplete="tel">
+            </div>
+
+            <div class="form-group">
                 <label for="regPassword" class="form-label">Password</label>
                 <input id="regPassword" type="password" class="form-input" required minlength="8" placeholder="Minimal 8 karakter">
             </div>

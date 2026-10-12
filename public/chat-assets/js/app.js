@@ -719,10 +719,11 @@
         const displayName = document.getElementById('regDisplayName').value.trim();
         const username = document.getElementById('regUsername').value.trim();
         const email = document.getElementById('regEmail').value.trim();
+        const phone = (document.getElementById('regPhone')?.value || '').trim();
         const password = document.getElementById('regPassword').value;
         const btn = document.getElementById('registerBtn');
 
-        if (!displayName || !username || !email || !password) {
+        if (!displayName || !username || !email || !phone || !password) {
             showToast('Semua kolom formulir pendaftaran wajib diisi.', 'error');
             return;
         }
@@ -737,6 +738,7 @@
                     display_name: displayName,
                     username,
                     email,
+                    phone_number: phone,
                     password
                 })
             });
@@ -1886,6 +1888,7 @@
         const nameInput = document.getElementById('profileDisplayNameInput');
         const userInput = document.getElementById('profileUsernameInput');
         const emailInput = document.getElementById('profileEmailInput');
+        const phoneInput = document.getElementById('profilePhoneInput');
         const avatarEl = document.getElementById('profileModalAvatar');
         const soundToggle = document.getElementById('profileSoundToggle');
         const btnDelete = document.getElementById('btnDeleteUserAvatar');
@@ -1894,6 +1897,7 @@
         if (nameInput) nameInput.value = state.user.display_name || '';
         if (userInput) userInput.value = `@${state.user.username || ''}`;
         if (emailInput) emailInput.value = state.user.email || 'Belum diatur';
+        if (phoneInput) phoneInput.value = state.user.phone_number || '';
         if (soundToggle) soundToggle.checked = Boolean(state.soundEnabled);
 
         if (avatarEl) {
@@ -1933,8 +1937,10 @@
     window.handleSaveProfile = async function (e) {
         if (e) e.preventDefault();
         const nameInput = document.getElementById('profileDisplayNameInput');
+        const phoneInput = document.getElementById('profilePhoneInput');
         const btnSave = document.getElementById('btnSaveProfile');
         const newName = (nameInput ? nameInput.value : '').trim();
+        const newPhone = (phoneInput ? phoneInput.value : '').trim();
 
         if (!newName) {
             showToast('Nama tampilan tidak boleh kosong.', 'error');
@@ -1949,13 +1955,16 @@
         try {
             const updated = await apiRequest('/user/profile', {
                 method: 'PUT',
-                body: JSON.stringify({ display_name: newName })
+                body: JSON.stringify({ display_name: newName, phone_number: newPhone })
             });
 
             if (updated) {
                 state.user.display_name = updated.display_name || newName;
                 if (updated.avatar !== undefined) {
                     state.user.avatar = updated.avatar;
+                }
+                if (updated.phone_number !== undefined) {
+                    state.user.phone_number = updated.phone_number;
                 }
                 localStorage.setItem('zchat_user', JSON.stringify(state.user));
                 updateCurrentUserUI();
@@ -3328,6 +3337,10 @@
         }
         if (presenceEl) {
             presenceEl.textContent = isOnline ? 'Sedang Aktif Sekarang' : 'Sedang Tidak Aktif';
+        }
+        const phoneEl = document.getElementById('contactModalPhoneText');
+        if (phoneEl) {
+            phoneEl.textContent = contact.phone_number || '-';
         }
 
         if (joinedEl) {
