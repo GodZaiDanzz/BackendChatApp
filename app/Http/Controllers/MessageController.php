@@ -125,42 +125,69 @@ class MessageController extends Controller
     public function ack(Request $request)
     {
         $data = $request->validate([
-            'message_ids'   => 'required|array',
+            'message_ids'   => 'nullable|array',
             'message_ids.*' => 'integer',
+            'client_uuids'  => 'nullable|array',
+            'sender_id'     => 'nullable|integer',
             'status'        => 'required|in:delivered,read',
         ]);
 
-        $messages = Message::whereIn('id', $data['message_ids'])
-            ->where('receiver_id', $request->user()->id)
-            ->get();
+        $userId = $request->user()->id;
 
-        foreach ($messages as $msg) {
-            // 1. Simpan receipt sementara untuk pengirim agar ceklis terupdate
-            try {
-                MessageReceipt::create([
-                    'sender_id'   => $msg->sender_id,
-                    'client_uuid' => $msg->client_uuid,
-                    'message_id'  => $msg->id,
-                    'status'      => $data['status'],
-                ]);
-            } catch (\Throwable $e) {
-                Log::warning('Failed saving message receipt: ' . $e->getMessage());
+        if (!empty($data['message_ids'])) {
+            $messages = Message::whereIn('id', $data['message_ids'])
+                ->where('receiver_id', $userId)
+                ->get();
+
+            foreach ($messages as $msg) {
+                // 1. Simpan receipt sementara untuk pengirim agar ceklis terupdate
+                try {
+                    MessageReceipt::create([
+                        'sender_id'   => $msg->sender_id,
+                        'client_uuid' => $msg->client_uuid,
+                        'message_id'  => $msg->id,
+                        'status'      => $data['status'],
+                    ]);
+                } catch (\Throwable $e) {
+                    Log::warning('Failed saving message receipt: ' . $e->getMessage());
+                }
+
+                // 2. Broadcast status update secara real-time ke pengirim
+                $msg->status = $data['status'];
+                try {
+                    broadcast(new MessageStatusUpdated($msg));
+                } catch (\Throwable $e) {
+                    Log::warning('WebSocket broadcast failed (MessageStatusUpdated): ' . $e->getMessage());
+                }
+
+                // 3. Hapus pesan dari MySQL (Store-and-Forward Ephemeral Architecture)
+                $msg->delete();
             }
-
-            // 2. Broadcast status update secara real-time ke pengirim
-            $msg->status = $data['status'];
-            try {
-                broadcast(new MessageStatusUpdated($msg));
-            } catch (\Throwable $e) {
-                Log::warning('WebSocket broadcast failed (MessageStatusUpdated): ' . $e->getMessage());
-            }
-
-            // 3. Hapus pesan dari MySQL (Store-and-Forward Ephemeral Architecture)
-            // Pesan sudah tersimpan aman di database lokal (IndexedDB/SQLite) perangkat penerima!
-            $msg->delete();
         }
 
-        return response()->json(['message' => 'Acknowledged and pruned from MySQL successfully']);
+        // Jika penerima menandai status 'read' dengan client_uuids dan sender_id
+        if ($data['status'] === 'read' && !empty($data['client_uuids']) && !empty($data['sender_id'])) {
+            foreach ($data['client_uuids'] as $uuid) {
+                try {
+                    MessageReceipt::updateOrCreate(
+                        ['sender_id' => (int)$data['sender_id'], 'client_uuid' => $uuid],
+                        ['status' => 'read']
+                    );
+                } catch (\Throwable $e) {}
+
+                try {
+                    $dummy = new Message([
+                        'sender_id'   => (int)$data['sender_id'],
+                        'receiver_id' => $userId,
+                        'client_uuid' => $uuid,
+                        'status'      => 'read',
+                    ]);
+                    broadcast(new MessageStatusUpdated($dummy));
+                } catch (\Throwable $e) {}
+            }
+        }
+
+        return response()->json(['message' => 'Acknowledged successfully']);
     }
 
     /**
