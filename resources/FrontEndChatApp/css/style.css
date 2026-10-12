@@ -2143,12 +2143,14 @@ body.streamer-mode #btnStreamerMode {
     left: 0;
     right: 0;
     width: 100%;
-    height: auto;
-    min-height: 58px;
+    min-width: 0;
+    height: 60px;
+    min-height: 60px;
+    display: flex;
     flex-direction: row;
-    justify-content: space-around;
+    justify-content: space-evenly;
     align-items: center;
-    padding: 0.35rem 0.75rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+    padding: 0 0.5rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
     border-right: none;
     border-top: 1px solid var(--border-subtle);
     background-color: var(--bg-surface);
@@ -2163,50 +2165,33 @@ body.streamer-mode #btnStreamerMode {
     pointer-events: none;
   }
 
-  .nav-rail-top {
-    flex-direction: row;
-    justify-content: space-around;
-    align-items: center;
-    width: 100%;
-    flex: 1;
-    margin: 0;
-  }
-
-  .rail-nav-group {
-    flex-direction: row;
-    justify-content: space-around;
-    align-items: center;
-    margin-top: 0;
-    gap: 0.5rem;
-    width: 100%;
-  }
-
-  .rail-brand-avatar {
-    display: none;
-  }
-
+  /* Unwrap sub-containers on mobile so all 5 items are direct siblings in .nav-rail flex */
+  .nav-rail-top,
+  .rail-nav-group,
   .nav-rail-bottom {
-    flex-direction: row;
-    align-items: center;
-    gap: 0.5rem;
-    margin-top: 0;
-    padding-top: 0;
-    border-top: none;
+    display: contents !important;
   }
 
-  /* Hide rail theme toggle, streamer mode, and extra settings btn from mobile bottom bar */
-  .nav-rail-bottom #btnThemeToggle,
-  .nav-rail-bottom #btnStreamerMode,
+  /* Hide rail brand logo, theme toggle, streamer mode, and extra settings btn from mobile bottom bar */
+  .rail-brand-avatar,
+  #btnThemeToggle,
+  #btnStreamerMode,
+  #btnRailSettings,
   .nav-rail-bottom button[onclick="openUserProfileModal()"] {
-    display: none;
+    display: none !important;
   }
 
-  /* Ergonomic touch targets for rail buttons */
+  /* Ergonomic touch targets: All 5 icons evenly distributed & perfectly centered */
   .rail-nav-btn {
     width: 44px;
     height: 44px;
     min-width: 44px;
     min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin: 0;
   }
 
   .rail-user-avatar {
@@ -2214,6 +2199,12 @@ body.streamer-mode #btnStreamerMode {
     height: 38px;
     min-width: 38px;
     min-height: 38px;
+    border-radius: var(--radius-full);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin: 0;
   }
 
   /* Master: Sidebar List full view */
@@ -2222,7 +2213,7 @@ body.streamer-mode #btnStreamerMode {
     top: 0;
     left: 0;
     right: 0;
-    bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
     width: 100%;
     max-width: 100%;
     height: auto;

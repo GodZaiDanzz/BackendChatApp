@@ -128,6 +128,7 @@
         {{-- Settings / Info Button --}}
         <button
             type="button"
+            id="btnRailSettings"
             class="rail-nav-btn"
             onclick="openUserProfileModal()"
             title="Pengaturan & Profil Akun"
