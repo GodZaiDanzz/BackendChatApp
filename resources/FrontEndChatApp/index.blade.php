@@ -57,6 +57,7 @@
     @include('components.user-profile-modal')
     @include('components.settings-modals')
     @include('components.voice-call-overlay')
+    @include('components.confirm-modal')
     @include('components.toast')
 
     <script src="/chat-assets/js/pusher.min.js?v={{ time() }}"></script>

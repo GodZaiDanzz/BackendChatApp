@@ -490,6 +490,98 @@
         }, 4000);
     };
 
+    // ==========================================
+    // Custom Confirmation Dialog System
+    // ==========================================
+    let confirmModalResolver = null;
+
+    window.showConfirmModal = function (options) {
+        if (typeof options === 'string') {
+            options = { message: options };
+        }
+        const config = Object.assign({
+            title: 'Konfirmasi Tindakan',
+            message: 'Apakah Anda yakin ingin melanjutkan tindakan ini?',
+            confirmText: 'Lanjutkan',
+            cancelText: 'Batal',
+            type: 'danger',
+            icon: 'trash'
+        }, options || {});
+
+        const modalEl = document.getElementById('confirmModal');
+        if (!modalEl) {
+            return Promise.resolve(false);
+        }
+
+        const titleEl = document.getElementById('confirmModalTitle');
+        const messageEl = document.getElementById('confirmModalMessage');
+        const iconBoxEl = document.getElementById('confirmModalIconBox');
+        const iconSvg = document.getElementById('confirmModalIconSvg');
+        const confirmBtn = document.getElementById('confirmModalConfirmBtn');
+        const cancelBtn = document.getElementById('confirmModalCancelBtn');
+
+        if (titleEl) titleEl.textContent = config.title;
+        if (messageEl) messageEl.textContent = config.message;
+        if (confirmBtn) {
+            confirmBtn.textContent = config.confirmText;
+            confirmBtn.className = `btn-confirm-submit ${config.type || 'danger'}`;
+        }
+        if (cancelBtn) cancelBtn.textContent = config.cancelText;
+
+        if (iconBoxEl) {
+            iconBoxEl.className = `confirm-icon-box ${config.type || 'danger'}`;
+        }
+
+        if (iconSvg) {
+            const iconKey = config.icon || (config.type === 'primary' ? 'info' : 'trash');
+            let svgHtml = '';
+            if (iconKey === 'alert') {
+                svgHtml = '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>';
+            } else if (iconKey === 'user-minus') {
+                svgHtml = '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="18" y1="11" x2="23" y2="11"></line>';
+            } else if (iconKey === 'user-x') {
+                svgHtml = '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="18" y1="8" x2="23" y2="13"></line><line x1="23" y1="8" x2="18" y2="13"></line>';
+            } else if (iconKey === 'log-out') {
+                svgHtml = '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line>';
+            } else if (iconKey === 'info') {
+                svgHtml = '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>';
+            } else {
+                svgHtml = '<polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line>';
+            }
+            iconSvg.innerHTML = svgHtml;
+        }
+
+        return new Promise((resolve) => {
+            confirmModalResolver = resolve;
+            modalEl.style.display = 'flex';
+            requestAnimationFrame(() => {
+                modalEl.classList.add('active');
+                if (confirmBtn) confirmBtn.focus();
+            });
+        });
+    };
+
+    window.closeConfirmModal = function (result = false) {
+        const modalEl = document.getElementById('confirmModal');
+        if (modalEl) {
+            modalEl.classList.remove('active');
+            setTimeout(() => {
+                modalEl.style.display = 'none';
+            }, 150);
+        }
+        if (typeof confirmModalResolver === 'function') {
+            const resolve = confirmModalResolver;
+            confirmModalResolver = null;
+            resolve(Boolean(result));
+        }
+    };
+
+    // Override browser default window.confirm to avoid ugly native popups
+    window.confirm = function (message) {
+        console.warn('Native window.confirm() was called. Please use await window.showConfirmModal() instead.', message);
+        return false;
+    };
+
     // Dynamic API Base URL (auto-detects live production API or relative Laravel /api)
     const API_BASE = (function () {
         if (window.ZCHAT_API_URL) return window.ZCHAT_API_URL;
@@ -2133,7 +2225,15 @@
 
     window.handleDeleteUserAvatar = async function () {
         if (!state.user || !state.user.avatar) return;
-        if (!confirm('Apakah Anda yakin ingin menghapus foto profil?')) return;
+        const confirmed = await showConfirmModal({
+            title: 'Hapus Foto Profil?',
+            message: 'Apakah Anda yakin ingin menghapus foto profil akun Anda?',
+            confirmText: 'Hapus Foto',
+            cancelText: 'Batal',
+            type: 'danger',
+            icon: 'trash'
+        });
+        if (!confirmed) return;
 
         const avatarEl = document.getElementById('profileModalAvatar');
         const badgeEl = document.getElementById('userAvatarInfoBadge');
@@ -3299,7 +3399,14 @@
         const groupId = state.activeContact.group_id;
         const groupName = state.activeContact.name || 'Grup';
         const displayName = memberName || 'anggota ini';
-        const confirmed = window.confirm(`Apakah Anda yakin ingin mengeluarkan "${displayName}" dari grup "${groupName}"?`);
+        const confirmed = await showConfirmModal({
+            title: 'Keluarkan Anggota?',
+            message: `Apakah Anda yakin ingin mengeluarkan "${displayName}" dari grup "${groupName}"?`,
+            confirmText: 'Keluarkan',
+            cancelText: 'Batal',
+            type: 'danger',
+            icon: 'user-minus'
+        });
         if (!confirmed) return;
 
         try {
@@ -3504,7 +3611,15 @@
     window.handleLeaveGroup = async function () {
         if (!state.activeContact || !state.activeContact.is_group) return;
         const groupId = state.activeContact.group_id;
-        const confirmed = window.confirm(`Apakah Anda yakin ingin keluar dari grup "${state.activeContact.name}"?`);
+        const groupName = state.activeContact.name || 'Grup';
+        const confirmed = await showConfirmModal({
+            title: 'Keluar dari Grup?',
+            message: `Apakah Anda yakin ingin keluar dari grup "${groupName}"? Anda tidak akan menerima pesan baru dari grup ini lagi.`,
+            confirmText: 'Keluar Grup',
+            cancelText: 'Batal',
+            type: 'danger',
+            icon: 'log-out'
+        });
         if (!confirmed) return;
 
         try {
@@ -3522,7 +3637,15 @@
     window.handleDeleteGroup = async function () {
         if (!state.activeContact || !state.activeContact.is_group) return;
         const groupId = state.activeContact.group_id;
-        const confirmed = window.confirm(`PERINGATAN: Bubarkan grup "${state.activeContact.name}" untuk semua anggota? Tindakan ini tidak dapat dibatalkan.`);
+        const groupName = state.activeContact.name || 'Grup';
+        const confirmed = await showConfirmModal({
+            title: 'Bubarkan Grup?',
+            message: `PERINGATAN: Bubarkan grup "${groupName}" untuk semua anggota? Seluruh riwayat obrolan dan data grup akan dihapus secara permanen.`,
+            confirmText: 'Bubarkan Grup',
+            cancelText: 'Batal',
+            type: 'danger',
+            icon: 'alert'
+        });
         if (!confirmed) return;
 
         try {
@@ -3687,12 +3810,20 @@
         if (input) input.focus();
     };
 
-    window.clearActiveChatMessages = function () {
+    window.clearActiveChatMessages = async function () {
         window.closeChatDropdown();
 
         if (!state.activeContact) return;
+        const contactName = state.activeContact.display_name || state.activeContact.name || 'kontak ini';
 
-        const confirmed = window.confirm(`Hapus seluruh riwayat pesan lokal bersama ${state.activeContact.display_name}?`);
+        const confirmed = await showConfirmModal({
+            title: 'Bersihkan Obrolan?',
+            message: `Hapus seluruh riwayat pesan lokal bersama ${contactName}? Riwayat obrolan di perangkat Anda akan dibersihkan.`,
+            confirmText: 'Bersihkan',
+            cancelText: 'Batal',
+            type: 'danger',
+            icon: 'trash'
+        });
         if (!confirmed) return;
 
         state.chats[state.activeContact.id] = [];
@@ -3712,7 +3843,14 @@
         const targetContact = state.contacts.find(c => c.id === contactId) || state.activeContact;
         const targetName = targetContact ? (targetContact.display_name || targetContact.username) : 'kontak ini';
 
-        const confirmed = window.confirm(`Hapus "${targetName}" dari daftar kontak Anda? Hubungan kontak akan dihapus.`);
+        const confirmed = await showConfirmModal({
+            title: 'Hapus Kontak?',
+            message: `Hapus "${targetName}" dari daftar kontak Anda? Hubungan kontak dan riwayat obrolan akan dihapus.`,
+            confirmText: 'Hapus Kontak',
+            cancelText: 'Batal',
+            type: 'danger',
+            icon: 'user-x'
+        });
         if (!confirmed) return;
 
         try {
@@ -4411,7 +4549,14 @@
             return;
         }
 
-        const confirmed = window.confirm('Hapus pesan ini untuk semua orang?');
+        const confirmed = await showConfirmModal({
+            title: 'Hapus Pesan?',
+            message: 'Hapus pesan ini untuk semua orang dalam obrolan? Tindakan ini tidak dapat dibatalkan.',
+            confirmText: 'Hapus untuk Semua Orang',
+            cancelText: 'Batal',
+            type: 'danger',
+            icon: 'trash'
+        });
         if (!confirmed) return;
 
         if (state.editingMessageId && (String(state.editingMessageId) === String(target.id) || String(state.editingMessageId) === String(target.client_uuid))) {
@@ -6232,6 +6377,12 @@
     // Aksesibilitas Keyboard: Escape dan Focus Trap
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
+            const confirmModal = document.getElementById('confirmModal');
+            if (confirmModal && (confirmModal.classList.contains('active') || confirmModal.style.display === 'flex')) {
+                window.closeConfirmModal(false);
+                return;
+            }
+
             window.closeChatDropdown();
             window.toggleEmojiPicker(false);
             window.toggleInChatSearch(false);
