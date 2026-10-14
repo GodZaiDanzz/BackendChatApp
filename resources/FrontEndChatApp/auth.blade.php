@@ -32,11 +32,11 @@
         <main class="auth-split-card" role="main">
             {{-- Left Column: Form Controls Area --}}
             <section class="auth-form-column" aria-labelledby="authMainTitle">
-                {{-- Back Button --}}
-                <a href="/" class="auth-back-btn" title="Kembali ke Beranda" aria-label="Kembali ke Beranda">
+                {{-- Close / Back Button --}}
+                <a href="/" class="auth-back-btn" title="Tutup / Kembali ke Beranda" aria-label="Tutup dan kembali ke beranda">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="19" y1="12" x2="5" y2="12"></line>
-                        <polyline points="12 19 5 12 12 5"></polyline>
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="6"></line>
                     </svg>
                 </a>
 
