@@ -579,6 +579,58 @@
             const uName = (state.user && (state.user.display_name || state.user.username)) || 'zaidan';
             settingsHeaderEl.textContent = uName.toLowerCase();
         }
+
+        // Update In-Sidebar Edit Profil elements
+        const subpanelAvatar = document.getElementById('subpanelAvatarCircle');
+        const subpanelName = document.getElementById('subpanelDisplayNameInput');
+        const subpanelUser = document.getElementById('subpanelUsernameText');
+        const subpanelPhone = document.getElementById('subpanelPhoneInput');
+        const btnDeleteSubAvatar = document.getElementById('btnDeleteSubpanelAvatar');
+
+        if (subpanelName && document.activeElement !== subpanelName) {
+            subpanelName.value = state.user.display_name || '';
+        }
+        if (subpanelUser) {
+            subpanelUser.textContent = state.user.username || '';
+        }
+        if (subpanelPhone && document.activeElement !== subpanelPhone) {
+            subpanelPhone.value = state.user.phone_number || '';
+        }
+        if (btnDeleteSubAvatar) {
+            btnDeleteSubAvatar.style.display = state.user.avatar ? 'inline-flex' : 'none';
+        }
+        if (subpanelAvatar) {
+            if (state.user.avatar) {
+                subpanelAvatar.innerHTML = `
+                    <img src="${escapeHtml(state.user.avatar)}" alt="${escapeHtml(state.user.display_name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;">
+                    <div class="subpanel-avatar-overlay">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                            <circle cx="12" cy="13" r="4"></circle>
+                        </svg>
+                        <span>UBAH FOTO</span>
+                    </div>
+                `;
+            } else {
+                subpanelAvatar.innerHTML = `
+                    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#fca5a5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                        <circle cx="12" cy="13" r="4"></circle>
+                        <line x1="19" y1="5" x2="19" y2="9"></line>
+                        <line x1="17" y1="7" x2="21" y2="7"></line>
+                    </svg>
+                    <div class="subpanel-avatar-overlay">
+                        <span>TAMBAH FOTO</span>
+                    </div>
+                `;
+            }
+        }
+
+        // Update Account subpanel details
+        const subAccountEmail = document.getElementById('subpanelAccountEmail');
+        const subAccountUser = document.getElementById('subpanelAccountUsername');
+        if (subAccountEmail) subAccountEmail.textContent = state.user.email || 'Belum diatur';
+        if (subAccountUser) subAccountUser.textContent = `@${state.user.username || ''}`;
     }
 
     let pendingOtpEmail = '';
@@ -1358,9 +1410,11 @@
         const panelRequests = document.getElementById('panelRequests');
         const panelCalls = document.getElementById('panelCalls');
         const panelSettings = document.getElementById('panelSettings');
+        const panelSubpanel = document.getElementById('panelSettingsSubpanel');
 
         const defaultHeader = document.getElementById('sidebarDefaultHeader');
         const settingsHeader = document.getElementById('sidebarSettingsHeader');
+        const subpanelHeader = document.getElementById('sidebarSubpanelHeader');
         const defaultSearch = document.getElementById('sidebarDefaultSearch');
         const settingsSearch = document.getElementById('sidebarSettingsSearch');
         const defaultCategory = document.getElementById('sidebarDefaultCategory');
@@ -1374,10 +1428,13 @@
         if (panelRequests) panelRequests.style.display = 'none';
         if (panelCalls) panelCalls.style.display = 'none';
         if (panelSettings) panelSettings.style.display = 'none';
+        if (panelSubpanel) panelSubpanel.style.display = 'none';
+        if (subpanelHeader) subpanelHeader.style.display = 'none';
 
         if (tab === 'settings') {
             if (btnSettings) btnSettings.classList.add('active');
             if (defaultHeader) defaultHeader.style.display = 'none';
+            if (subpanelHeader) subpanelHeader.style.display = 'none';
             if (settingsHeader) settingsHeader.style.display = 'flex';
             if (defaultSearch) defaultSearch.style.display = 'none';
             if (settingsSearch) settingsSearch.style.display = 'block';
@@ -1399,6 +1456,7 @@
             // Restore default chat sidebar header & search
             if (defaultHeader) defaultHeader.style.display = 'flex';
             if (settingsHeader) settingsHeader.style.display = 'none';
+            if (subpanelHeader) subpanelHeader.style.display = 'none';
             if (defaultSearch) defaultSearch.style.display = 'block';
             if (settingsSearch) settingsSearch.style.display = 'none';
             if (defaultCategory) defaultCategory.style.display = 'flex';
@@ -1451,113 +1509,148 @@
         }
     };
 
-    // Settings Modals Handlers
-    window.openAccountSecurityModal = function () {
-        const modal = document.getElementById('accountSecurityModal');
-        const userInput = document.getElementById('accountModalUsername');
-        const emailInput = document.getElementById('accountModalEmail');
-        if (userInput && state.user) userInput.value = `@${state.user.username || ''}`;
-        if (emailInput && state.user) emailInput.value = state.user.email || 'Belum diatur';
-        if (modal) {
-            modal.style.display = 'flex';
-            modal.classList.add('active');
+    // In-Sidebar Settings Subpanel Controller (No Center-Screen Modals)
+    window.openSettingsSubpanel = function (panelId) {
+        const settingsHeader = document.getElementById('sidebarSettingsHeader');
+        const settingsSearch = document.getElementById('sidebarSettingsSearch');
+        const panelSettings = document.getElementById('panelSettings');
+        const subpanelHeader = document.getElementById('sidebarSubpanelHeader');
+        const subpanelTitle = document.getElementById('settingsSubpanelTitle');
+        const panelSubpanel = document.getElementById('panelSettingsSubpanel');
+
+        const subpanels = document.querySelectorAll('#panelSettingsSubpanel .subpanel-content');
+        subpanels.forEach(sp => { sp.style.display = 'none'; });
+
+        const titles = {
+            'profile': 'Edit profil',
+            'account': 'Akun',
+            'privacy': 'Privasi',
+            'chat': 'Chat',
+            'notifications': 'Notifikasi',
+            'keyboard': 'Pintasan keyboard',
+            'help': 'Bantuan dan masukan'
+        };
+
+        const targetId = 'subpanel' + panelId.charAt(0).toUpperCase() + panelId.slice(1);
+        const targetEl = document.getElementById(targetId);
+
+        if (targetEl) {
+            targetEl.style.display = 'flex';
+            if (subpanelTitle) subpanelTitle.textContent = titles[panelId] || 'Pengaturan';
+
+            if (settingsHeader) settingsHeader.style.display = 'none';
+            if (settingsSearch) settingsSearch.style.display = 'none';
+            if (panelSettings) panelSettings.style.display = 'none';
+
+            if (subpanelHeader) subpanelHeader.style.display = 'flex';
+            if (panelSubpanel) panelSubpanel.style.display = 'block';
+
+            // Populate specific subpanel states
+            if (panelId === 'profile') {
+                updateCurrentUserUI();
+            } else if (panelId === 'account') {
+                const subAccountEmail = document.getElementById('subpanelAccountEmail');
+                const subAccountUser = document.getElementById('subpanelAccountUsername');
+                if (subAccountEmail && state.user) subAccountEmail.textContent = state.user.email || 'Belum diatur';
+                if (subAccountUser && state.user) subAccountUser.textContent = `@${state.user.username || ''}`;
+            } else if (panelId === 'privacy') {
+                const streamerToggle = document.getElementById('subpanelStreamerToggle');
+                if (streamerToggle) streamerToggle.checked = Boolean(state.streamerMode);
+            } else if (panelId === 'notifications') {
+                const soundToggle = document.getElementById('subpanelSoundToggle');
+                if (soundToggle) soundToggle.checked = Boolean(state.soundEnabled);
+            } else if (panelId === 'chat') {
+                updateSubpanelThemeLabel();
+            }
         }
     };
 
-    window.closeAccountSecurityModal = function () {
-        const modal = document.getElementById('accountSecurityModal');
-        if (modal) {
-            modal.style.display = 'none';
-            modal.classList.remove('active');
+    window.backToSettingsMain = function () {
+        const settingsHeader = document.getElementById('sidebarSettingsHeader');
+        const settingsSearch = document.getElementById('sidebarSettingsSearch');
+        const panelSettings = document.getElementById('panelSettings');
+        const subpanelHeader = document.getElementById('sidebarSubpanelHeader');
+        const panelSubpanel = document.getElementById('panelSettingsSubpanel');
+
+        if (subpanelHeader) subpanelHeader.style.display = 'none';
+        if (panelSubpanel) panelSubpanel.style.display = 'none';
+
+        if (settingsHeader) settingsHeader.style.display = 'flex';
+        if (settingsSearch) settingsSearch.style.display = 'block';
+        if (panelSettings) panelSettings.style.display = 'block';
+
+        const filterInput = document.getElementById('settingsFilterInput');
+        if (filterInput) {
+            filterInput.value = '';
+            filterSettingsList('');
         }
     };
 
-    window.openPrivacySettingsModal = function () {
-        const modal = document.getElementById('privacySettingsModal');
-        const toggle = document.getElementById('privacyStreamerToggle');
-        if (toggle) toggle.checked = Boolean(state.streamerMode);
-        if (modal) {
-            modal.style.display = 'flex';
-            modal.classList.add('active');
-        }
-    };
-
-    window.closePrivacySettingsModal = function () {
-        const modal = document.getElementById('privacySettingsModal');
-        if (modal) {
-            modal.style.display = 'none';
-            modal.classList.remove('active');
-        }
-    };
-
-    window.openChatPreferencesModal = function () {
-        const modal = document.getElementById('chatPreferencesModal');
-        const themeLabel = document.getElementById('chatPrefThemeLabel');
-        if (themeLabel) {
+    window.updateSubpanelThemeLabel = function () {
+        const desc = document.getElementById('subpanelThemeDesc');
+        if (desc) {
             const curTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-            themeLabel.textContent = curTheme === 'dark' ? 'Mode Gelap (Aktif)' : 'Mode Terang (Aktif)';
-        }
-        if (modal) {
-            modal.style.display = 'flex';
-            modal.classList.add('active');
+            desc.textContent = curTheme === 'dark' ? 'Mode Gelap Obsidian (Aktif)' : 'Mode Terang (Aktif)';
         }
     };
 
-    window.closeChatPreferencesModal = function () {
-        const modal = document.getElementById('chatPreferencesModal');
-        if (modal) {
-            modal.style.display = 'none';
-            modal.classList.remove('active');
-        }
+    window.copyPhoneNumber = function () {
+        const input = document.getElementById('subpanelPhoneInput');
+        const phone = (input && input.value) || (state.user && state.user.phone_number) || '089637351685';
+        navigator.clipboard.writeText(phone).then(() => {
+            showToast('Nomor telepon disalin ke papan klip!', 'success');
+        }).catch(() => {
+            showToast('Nomor telepon: ' + phone, 'info');
+        });
     };
 
-    window.openNotificationSettingsModal = function () {
-        const modal = document.getElementById('notificationSettingsModal');
-        const toggle = document.getElementById('modalSoundToggle');
-        if (toggle) toggle.checked = Boolean(state.soundEnabled);
-        if (modal) {
-            modal.style.display = 'flex';
-            modal.classList.add('active');
-        }
-    };
+    window.handleSaveProfileSubpanel = async function () {
+        const nameInput = document.getElementById('subpanelDisplayNameInput');
+        const phoneInput = document.getElementById('subpanelPhoneInput');
+        const btnSave = document.getElementById('btnSaveSubpanelProfile');
+        const newName = (nameInput ? nameInput.value : '').trim();
+        const newPhone = (phoneInput ? phoneInput.value : '').trim();
 
-    window.closeNotificationSettingsModal = function () {
-        const modal = document.getElementById('notificationSettingsModal');
-        if (modal) {
-            modal.style.display = 'none';
-            modal.classList.remove('active');
+        if (!newName) {
+            showToast('Nama tampilan tidak boleh kosong.', 'error');
+            return;
         }
-    };
 
-    window.openKeyboardShortcutsModal = function () {
-        const modal = document.getElementById('keyboardShortcutsModal');
-        if (modal) {
-            modal.style.display = 'flex';
-            modal.classList.add('active');
+        if (btnSave) {
+            btnSave.disabled = true;
+            btnSave.textContent = 'Menyimpan...';
         }
-    };
 
-    window.closeKeyboardShortcutsModal = function () {
-        const modal = document.getElementById('keyboardShortcutsModal');
-        if (modal) {
-            modal.style.display = 'none';
-            modal.classList.remove('active');
-        }
-    };
+        try {
+            const updated = await apiRequest('/user/profile', {
+                method: 'PUT',
+                body: JSON.stringify({ display_name: newName, phone_number: newPhone })
+            });
 
-    window.openHelpSupportModal = function () {
-        const modal = document.getElementById('helpSupportModal');
-        if (modal) {
-            modal.style.display = 'flex';
-            modal.classList.add('active');
-        }
-    };
-
-    window.closeHelpSupportModal = function () {
-        const modal = document.getElementById('helpSupportModal');
-        if (modal) {
-            modal.style.display = 'none';
-            modal.classList.remove('active');
+            if (updated) {
+                state.user.display_name = updated.display_name || newName;
+                if (updated.avatar !== undefined) {
+                    state.user.avatar = updated.avatar;
+                }
+                if (updated.phone_number !== undefined) {
+                    state.user.phone_number = updated.phone_number;
+                }
+                localStorage.setItem('zchat_user', JSON.stringify(state.user));
+                updateCurrentUserUI();
+                showToast('Profil WhatsApp berhasil diperbarui!', 'success');
+            }
+        } catch (err) {
+            showToast('Gagal memperbarui profil: ' + err.message, 'error');
+        } finally {
+            if (btnSave) {
+                btnSave.disabled = false;
+                btnSave.innerHTML = `
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    <span>Simpan Perubahan</span>
+                `;
+            }
         }
     };
 
@@ -1965,11 +2058,20 @@
 
         const avatarEl = document.getElementById('profileModalAvatar');
         const badgeEl = document.getElementById('userAvatarInfoBadge');
+        const subBadgeEl = document.getElementById('subpanelAvatarInfoBadge');
         const btnDelete = document.getElementById('btnDeleteUserAvatar');
+        const subBtnDelete = document.getElementById('btnDeleteSubpanelAvatar');
 
-        if (badgeEl) {
-            badgeEl.innerHTML = `<span style="color: #a78bfa;">Mengonversi ke 500x500 WebP...</span>`;
-        }
+        const updateBadge = (html, text) => {
+            if (badgeEl) {
+                if (html) badgeEl.innerHTML = html; else if (text) badgeEl.textContent = text;
+            }
+            if (subBadgeEl) {
+                if (html) subBadgeEl.innerHTML = html; else if (text) subBadgeEl.textContent = text;
+            }
+        };
+
+        updateBadge('<span style="color: #a78bfa;">Mengonversi ke 500x500 WebP...</span>', null);
 
         try {
             const result = await compressAndCropProfileImage(file, 500, 0.85);
@@ -1982,9 +2084,7 @@
 
             const origKb = Math.round(result.originalSize / 1024);
             const compKb = Math.round(result.compressedSize / 1024);
-            if (badgeEl) {
-                badgeEl.innerHTML = `<span style="color: #10b981;">Terkonversi: ${compKb} KB (dari ${origKb} KB) • Mengunggah...</span>`;
-            }
+            updateBadge(`<span style="color: #10b981;">Terkonversi: ${compKb} KB (dari ${origKb} KB) • Mengunggah...</span>`, null);
 
             // Unggah ke endpoint server
             const formData = new FormData();
@@ -2011,18 +2111,14 @@
                 localStorage.setItem('zchat_user', JSON.stringify(state.user));
                 updateCurrentUserUI();
                 if (btnDelete) btnDelete.style.display = 'inline-flex';
-                if (badgeEl) {
-                    badgeEl.innerHTML = `<span style="color: #10b981;">Foto WhatsApp terpasang (${compKb} KB)!</span>`;
-                }
+                if (subBtnDelete) subBtnDelete.style.display = 'inline-flex';
+                updateBadge(`<span style="color: #10b981;">Foto WhatsApp terpasang (${compKb} KB)!</span>`, null);
                 showToast('Foto profil WhatsApp berhasil diperbarui!', 'success');
             }
         } catch (err) {
             console.error('Avatar upload error:', err);
             showToast(err.message || 'Gagal mengunggah foto profil', 'error');
-            if (badgeEl) {
-                badgeEl.textContent = 'Ukuran standar WhatsApp (500x500) • Maks 10MB';
-                badgeEl.style.color = 'var(--text-muted)';
-            }
+            updateBadge(null, 'Ukuran standar WhatsApp (500x500) • Maks 10MB');
             if (avatarEl) {
                 if (state.user && state.user.avatar) {
                     avatarEl.innerHTML = `<img src="${state.user.avatar}" alt="${escapeHtml(state.user.display_name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;">`;
@@ -2041,7 +2137,9 @@
 
         const avatarEl = document.getElementById('profileModalAvatar');
         const badgeEl = document.getElementById('userAvatarInfoBadge');
+        const subBadgeEl = document.getElementById('subpanelAvatarInfoBadge');
         const btnDelete = document.getElementById('btnDeleteUserAvatar');
+        const subBtnDelete = document.getElementById('btnDeleteSubpanelAvatar');
 
         try {
             const token = localStorage.getItem('zchat_token') || sessionStorage.getItem('zchat_token');
@@ -2069,9 +2167,14 @@
                 avatarEl.textContent = initials;
             }
             if (btnDelete) btnDelete.style.display = 'none';
+            if (subBtnDelete) subBtnDelete.style.display = 'none';
             if (badgeEl) {
                 badgeEl.textContent = 'Ukuran standar WhatsApp (500x500) • Maks 10MB';
                 badgeEl.style.color = 'var(--text-muted)';
+            }
+            if (subBadgeEl) {
+                subBadgeEl.textContent = 'Ukuran standar WhatsApp (500x500) • Maks 10MB';
+                subBadgeEl.style.color = 'var(--text-muted)';
             }
             showToast('Foto profil berhasil dihapus.', 'info');
         } catch (err) {
@@ -2080,47 +2183,13 @@
         }
     };
 
+    // Open User Profile in sidebar subpanel (Never popup modal in center of screen)
     window.openUserProfileModal = function () {
-        if (!state.user) return;
-        const modal = document.getElementById('userProfileModal');
-        const nameInput = document.getElementById('profileDisplayNameInput');
-        const userInput = document.getElementById('profileUsernameInput');
-        const emailInput = document.getElementById('profileEmailInput');
-        const phoneInput = document.getElementById('profilePhoneInput');
-        const avatarEl = document.getElementById('profileModalAvatar');
-        const soundToggle = document.getElementById('profileSoundToggle');
-        const btnDelete = document.getElementById('btnDeleteUserAvatar');
-        const badgeEl = document.getElementById('userAvatarInfoBadge');
-
-        if (nameInput) nameInput.value = state.user.display_name || '';
-        if (userInput) userInput.value = `@${state.user.username || ''}`;
-        if (emailInput) emailInput.value = state.user.email || 'Belum diatur';
-        if (phoneInput) phoneInput.value = state.user.phone_number || '';
-        if (soundToggle) soundToggle.checked = Boolean(state.soundEnabled);
-
-        if (avatarEl) {
-            if (state.user.avatar) {
-                avatarEl.className = 'avatar-circle';
-                avatarEl.innerHTML = `<img src="${state.user.avatar}" alt="${escapeHtml(state.user.display_name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;">`;
-                if (btnDelete) btnDelete.style.display = 'inline-flex';
-            } else {
-                const pastelClass = getPastelColorClass(state.user.display_name || state.user.username);
-                const initials = (state.user.display_name || state.user.username).split(' ').map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase() || 'U';
-                avatarEl.className = `avatar-circle ${pastelClass}`;
-                avatarEl.textContent = initials;
-                if (btnDelete) btnDelete.style.display = 'none';
-            }
+        if (typeof switchRailTab === 'function') {
+            switchRailTab('settings');
         }
-
-        if (badgeEl) {
-            badgeEl.textContent = 'Ukuran standar WhatsApp (500x500) • Maks 10MB';
-            badgeEl.style.color = 'var(--text-muted)';
-        }
-
-        if (modal) {
-            modal.style.display = 'flex';
-            modal.classList.add('active');
-            if (nameInput) nameInput.focus();
+        if (typeof openSettingsSubpanel === 'function') {
+            openSettingsSubpanel('profile');
         }
     };
 
@@ -2130,6 +2199,53 @@
             modal.style.display = 'none';
             modal.classList.remove('active');
         }
+        if (typeof backToSettingsMain === 'function') {
+            backToSettingsMain();
+        }
+    };
+
+    // Modal compatibility aliases - redirect to in-sidebar subpanels (No center-screen modals)
+    window.openAccountSecurityModal = function () {
+        if (typeof switchRailTab === 'function') switchRailTab('settings');
+        if (typeof openSettingsSubpanel === 'function') openSettingsSubpanel('account');
+    };
+    window.closeAccountSecurityModal = function () {
+        if (typeof backToSettingsMain === 'function') backToSettingsMain();
+    };
+    window.openPrivacySettingsModal = function () {
+        if (typeof switchRailTab === 'function') switchRailTab('settings');
+        if (typeof openSettingsSubpanel === 'function') openSettingsSubpanel('privacy');
+    };
+    window.closePrivacySettingsModal = function () {
+        if (typeof backToSettingsMain === 'function') backToSettingsMain();
+    };
+    window.openChatSettingsModal = function () {
+        if (typeof switchRailTab === 'function') switchRailTab('settings');
+        if (typeof openSettingsSubpanel === 'function') openSettingsSubpanel('chat');
+    };
+    window.closeChatSettingsModal = function () {
+        if (typeof backToSettingsMain === 'function') backToSettingsMain();
+    };
+    window.openNotificationSettingsModal = function () {
+        if (typeof switchRailTab === 'function') switchRailTab('settings');
+        if (typeof openSettingsSubpanel === 'function') openSettingsSubpanel('notifications');
+    };
+    window.closeNotificationSettingsModal = function () {
+        if (typeof backToSettingsMain === 'function') backToSettingsMain();
+    };
+    window.openKeyboardShortcutsModal = function () {
+        if (typeof switchRailTab === 'function') switchRailTab('settings');
+        if (typeof openSettingsSubpanel === 'function') openSettingsSubpanel('keyboard');
+    };
+    window.closeKeyboardShortcutsModal = function () {
+        if (typeof backToSettingsMain === 'function') backToSettingsMain();
+    };
+    window.openHelpModal = function () {
+        if (typeof switchRailTab === 'function') switchRailTab('settings');
+        if (typeof openSettingsSubpanel === 'function') openSettingsSubpanel('help');
+    };
+    window.closeHelpModal = function () {
+        if (typeof backToSettingsMain === 'function') backToSettingsMain();
     };
 
     window.handleSaveProfile = async function (e) {

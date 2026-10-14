@@ -144,8 +144,8 @@
         <div
             id="myAvatarCircle"
             class="rail-user-avatar"
-            onclick="switchRailTab('settings')"
-            title="Profil Saya - Klik untuk melihat / keluar"
+            onclick="switchRailTab('settings'); openSettingsSubpanel('profile');"
+            title="Profil Saya - Edit profil"
             tabindex="0"
             role="button"
         >
