@@ -51,8 +51,8 @@
                     Ukuran standar WhatsApp (500x500) • Maks 10MB
                 </div>
 
-                <div id="profileModalStatusBadge" style="display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.75rem; color: #10b981; font-weight: 600;">
-                    <span style="width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
+                <div id="profileModalStatusBadge" style="display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.75rem; color: #10b981; font-weight: 600; padding: 0.2rem 0.65rem; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 9999px;">
+                    <span class="status-indicator-dot online" style="position: static; width: 8px; height: 8px; margin: 0; box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);"></span>
                     <span>Terhubung ke Server</span>
                 </div>
             </div>
@@ -113,11 +113,19 @@
             </div>
 
             <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem;">
-                <button type="submit" id="btnSaveProfile" class="btn-primary-action" style="flex: 1;">
-                    Simpan Perubahan
+                <button type="submit" id="btnSaveProfile" class="btn-action-primary" style="flex: 1; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; font-weight: 600; border-radius: var(--radius-md);">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    <span>Simpan Perubahan</span>
                 </button>
-                <button type="button" class="btn-primary-action danger" onclick="handleLogout()" style="background-color: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);">
-                    Keluar Akun
+                <button type="button" class="btn-action-danger-outline" onclick="handleLogout()" style="min-height: 44px; padding: 0.625rem 1rem; border-radius: var(--radius-md); display: inline-flex; align-items: center; gap: 0.45rem; font-weight: 600; background: rgba(239, 68, 68, 0.12); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); cursor: pointer; transition: all 0.15s ease;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                    <span>Keluar Akun</span>
                 </button>
             </div>
         </form>

@@ -130,7 +130,7 @@
             type="button"
             id="btnRailSettings"
             class="rail-nav-btn"
-            onclick="openUserProfileModal()"
+            onclick="switchRailTab('settings')"
             title="Pengaturan & Profil Akun"
             aria-label="Pengaturan"
         >
@@ -144,7 +144,7 @@
         <div
             id="myAvatarCircle"
             class="rail-user-avatar"
-            onclick="openUserProfileModal()"
+            onclick="switchRailTab('settings')"
             title="Profil Saya - Klik untuk melihat / keluar"
             tabindex="0"
             role="button"

@@ -1829,7 +1829,8 @@ body.streamer-mode #btnStreamerMode {
   width: 100%;
 }
 
-.btn-action-primary {
+.btn-action-primary,
+.btn-primary-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1838,16 +1839,64 @@ body.streamer-mode #btnStreamerMode {
   color: #ffffff;
   border: none;
   border-radius: var(--radius-md);
+  padding: 0.625rem 1.15rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  min-height: 42px;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35);
+  user-select: none;
+}
+
+.btn-action-primary:hover,
+.btn-primary-action:hover {
+  background-color: var(--accent-hover);
+  box-shadow: 0 6px 18px rgba(124, 58, 237, 0.45);
+  transform: translateY(-1px);
+}
+
+.btn-action-primary:active,
+.btn-primary-action:active {
+  background-color: var(--accent-active);
+  transform: translateY(0);
+}
+
+.btn-action-primary:disabled,
+.btn-primary-action:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-action-danger-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-md);
   padding: 0.625rem 1rem;
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color var(--transition-fast);
-  min-height: 40px;
+  transition: all var(--transition-fast);
+  min-height: 42px;
+  user-select: none;
 }
 
-.btn-action-primary:hover {
-  background-color: var(--accent-hover);
+.btn-action-danger-outline:hover {
+  background: rgba(239, 68, 68, 0.22);
+  color: #ffffff;
+  border-color: #ef4444;
+  transform: translateY(-1px);
+}
+
+.btn-action-danger-outline:active {
+  transform: translateY(0);
 }
 
 /* Toast */
@@ -2876,4 +2925,119 @@ body.streamer-mode #btnStreamerMode {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ==========================================================================
+   WhatsApp Web-style Settings Sidebar (Column 2) - Matches Image 2
+   ========================================================================== */
+.settings-panel-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  animation: fadeInSettings 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInSettings {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.settings-menu-list {
+  display: flex;
+  flex-direction: column;
+  padding: 0.25rem 0 1.5rem;
+}
+
+.settings-item {
+  display: flex;
+  align-items: center;
+  gap: 1.15rem;
+  padding: 0.85rem 1.25rem;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), transform 0.1s ease;
+  user-select: none;
+  position: relative;
+  border-radius: 0;
+}
+
+.settings-item:hover,
+.settings-item:focus-visible {
+  background-color: rgba(255, 255, 255, 0.05);
+  outline: none;
+}
+
+.settings-item:active {
+  background-color: rgba(255, 255, 255, 0.09);
+}
+
+.settings-item-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  transition: color var(--transition-fast);
+}
+
+.settings-item:hover .settings-item-icon {
+  color: var(--text-primary);
+}
+
+.settings-item.danger .settings-item-icon,
+.settings-item-icon.text-danger {
+  color: #ef4444 !important;
+}
+
+.settings-item-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-item-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.settings-item.danger .settings-item-title,
+.settings-item-title.text-danger {
+  color: #ef4444 !important;
+  font-weight: 600;
+}
+
+.settings-item-desc {
+  font-size: 0.775rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Status indicator pulse animation */
+.status-pulse-dot {
+  animation: statusPulseGlow 2s infinite ease-in-out;
+}
+
+@keyframes statusPulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(16, 185, 129, 0);
+  }
+}
+
 

@@ -573,6 +573,12 @@
             }
             avatarEl.title = `Profil: ${state.user.display_name} (@${state.user.username}) - Klik untuk info / keluar`;
         }
+
+        const settingsHeaderEl = document.getElementById('settingsHeaderUsername');
+        if (settingsHeaderEl) {
+            const uName = (state.user && (state.user.display_name || state.user.username)) || 'zaidan';
+            settingsHeaderEl.textContent = uName.toLowerCase();
+        }
     }
 
     let pendingOtpEmail = '';
@@ -1345,40 +1351,232 @@
         const btnContacts = document.getElementById('railBtnContacts');
         const btnRequests = document.getElementById('railBtnRequests');
         const btnCalls = document.getElementById('railBtnCalls');
+        const btnSettings = document.getElementById('btnRailSettings');
+
         const panelChats = document.getElementById('panelChats');
         const panelContacts = document.getElementById('panelContacts');
         const panelRequests = document.getElementById('panelRequests');
         const panelCalls = document.getElementById('panelCalls');
-        const sectionLabel = document.getElementById('sidebarSectionLabel');
+        const panelSettings = document.getElementById('panelSettings');
 
-        [btnChats, btnContacts, btnRequests, btnCalls].forEach(b => { if (b) b.classList.remove('active'); });
+        const defaultHeader = document.getElementById('sidebarDefaultHeader');
+        const settingsHeader = document.getElementById('sidebarSettingsHeader');
+        const defaultSearch = document.getElementById('sidebarDefaultSearch');
+        const settingsSearch = document.getElementById('sidebarSettingsSearch');
+        const defaultCategory = document.getElementById('sidebarDefaultCategory');
+        const sectionLabel = document.getElementById('sidebarSectionLabel');
+        const settingsUserHeader = document.getElementById('settingsHeaderUsername');
+
+        [btnChats, btnContacts, btnRequests, btnCalls, btnSettings].forEach(b => { if (b) b.classList.remove('active'); });
 
         if (panelChats) panelChats.style.display = 'none';
         if (panelContacts) panelContacts.style.display = 'none';
         if (panelRequests) panelRequests.style.display = 'none';
         if (panelCalls) panelCalls.style.display = 'none';
+        if (panelSettings) panelSettings.style.display = 'none';
 
-        if (tab === 'chats') {
-            if (btnChats) btnChats.classList.add('active');
-            if (panelChats) panelChats.style.display = 'block';
-            if (sectionLabel) sectionLabel.textContent = 'TERBARU';
-            renderChatsList();
-        } else if (tab === 'contacts') {
-            if (btnContacts) btnContacts.classList.add('active');
-            if (panelContacts) panelContacts.style.display = 'block';
-            if (sectionLabel) sectionLabel.textContent = 'SEMUA KONTAK';
-            renderContactsList();
-        } else if (tab === 'requests') {
-            if (btnRequests) btnRequests.classList.add('active');
-            if (panelRequests) panelRequests.style.display = 'block';
-            if (sectionLabel) sectionLabel.textContent = 'PERMINTAAN PERTEMANAN';
-            renderRequestsList();
-        } else if (tab === 'calls') {
-            if (btnCalls) btnCalls.classList.add('active');
-            if (panelCalls) panelCalls.style.display = 'block';
-            if (sectionLabel) sectionLabel.textContent = 'RIWAYAT PANGGILAN';
-            fetchCallLogs();
+        if (tab === 'settings') {
+            if (btnSettings) btnSettings.classList.add('active');
+            if (defaultHeader) defaultHeader.style.display = 'none';
+            if (settingsHeader) settingsHeader.style.display = 'flex';
+            if (defaultSearch) defaultSearch.style.display = 'none';
+            if (settingsSearch) settingsSearch.style.display = 'block';
+            if (defaultCategory) defaultCategory.style.display = 'none';
+            if (panelSettings) panelSettings.style.display = 'block';
+
+            if (settingsUserHeader) {
+                const uName = (state.user && (state.user.display_name || state.user.username)) || 'zaidan';
+                settingsUserHeader.textContent = uName.toLowerCase();
+            }
+
+            // Reset filter
+            const filterInput = document.getElementById('settingsFilterInput');
+            if (filterInput) {
+                filterInput.value = '';
+                filterSettingsList('');
+            }
+        } else {
+            // Restore default chat sidebar header & search
+            if (defaultHeader) defaultHeader.style.display = 'flex';
+            if (settingsHeader) settingsHeader.style.display = 'none';
+            if (defaultSearch) defaultSearch.style.display = 'block';
+            if (settingsSearch) settingsSearch.style.display = 'none';
+            if (defaultCategory) defaultCategory.style.display = 'flex';
+
+            if (tab === 'chats') {
+                if (btnChats) btnChats.classList.add('active');
+                if (panelChats) panelChats.style.display = 'block';
+                if (sectionLabel) sectionLabel.textContent = 'TERBARU';
+                renderChatsList();
+            } else if (tab === 'contacts') {
+                if (btnContacts) btnContacts.classList.add('active');
+                if (panelContacts) panelContacts.style.display = 'block';
+                if (sectionLabel) sectionLabel.textContent = 'SEMUA KONTAK';
+                renderContactsList();
+            } else if (tab === 'requests') {
+                if (btnRequests) btnRequests.classList.add('active');
+                if (panelRequests) panelRequests.style.display = 'block';
+                if (sectionLabel) sectionLabel.textContent = 'PERMINTAAN PERTEMANAN';
+                renderRequestsList();
+            } else if (tab === 'calls') {
+                if (btnCalls) btnCalls.classList.add('active');
+                if (panelCalls) panelCalls.style.display = 'block';
+                if (sectionLabel) sectionLabel.textContent = 'RIWAYAT PANGGILAN';
+                fetchCallLogs();
+            }
         }
+    };
+
+    window.filterSettingsList = function (query) {
+        const items = document.querySelectorAll('#settingsMenuList .settings-item');
+        const emptyEl = document.getElementById('settingsEmptyFilter');
+        const q = (query || '').toLowerCase().trim();
+        let visibleCount = 0;
+
+        items.forEach(item => {
+            const title = (item.querySelector('.settings-item-title')?.textContent || '').toLowerCase();
+            const desc = (item.querySelector('.settings-item-desc')?.textContent || '').toLowerCase();
+            const keywords = (item.getAttribute('data-keywords') || '').toLowerCase();
+
+            if (!q || title.includes(q) || desc.includes(q) || keywords.includes(q)) {
+                item.style.display = 'flex';
+                visibleCount++;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        if (emptyEl) {
+            emptyEl.style.display = (visibleCount === 0 && q) ? 'block' : 'none';
+        }
+    };
+
+    // Settings Modals Handlers
+    window.openAccountSecurityModal = function () {
+        const modal = document.getElementById('accountSecurityModal');
+        const userInput = document.getElementById('accountModalUsername');
+        const emailInput = document.getElementById('accountModalEmail');
+        if (userInput && state.user) userInput.value = `@${state.user.username || ''}`;
+        if (emailInput && state.user) emailInput.value = state.user.email || 'Belum diatur';
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+        }
+    };
+
+    window.closeAccountSecurityModal = function () {
+        const modal = document.getElementById('accountSecurityModal');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('active');
+        }
+    };
+
+    window.openPrivacySettingsModal = function () {
+        const modal = document.getElementById('privacySettingsModal');
+        const toggle = document.getElementById('privacyStreamerToggle');
+        if (toggle) toggle.checked = Boolean(state.streamerMode);
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+        }
+    };
+
+    window.closePrivacySettingsModal = function () {
+        const modal = document.getElementById('privacySettingsModal');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('active');
+        }
+    };
+
+    window.openChatPreferencesModal = function () {
+        const modal = document.getElementById('chatPreferencesModal');
+        const themeLabel = document.getElementById('chatPrefThemeLabel');
+        if (themeLabel) {
+            const curTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+            themeLabel.textContent = curTheme === 'dark' ? 'Mode Gelap (Aktif)' : 'Mode Terang (Aktif)';
+        }
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+        }
+    };
+
+    window.closeChatPreferencesModal = function () {
+        const modal = document.getElementById('chatPreferencesModal');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('active');
+        }
+    };
+
+    window.openNotificationSettingsModal = function () {
+        const modal = document.getElementById('notificationSettingsModal');
+        const toggle = document.getElementById('modalSoundToggle');
+        if (toggle) toggle.checked = Boolean(state.soundEnabled);
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+        }
+    };
+
+    window.closeNotificationSettingsModal = function () {
+        const modal = document.getElementById('notificationSettingsModal');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('active');
+        }
+    };
+
+    window.openKeyboardShortcutsModal = function () {
+        const modal = document.getElementById('keyboardShortcutsModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+        }
+    };
+
+    window.closeKeyboardShortcutsModal = function () {
+        const modal = document.getElementById('keyboardShortcutsModal');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('active');
+        }
+    };
+
+    window.openHelpSupportModal = function () {
+        const modal = document.getElementById('helpSupportModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+        }
+    };
+
+    window.closeHelpSupportModal = function () {
+        const modal = document.getElementById('helpSupportModal');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('active');
+        }
+    };
+
+    window.requestBrowserNotificationPermission = function () {
+        if (!('Notification' in window)) {
+            showToast('Browser ini tidak mendukung notifikasi desktop.', 'info');
+            return;
+        }
+        if (Notification.permission === 'granted') {
+            showToast('Izin notifikasi desktop sudah aktif.', 'success');
+            return;
+        }
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                showToast('Izin notifikasi desktop berhasil diberikan.', 'success');
+            } else {
+                showToast('Izin notifikasi tidak diberikan.', 'info');
+            }
+        });
     };
 
     window.fetchCallLogs = async function () {

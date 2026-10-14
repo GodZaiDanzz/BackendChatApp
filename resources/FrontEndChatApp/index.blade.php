@@ -55,6 +55,7 @@
     @include('components.edit-group-modal')
     @include('components.contact-info-modal')
     @include('components.user-profile-modal')
+    @include('components.settings-modals')
     @include('components.voice-call-overlay')
     @include('components.toast')
 
