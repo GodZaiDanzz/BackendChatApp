@@ -150,7 +150,7 @@
         <button type="button" onclick="handleDisconnectVoiceCall()" style="width: 32px; height: 32px; border-radius: 50%; background: #ef4444; color: #ffffff; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.15s ease;" title="Putuskan Sambungan" aria-label="Putuskan sambungan suara">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="6"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
         </button>
     </div>

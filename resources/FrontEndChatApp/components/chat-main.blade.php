@@ -20,7 +20,7 @@
                 <button type="button" class="chat-back-btn" onclick="closeActiveChat()" aria-label="Tutup obrolan" title="Tutup obrolan">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="6"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
                     </svg>
                 </button>
 
@@ -101,7 +101,7 @@
                         <button type="button" class="dropdown-item" onclick="closeActiveChat()" role="menuitem">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <line x1="18" y1="6" x2="6" y2="18"></line>
-                                <line x1="6" y1="6" x2="18" y2="6"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
                             </svg>
                             <span>Tutup Obrolan</span>
                         </button>
@@ -144,7 +144,7 @@
                 <button type="button" class="btn-icon-subtle" onclick="toggleInChatSearch(false)" title="Tutup pencarian" aria-label="Tutup pencarian">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="6"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
                     </svg>
                 </button>
             </div>
@@ -193,7 +193,7 @@
             <button type="button" class="btn-cancel-reply" onclick="cancelReplyMessage()" title="Batal balas" aria-label="Batal balas">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="6"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
             </button>
         </div>
@@ -215,7 +215,7 @@
             <button type="button" class="btn-cancel-reply" onclick="cancelAttachment()" title="Batal lampiran" aria-label="Batal lampiran">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="6"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
             </button>
         </div>
@@ -245,7 +245,7 @@
                     <button type="button" class="btn-icon-subtle" onclick="toggleEmojiPicker(false)" aria-label="Tutup pemilih emoji">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="18" y1="6" x2="6" y2="18"></line>
-                            <line x1="6" y1="6" x2="18" y2="6"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
                         </svg>
                     </button>
                 </div>
