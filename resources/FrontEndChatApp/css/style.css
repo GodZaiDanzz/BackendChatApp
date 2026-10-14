@@ -959,10 +959,11 @@ body.streamer-mode #btnStreamerMode {
 }
 
 .message-bubble-wrapper {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 0.35rem;
   max-width: 100%;
+  width: fit-content;
 }
 
 .message-row.me .message-bubble-wrapper {
@@ -1063,6 +1064,9 @@ body.streamer-mode #btnStreamerMode {
 }
 
 .message-actions {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
   display: none;
   align-items: center;
   gap: 0.2rem;
@@ -1072,6 +1076,26 @@ body.streamer-mode #btnStreamerMode {
   padding: 0.15rem 0.25rem;
   box-shadow: var(--shadow-bubble);
   flex-shrink: 0;
+  z-index: 10;
+  white-space: nowrap;
+}
+
+/* Invisible bridge prevents mouse hover flickering across gap */
+.message-actions::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  z-index: -1;
+}
+
+.message-row.other .message-actions {
+  left: calc(100% + 0.35rem);
+  right: auto;
+}
+
+.message-row.me .message-actions {
+  right: calc(100% + 0.35rem);
+  left: auto;
 }
 
 .message-row:hover .message-actions,
@@ -2319,6 +2343,21 @@ body.streamer-mode #btnStreamerMode {
   /* Message Bubbles Width Reflow */
   .message-bubble {
     max-width: 86%;
+  }
+
+  /* Compact action bar positioning on mobile */
+  .message-row.other .message-actions {
+    left: auto;
+    right: 0.25rem;
+    top: -1.6rem;
+    transform: none;
+  }
+
+  .message-row.me .message-actions {
+    right: 0.25rem;
+    left: auto;
+    top: -1.6rem;
+    transform: none;
   }
 
   /* Right Info Panel as Full Sheet Drawer on Mobile */
