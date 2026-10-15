@@ -346,6 +346,99 @@ class MessageController extends Controller
     }
 
     /**
+     * Batch destroy messages (Delete multiple for everyone)
+     */
+    public function batchDestroy(Request $request)
+    {
+        $data = $request->validate([
+            'ids'         => 'required|array|min:1',
+            'ids.*'       => 'required',
+            'receiver_id' => 'nullable|exists:users,id',
+        ]);
+
+        $ids = $data['ids'];
+        $receiverId = $data['receiver_id'] ?? null;
+        $userId = $request->user()->id;
+
+        $numericIds = [];
+        $uuidIds = [];
+        foreach ($ids as $id) {
+            if (is_numeric($id)) {
+                $numericIds[] = (int) $id;
+            } else {
+                $uuidIds[] = (string) $id;
+            }
+        }
+
+        // Find existing messages in DB where sender is authenticated user
+        $msgs = Message::where('sender_id', $userId)
+            ->where(function ($q) use ($numericIds, $uuidIds) {
+                if (!empty($numericIds)) {
+                    $q->whereIn('id', $numericIds);
+                }
+                if (!empty($uuidIds)) {
+                    $q->orWhereIn('client_uuid', $uuidIds);
+                }
+            })
+            ->get();
+
+        $foundUuids = [];
+        $deletedList = [];
+
+        foreach ($msgs as $msg) {
+            $msg->body = 'Pesan ini telah dihapus';
+            if (Schema::hasColumn('messages', 'is_deleted')) {
+                $msg->is_deleted = true;
+            }
+            $msg->save();
+            if ($msg->client_uuid) {
+                $foundUuids[] = $msg->client_uuid;
+            }
+            $deletedList[] = [
+                'id'          => $msg->id,
+                'client_uuid' => $msg->client_uuid,
+            ];
+
+            try {
+                broadcast(new MessageSent($msg));
+            } catch (\Throwable $e) {
+                Log::warning('WebSocket broadcast failed (batch MessageDelete): ' . $e->getMessage());
+            }
+        }
+
+        // Handle ephemeral action messages for uuids that were not yet in MySQL
+        if ($receiverId) {
+            foreach ($uuidIds as $uuid) {
+                if (!in_array($uuid, $foundUuids, true)) {
+                    $safeUuid = (is_string($uuid) && strlen($uuid) <= 36) ? $uuid : Str::uuid()->toString();
+                    $actionMsg = Message::updateOrCreate(
+                        ['client_uuid' => $safeUuid],
+                        [
+                            'sender_id'   => $userId,
+                            'receiver_id' => $receiverId,
+                            'body'        => 'Pesan ini telah dihapus',
+                            'status'      => 'sent',
+                            'is_deleted'  => true,
+                        ]
+                    );
+                    $deletedList[] = [
+                        'id'          => $actionMsg->id,
+                        'client_uuid' => $safeUuid,
+                    ];
+                    try {
+                        broadcast(new MessageSent($actionMsg));
+                    } catch (\Throwable $e) {}
+                }
+            }
+        }
+
+        return response()->json([
+            'message' => 'Pesan terpilih berhasil dihapus',
+            'deleted' => $deletedList,
+        ]);
+    }
+
+    /**
      * Sync delivery/read statuses for sender and purge delivered status receipts
      */
     public function statuses(Request $request)

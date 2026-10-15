@@ -546,4 +546,75 @@ class GroupController extends Controller
 
         return response()->json(['message' => 'Pesan grup berhasil dihapus']);
     }
+
+    public function batchDestroyMessages(Request $request, $id)
+    {
+        $group = Group::findOrFail($id);
+        $myMember = GroupMember::where('group_id', $id)->where('user_id', $request->user()->id)->first();
+        if (!$myMember) {
+            return response()->json(['message' => 'Anda bukan anggota grup ini'], 403);
+        }
+        $isAdmin = ($myMember->role === 'admin');
+
+        $data = $request->validate([
+            'ids'   => 'required|array|min:1',
+            'ids.*' => 'required',
+        ]);
+
+        $ids = $data['ids'];
+        $numericIds = [];
+        $uuidIds = [];
+        foreach ($ids as $val) {
+            if (is_numeric($val)) {
+                $numericIds[] = (int) $val;
+            } else {
+                $uuidIds[] = (string) $val;
+            }
+        }
+
+        $query = GroupMessage::where('group_id', $id)
+            ->where(function ($q) use ($numericIds, $uuidIds) {
+                if (!empty($numericIds)) {
+                    $q->whereIn('id', $numericIds);
+                }
+                if (!empty($uuidIds)) {
+                    $q->orWhereIn('client_uuid', $uuidIds);
+                }
+            });
+
+        if (!$isAdmin) {
+            // Non-admin can only delete their own messages
+            $query->where('sender_id', $request->user()->id);
+        }
+
+        $msgs = $query->get();
+        $deletedList = [];
+
+        $otherMembers = GroupMember::where('group_id', $group->id)
+            ->where('user_id', '!=', $request->user()->id)
+            ->pluck('user_id')
+            ->toArray();
+
+        foreach ($msgs as $msg) {
+            $msg->update([
+                'body'       => 'Pesan ini telah dihapus',
+                'attachment' => null,
+                'is_deleted' => true,
+            ]);
+
+            $deletedList[] = [
+                'id'          => $msg->id,
+                'client_uuid' => $msg->client_uuid,
+            ];
+
+            try {
+                broadcast(new GroupMessageUpdated($msg, $otherMembers));
+            } catch (\Throwable $e) {}
+        }
+
+        return response()->json([
+            'message' => 'Pesan grup berhasil dihapus',
+            'deleted' => $deletedList,
+        ]);
+    }
 }

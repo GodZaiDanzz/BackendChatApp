@@ -40,6 +40,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/messages', [MessageController::class, 'store'])->middleware('throttle:60,1');
     Route::put('/messages/{id}', [MessageController::class, 'update']);
     Route::delete('/messages/{id}', [MessageController::class, 'destroy']);
+    Route::post('/messages/batch-delete', [MessageController::class, 'batchDestroy']);
     Route::get('/messages/pending', [MessageController::class, 'pending']);
     Route::get('/messages/statuses', [MessageController::class, 'statuses']);
     Route::post('/messages/ack', [MessageController::class, 'ack']);
@@ -60,6 +61,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/groups/{id}/messages', [GroupController::class, 'storeMessage']);
     Route::put('/groups/{id}/messages/{messageId}', [GroupController::class, 'updateMessage']);
     Route::delete('/groups/{id}/messages/{messageId}', [GroupController::class, 'destroyMessage']);
+    Route::post('/groups/{id}/messages/batch-delete', [GroupController::class, 'batchDestroyMessages']);
 
     // WebRTC Voice Channels and Calls
     Route::post('/voice/signal', [\App\Http\Controllers\VoiceCallController::class, 'sendSignal']);

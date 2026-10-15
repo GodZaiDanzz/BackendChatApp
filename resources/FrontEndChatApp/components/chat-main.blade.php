@@ -12,7 +12,40 @@
     </div>
 
     {{-- Active Conversation Area --}}
-    <div id="activeChatWindow" style="display: none; height: 100%; flex-direction: column;">
+    <div id="activeChatWindow" style="display: none; height: 100%; flex-direction: column; position: relative;">
+        {{-- Bulk Messages Selection Action Bar (Appears when selection mode is active) --}}
+        <div id="chatSelectionBar" class="chat-selection-bar" style="display: none;">
+            <div class="selection-bar-left">
+                <button type="button" class="btn-icon selection-close-btn" onclick="exitSelectMessagesMode()" title="Batalkan pilihan (Esc)" aria-label="Batalkan pilihan">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+                <div class="selection-count-text">
+                    <span id="selectedMessagesCountBadge">0</span> pesan dipilih
+                </div>
+            </div>
+            <div class="selection-bar-right">
+                <button type="button" id="btnSelectAllMessages" class="btn-selection-action" onclick="toggleSelectAllMessages()" title="Pilih Semua / Batal Pilih Semua">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 6L7 17l-5-5"></path>
+                        <path d="M22 10l-7.5 7.5L13 16"></path>
+                    </svg>
+                    <span id="btnSelectAllLabel">Pilih Semua</span>
+                </button>
+                <button type="button" id="btnBulkDeleteMessages" class="btn-selection-delete" onclick="confirmBulkDeleteMessages()" disabled title="Hapus pesan yang dipilih">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        <line x1="10" y1="11" x2="10" y2="17"></line>
+                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
+                    <span>Hapus</span>
+                </button>
+            </div>
+        </div>
+
         {{-- Chat Top Header --}}
         <header class="chat-header">
             <div class="chat-header-info">
@@ -97,6 +130,13 @@
                                 <line x1="23" y1="11" x2="17" y2="11"></line>
                             </svg>
                             <span>Tambah Anggota</span>
+                        </button>
+                        <button type="button" class="dropdown-item" onclick="enterSelectMessagesMode()" role="menuitem">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="9 11 12 14 22 4"></polyline>
+                                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                            </svg>
+                            <span>Pilih / Hapus Banyak Pesan</span>
                         </button>
                         <button type="button" class="dropdown-item" onclick="closeActiveChat()" role="menuitem">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

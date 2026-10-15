@@ -191,6 +191,8 @@
         soundEnabled: localStorage.getItem('zchat_sound_enabled') !== 'false',
         inChatSearchQuery: '',
         activeEmojiCategory: 'popular',
+        isSelectionMode: false,
+        selectedMessageIds: new Set(),
         typingUsers: {},
         typingTimers: {},
         isCurrentlyTyping: false,
@@ -2784,6 +2786,10 @@
         const contact = state.contacts.find(c => c.id === contactId);
         if (!contact) return;
 
+        if (state.isSelectionMode) {
+            window.exitSelectMessagesMode();
+        }
+
         // Batal mode edit pesan jika sedang mengedit pesan kontak sebelumnya
         if (state.editingMessageId) {
             window.cancelEditMessage();
@@ -2950,6 +2956,10 @@
     window.selectGroup = async function (groupId) {
         const group = (state.groups || []).find(g => Number(g.id) === Number(groupId));
         if (!group) return;
+
+        if (state.isSelectionMode) {
+            window.exitSelectMessagesMode();
+        }
 
         if (state.editingMessageId) {
             window.cancelEditMessage();
@@ -3661,6 +3671,7 @@
     };
 
     window.closeActiveChat = function () {
+        if (state.isSelectionMode) window.exitSelectMessagesMode();
         window.closeChatDropdown();
         clearMyTypingState();
         state.activeContact = null;
@@ -3900,6 +3911,15 @@
         const container = document.getElementById('messagesContainer');
         if (!container || !state.activeContact) return;
 
+        if (state.isSelectionMode) {
+            container.classList.add('selection-mode-active');
+        } else {
+            container.classList.remove('selection-mode-active');
+        }
+
+        const prevScrollTop = container.scrollTop;
+        const wasNearBottom = (container.scrollHeight - container.scrollTop - container.clientHeight) < 100;
+
         const messages = state.chats[state.activeContact.id] || [];
 
         if (messages.length === 0) {
@@ -3943,6 +3963,10 @@
             const msgIdentifier = msg.id ? String(msg.id) : (msg.client_uuid || '');
             const safeIdAttr = escapeHtml(msgIdentifier);
 
+            const isSelected = state.isSelectionMode && state.selectedMessageIds.has(safeIdAttr);
+            const selectedClass = isSelected ? 'selected' : '';
+            const rowOnClick = state.isSelectionMode && !isDeleted ? `onclick="toggleSelectMessage('${safeIdAttr}', event)"` : '';
+
             // Grouping logic ala WhatsApp (berdempet jika <= 3 menit oleh pengirim yang sama)
             const prevMsg = idx > 0 ? messages[idx - 1] : null;
             const nextMsg = idx < messages.length - 1 ? messages[idx + 1] : null;
@@ -3959,22 +3983,32 @@
                 groupClass = 'msg-group-first';
             }
 
+            const checkboxHtml = !isDeleted ? `
+                <div class="msg-checkbox ${isSelected ? 'checked' : ''}" onclick="toggleSelectMessage('${safeIdAttr}', event)" title="Pilih pesan">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                </div>
+            ` : '';
+
             if (isDeleted) {
                 return `
                     <div class="message-row ${rowClass} ${groupClass}" data-msg-id="${safeIdAttr}">
-                        <div class="message-bubble-wrapper">
-                            <div class="message-bubble deleted">
-                                <span class="bubble-content" style="display: inline-flex; align-items: center; gap: 0.35rem;">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; opacity: 0.7;">
-                                        <circle cx="12" cy="12" r="10"></circle>
-                                        <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
-                                    </svg>
-                                    <span>Pesan ini telah dihapus</span>
-                                </span>
-                                <span class="bubble-meta">
-                                    <span class="meta-time">${timeText}</span>
-                                    ${statusMarker}
-                                </span>
+                        <div class="msg-selection-wrap">
+                            <div class="message-bubble-wrapper">
+                                <div class="message-bubble deleted">
+                                    <span class="bubble-content" style="display: inline-flex; align-items: center; gap: 0.35rem;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; opacity: 0.7;">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                                        </svg>
+                                        <span>Pesan ini telah dihapus</span>
+                                    </span>
+                                    <span class="bubble-meta">
+                                        <span class="meta-time">${timeText}</span>
+                                        ${statusMarker}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -4081,54 +4115,71 @@
             }
 
             return `
-                <div class="message-row ${rowClass} ${groupClass}" data-msg-id="${safeIdAttr}">
-                    <div class="message-bubble-wrapper">
-                        <div class="message-bubble" ondblclick="startReplyMessage('${safeIdAttr}')" title="Klik 2x untuk membalas">
-                            ${groupSenderHtml}
-                            ${quoteHtml}
-                            ${attachmentHtml}
-                            ${renderedBody}
-                            ${isEdited ? '<span class="edited-label">(diedit)</span>' : ''}
-                            <span class="bubble-meta">
-                                <span class="meta-time">${timeText}</span>
-                                ${statusMarker}
-                            </span>
-                            ${reactionsHtml}
-                        </div>
-                        <div class="message-actions" role="toolbar" aria-label="Aksi pesan">
-                            <button type="button" class="btn-msg-action" onclick="startReplyMessage('${safeIdAttr}')" title="Balas pesan" aria-label="Balas pesan">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="9 17 4 12 9 7"></polyline>
-                                    <path d="M20 18v-2a4 4 0 0 0-4-4H4"></path>
-                                </svg>
-                            </button>
-                            <button type="button" class="btn-msg-action" onclick="toggleMessageReaction('${safeIdAttr}', '👍')" title="Suka" aria-label="Suka">👍</button>
-                            <button type="button" class="btn-msg-action" onclick="toggleMessageReaction('${safeIdAttr}', '❤️')" title="Cinta" aria-label="Cinta">❤️</button>
-                            ${isMe ? `
-                                <button type="button" class="btn-msg-action" onclick="startEditMessage('${safeIdAttr}')" title="Edit pesan" aria-label="Edit pesan">
+                <div class="message-row ${rowClass} ${groupClass} ${selectedClass}" data-msg-id="${safeIdAttr}" ${rowOnClick}>
+                    <div class="msg-selection-wrap">
+                        ${!isMe ? checkboxHtml : ''}
+                        <div class="message-bubble-wrapper">
+                            <div class="message-bubble" ondblclick="startReplyMessage('${safeIdAttr}')" title="${state.isSelectionMode ? 'Klik untuk memilih/membatalkan' : 'Klik 2x untuk membalas'}">
+                                ${groupSenderHtml}
+                                ${quoteHtml}
+                                ${attachmentHtml}
+                                ${renderedBody}
+                                ${isEdited ? '<span class="edited-label">(diedit)</span>' : ''}
+                                <span class="bubble-meta">
+                                    <span class="meta-time">${timeText}</span>
+                                    ${statusMarker}
+                                </span>
+                                ${reactionsHtml}
+                            </div>
+                            <div class="message-actions" role="toolbar" aria-label="Aksi pesan">
+                                <button type="button" class="btn-msg-action" onclick="toggleSelectMessage('${safeIdAttr}', event)" title="Pilih pesan" aria-label="Pilih pesan">
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M11 4H4a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                        <polyline points="9 11 12 14 22 4"></polyline>
+                                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
                                     </svg>
                                 </button>
-                                <button type="button" class="btn-msg-action danger" onclick="confirmDeleteMessage('${safeIdAttr}')" title="Hapus pesan" aria-label="Hapus pesan">
+                                <button type="button" class="btn-msg-action" onclick="startReplyMessage('${safeIdAttr}', event)" title="Balas pesan" aria-label="Balas pesan">
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <polyline points="3 6 5 6 21 6"></polyline>
-                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                        <polyline points="9 17 4 12 9 7"></polyline>
+                                        <path d="M20 18v-2a4 4 0 0 0-4-4H4"></path>
                                     </svg>
                                 </button>
-                            ` : ''}
+                                <button type="button" class="btn-msg-action" onclick="toggleMessageReaction('${safeIdAttr}', '👍')" title="Suka" aria-label="Suka">👍</button>
+                                <button type="button" class="btn-msg-action" onclick="toggleMessageReaction('${safeIdAttr}', '❤️')" title="Cinta" aria-label="Cinta">❤️</button>
+                                ${isMe ? `
+                                    <button type="button" class="btn-msg-action" onclick="startEditMessage('${safeIdAttr}')" title="Edit pesan" aria-label="Edit pesan">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M11 4H4a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                        </svg>
+                                    </button>
+                                    <button type="button" class="btn-msg-action danger" onclick="confirmDeleteMessage('${safeIdAttr}')" title="Hapus pesan" aria-label="Hapus pesan">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="3 6 5 6 21 6"></polyline>
+                                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                        </svg>
+                                    </button>
+                                ` : ''}
+                            </div>
                         </div>
+                        ${isMe ? checkboxHtml : ''}
                     </div>
                 </div>
             `;
         }).join('');
 
-        // Auto scroll to latest message
-        container.scrollTop = container.scrollHeight;
+        if (state.isSelectionMode || !wasNearBottom) {
+            container.scrollTop = prevScrollTop;
+        } else {
+            container.scrollTop = container.scrollHeight;
+        }
 
         if (state.activeContact) {
             updateRightPanelMediaAndDocs(state.activeContact.id);
+        }
+
+        if (state.isSelectionMode) {
+            updateSelectionUI();
         }
     }
 
@@ -4598,6 +4649,209 @@
             renderActiveMessages();
             renderChatsList();
             showToast('Gagal menghapus pesan: ' + err.message, 'error');
+        }
+    };
+
+    // ==========================================
+    // Bulk Message Selection & Deletion System
+    // ==========================================
+    window.enterSelectMessagesMode = function (initialMsgId = null) {
+        window.closeChatDropdown();
+        if (!state.activeContact) return;
+
+        state.isSelectionMode = true;
+        state.selectedMessageIds = new Set();
+        if (initialMsgId) {
+            state.selectedMessageIds.add(String(initialMsgId));
+        }
+
+        const bar = document.getElementById('chatSelectionBar');
+        if (bar) {
+            bar.style.display = 'flex';
+        }
+
+        renderActiveMessages();
+        updateSelectionUI();
+    };
+
+    window.exitSelectMessagesMode = function () {
+        state.isSelectionMode = false;
+        state.selectedMessageIds.clear();
+
+        const bar = document.getElementById('chatSelectionBar');
+        if (bar) {
+            bar.style.display = 'none';
+        }
+
+        const container = document.getElementById('messagesContainer');
+        if (container) {
+            container.classList.remove('selection-mode-active');
+        }
+
+        renderActiveMessages();
+    };
+
+    window.toggleSelectMessage = function (msgIdentifier, event) {
+        if (event) {
+            event.stopPropagation();
+        }
+
+        const safeId = String(msgIdentifier);
+
+        if (!state.isSelectionMode) {
+            window.enterSelectMessagesMode(safeId);
+            return;
+        }
+
+        if (state.selectedMessageIds.has(safeId)) {
+            state.selectedMessageIds.delete(safeId);
+        } else {
+            state.selectedMessageIds.add(safeId);
+        }
+
+        updateSelectionUI();
+        updateMessageRowSelectionDOM(safeId);
+    };
+
+    function updateMessageRowSelectionDOM(specificMsgId = null) {
+        const container = document.getElementById('messagesContainer');
+        if (!container) return;
+
+        if (specificMsgId) {
+            const row = container.querySelector(`.message-row[data-msg-id="${specificMsgId}"]`);
+            if (row) {
+                const isSelected = state.selectedMessageIds.has(specificMsgId);
+                row.classList.toggle('selected', isSelected);
+                const cb = row.querySelector('.msg-checkbox');
+                if (cb) {
+                    cb.classList.toggle('checked', isSelected);
+                }
+            }
+        } else {
+            const rows = container.querySelectorAll('.message-row[data-msg-id]');
+            rows.forEach(row => {
+                const id = row.getAttribute('data-msg-id');
+                const isSelected = state.selectedMessageIds.has(id);
+                row.classList.toggle('selected', isSelected);
+                const cb = row.querySelector('.msg-checkbox');
+                if (cb) {
+                    cb.classList.toggle('checked', isSelected);
+                }
+            });
+        }
+    }
+
+    window.toggleSelectAllMessages = function () {
+        if (!state.activeContact) return;
+        const chatKey = state.activeContact.is_group ? ('group_' + state.activeContact.group_id) : state.activeContact.id;
+        const msgs = (state.chats[chatKey] || []).filter(m => !m.is_deleted && m.body !== 'Pesan ini telah dihapus');
+
+        if (msgs.length === 0) return;
+
+        const allSelected = msgs.every(m => {
+            const id = m.id ? String(m.id) : (m.client_uuid || '');
+            return state.selectedMessageIds.has(id);
+        });
+
+        if (allSelected) {
+            state.selectedMessageIds.clear();
+        } else {
+            msgs.forEach(m => {
+                const id = m.id ? String(m.id) : (m.client_uuid || '');
+                if (id) state.selectedMessageIds.add(id);
+            });
+        }
+
+        updateSelectionUI();
+        updateMessageRowSelectionDOM();
+    };
+
+    function updateSelectionUI() {
+        const count = state.selectedMessageIds.size;
+        const countBadge = document.getElementById('selectedMessagesCountBadge');
+        if (countBadge) {
+            countBadge.textContent = count;
+        }
+
+        const deleteBtn = document.getElementById('btnBulkDeleteMessages');
+        if (deleteBtn) {
+            deleteBtn.disabled = (count === 0);
+            const labelSpan = deleteBtn.querySelector('span');
+            if (labelSpan) {
+                labelSpan.textContent = count > 0 ? `Hapus (${count})` : 'Hapus';
+            }
+        }
+
+        if (state.activeContact) {
+            const chatKey = state.activeContact.is_group ? ('group_' + state.activeContact.group_id) : state.activeContact.id;
+            const msgs = (state.chats[chatKey] || []).filter(m => !m.is_deleted && m.body !== 'Pesan ini telah dihapus');
+            const allSelected = msgs.length > 0 && msgs.every(m => {
+                const id = m.id ? String(m.id) : (m.client_uuid || '');
+                return state.selectedMessageIds.has(id);
+            });
+
+            const selectAllLabel = document.getElementById('btnSelectAllLabel');
+            if (selectAllLabel) {
+                selectAllLabel.textContent = allSelected ? 'Batal Pilih Semua' : 'Pilih Semua';
+            }
+        }
+    }
+
+    window.confirmBulkDeleteMessages = async function () {
+        if (!state.activeContact) return;
+        const selectedIds = Array.from(state.selectedMessageIds);
+        if (selectedIds.length === 0) {
+            showToast('Pilih setidaknya satu pesan untuk dihapus.', 'info');
+            return;
+        }
+
+        const count = selectedIds.length;
+        const confirmed = await showConfirmModal({
+            title: `Hapus ${count} Pesan?`,
+            message: `Hapus ${count} pesan yang dipilih untuk semua orang dalam obrolan? Tindakan ini tidak dapat dibatalkan.`,
+            confirmText: `Hapus (${count})`,
+            cancelText: 'Batal',
+            type: 'danger',
+            icon: 'trash'
+        });
+        if (!confirmed) return;
+
+        const chatKey = state.activeContact.is_group ? ('group_' + state.activeContact.group_id) : state.activeContact.id;
+        const msgs = state.chats[chatKey] || [];
+
+        // Optimistic delete
+        selectedIds.forEach(id => {
+            const target = msgs.find(m => String(m.id) === String(id) || (m.client_uuid && String(m.client_uuid) === String(id)));
+            if (target) {
+                target.body = 'Pesan ini telah dihapus';
+                target.is_deleted = true;
+                target.attachment = null;
+            }
+        });
+
+        persistMessages();
+        window.exitSelectMessagesMode();
+        renderChatsList();
+
+        try {
+            if (state.activeContact.is_group) {
+                await apiRequest(`/groups/${state.activeContact.group_id}/messages/batch-delete`, {
+                    method: 'POST',
+                    body: JSON.stringify({ ids: selectedIds })
+                });
+            } else {
+                await apiRequest('/messages/batch-delete', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        ids: selectedIds,
+                        receiver_id: state.activeContact.id
+                    })
+                });
+            }
+            showToast(`${count} pesan berhasil dihapus untuk semua orang.`, 'success');
+        } catch (err) {
+            console.error('Batch delete error:', err);
+            showToast('Pesan telah dihapus lokal, namun gagal memperbarui server: ' + err.message, 'warning');
         }
     };
 
@@ -6380,6 +6634,11 @@
             const confirmModal = document.getElementById('confirmModal');
             if (confirmModal && (confirmModal.classList.contains('active') || confirmModal.style.display === 'flex')) {
                 window.closeConfirmModal(false);
+                return;
+            }
+
+            if (state.isSelectionMode) {
+                window.exitSelectMessagesMode();
                 return;
             }
 
