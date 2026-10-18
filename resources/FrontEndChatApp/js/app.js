@@ -4310,21 +4310,26 @@
 
                 if (isAudio) {
                     const audioId = 'audio_' + (msg.id || msg.client_uuid || Math.random().toString(36).substr(2, 9));
+                    const barHeights = [25, 45, 70, 35, 75, 95, 80, 50, 70, 90, 45, 80, 60, 40, 70, 90, 75, 55, 35, 65, 85, 55, 40, 65, 45, 30, 45, 25];
+                    const barsHtml = barHeights.map((h, i) => `<span class="vn-bar" style="height: ${h}%;" data-idx="${i}"></span>`).join('');
+
                     attachmentHtml = `
-                        <div class="voice-note-bubble" data-audio-id="${audioId}">
-                            <button type="button" class="voice-note-play-btn" onclick="togglePlayVoiceNote('${audioId}')" aria-label="Putar rekaman suara">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                                    <polygon points="5 3 19 12 5 21 5"></polygon>
+                        <div class="vn-player-wrapper voice-note-bubble" data-audio-id="${audioId}">
+                            <button type="button" class="vn-play-btn voice-note-play-btn" onclick="event.stopPropagation(); togglePlayVoiceNote('${audioId}')" aria-label="Putar rekaman suara" title="Putar">
+                                <svg class="vn-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <polygon points="6 4 20 12 6 20 6 4"></polygon>
                                 </svg>
                             </button>
-                            <div class="voice-note-waveform">
-                                <div class="voice-note-progress" id="progress_${audioId}"></div>
-                                <div class="voice-note-bars" aria-hidden="true">
-                                    <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                            <div class="vn-content">
+                                <div class="vn-waveform-track voice-note-waveform" onclick="event.stopPropagation(); seekVoiceNote('${audioId}', event)" title="Klik untuk memajukan / memundurkan">
+                                    ${barsHtml}
+                                </div>
+                                <div class="vn-info-row">
+                                    <span class="vn-timer voice-note-duration" id="duration_${audioId}">0:00</span>
+                                    <button type="button" class="vn-speed-btn" id="speed_${audioId}" onclick="event.stopPropagation(); toggleVoiceNoteSpeed('${audioId}', event)" title="Ubah kecepatan (1x, 1.5x, 2x)">1x</button>
                                 </div>
                             </div>
-                            <span class="voice-note-duration" id="duration_${audioId}">0:00</span>
-                            <audio id="${audioId}" src="${fileUrl}" preload="metadata" ontimeupdate="updateVoiceNoteProgress('${audioId}')" onended="onVoiceNoteEnded('${audioId}')" onloadedmetadata="initVoiceNoteDuration('${audioId}')"></audio>
+                            <audio id="${audioId}" src="${fileUrl}" preload="metadata" ontimeupdate="updateVoiceNoteProgress('${audioId}')" onended="onVoiceNoteEnded('${audioId}')" onloadedmetadata="initVoiceNoteDuration('${audioId}')" onplay="onVoiceNotePlay('${audioId}')" onpause="onVoiceNotePause('${audioId}')"></audio>
                         </div>
                     `;
                 } else if (isImage) {
@@ -4897,83 +4902,155 @@
     window.togglePlayVoiceNote = function (audioId) {
         const audioEl = document.getElementById(audioId);
         if (!audioEl) return;
-        const btn = audioEl.closest('.voice-note-bubble')?.querySelector('.voice-note-play-btn');
 
-        document.querySelectorAll('.voice-note-bubble audio').forEach(other => {
+        // Pause any other playing voice notes
+        document.querySelectorAll('audio[id^="audio_"]').forEach(other => {
             if (other.id !== audioId && !other.paused) {
                 other.pause();
-                const otherBtn = other.closest('.voice-note-bubble')?.querySelector('.voice-note-play-btn');
+                const otherWrapper = other.closest('.vn-player-wrapper, .voice-note-bubble');
+                const otherBtn = otherWrapper?.querySelector('.vn-play-btn, .voice-note-play-btn');
                 if (otherBtn) {
+                    otherBtn.setAttribute('aria-label', 'Putar rekaman suara');
+                    otherBtn.setAttribute('title', 'Putar');
                     otherBtn.innerHTML = `
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                            <polygon points="5 3 19 12 5 21 5"></polygon>
+                        <svg class="vn-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="6 4 20 12 6 20 6 4"></polygon>
                         </svg>
                     `;
                 }
+                otherWrapper?.classList.remove('is-playing');
             }
         });
 
         if (audioEl.paused) {
             audioEl.play().then(() => {
-                if (btn) {
-                    btn.innerHTML = `
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                            <rect x="6" y="4" width="4" height="16"></rect>
-                            <rect x="14" y="4" width="4" height="16"></rect>
-                        </svg>
-                    `;
-                }
+                window.onVoiceNotePlay(audioId);
             }).catch(err => console.warn('Gagal memutar audio:', err));
         } else {
             audioEl.pause();
-            if (btn) {
-                btn.innerHTML = `
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                        <polygon points="5 3 19 12 5 21 5"></polygon>
-                    </svg>
-                `;
-            }
+            window.onVoiceNotePause(audioId);
         }
+    };
+
+    window.onVoiceNotePlay = function (audioId) {
+        const audioEl = document.getElementById(audioId);
+        if (!audioEl) return;
+        const wrapper = audioEl.closest('.vn-player-wrapper, .voice-note-bubble');
+        const btn = wrapper?.querySelector('.vn-play-btn, .voice-note-play-btn');
+        if (btn) {
+            btn.setAttribute('aria-label', 'Jeda rekaman suara');
+            btn.setAttribute('title', 'Jeda');
+            btn.innerHTML = `
+                <svg class="vn-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="4" width="4" height="16" rx="1.5"></rect>
+                    <rect x="14" y="4" width="4" height="16" rx="1.5"></rect>
+                </svg>
+            `;
+        }
+        wrapper?.classList.add('is-playing');
+    };
+
+    window.onVoiceNotePause = function (audioId) {
+        const audioEl = document.getElementById(audioId);
+        if (!audioEl) return;
+        const wrapper = audioEl.closest('.vn-player-wrapper, .voice-note-bubble');
+        const btn = wrapper?.querySelector('.vn-play-btn, .voice-note-play-btn');
+        if (btn) {
+            btn.setAttribute('aria-label', 'Putar rekaman suara');
+            btn.setAttribute('title', 'Putar');
+            btn.innerHTML = `
+                <svg class="vn-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="6 4 20 12 6 20 6 4"></polygon>
+                </svg>
+            `;
+        }
+        wrapper?.classList.remove('is-playing');
     };
 
     window.updateVoiceNoteProgress = function (audioId) {
         const audioEl = document.getElementById(audioId);
         if (!audioEl) return;
-        const progressEl = document.getElementById(`progress_${audioId}`);
+        const wrapper = audioEl.closest('.vn-player-wrapper, .voice-note-bubble');
         const durEl = document.getElementById(`duration_${audioId}`);
 
         const current = audioEl.currentTime || 0;
         const duration = audioEl.duration || 0;
-        if (duration > 0 && progressEl) {
-            const pct = (current / duration) * 100;
-            progressEl.style.width = `${pct}%`;
+
+        if (wrapper && duration > 0) {
+            const bars = wrapper.querySelectorAll('.vn-bar');
+            if (bars.length > 0) {
+                const fraction = Math.max(0, Math.min(1, current / duration));
+                const activeThreshold = Math.floor(fraction * bars.length);
+                bars.forEach((bar, idx) => {
+                    if (idx <= activeThreshold && fraction > 0) {
+                        bar.classList.add('active');
+                    } else {
+                        bar.classList.remove('active');
+                    }
+                });
+            }
         }
+
         if (durEl) {
-            const remaining = Math.max(0, duration - current);
-            const mins = Math.floor(remaining / 60);
-            const secs = String(Math.floor(remaining % 60)).padStart(2, '0');
+            const mins = Math.floor(current / 60);
+            const secs = String(Math.floor(current % 60)).padStart(2, '0');
             durEl.textContent = `${mins}:${secs}`;
+        }
+    };
+
+    window.seekVoiceNote = function (audioId, event) {
+        const audioEl = document.getElementById(audioId);
+        if (!audioEl || !audioEl.duration || isNaN(audioEl.duration)) return;
+
+        const track = event.currentTarget;
+        const rect = track.getBoundingClientRect();
+        const clickX = event.clientX - rect.left;
+        const fraction = Math.max(0, Math.min(1, clickX / rect.width));
+
+        audioEl.currentTime = fraction * audioEl.duration;
+        window.updateVoiceNoteProgress(audioId);
+
+        if (audioEl.paused) {
+            audioEl.play().then(() => {
+                window.onVoiceNotePlay(audioId);
+            }).catch(() => { });
+        }
+    };
+
+    window.toggleVoiceNoteSpeed = function (audioId, event) {
+        if (event) event.stopPropagation();
+        const audioEl = document.getElementById(audioId);
+        if (!audioEl) return;
+
+        const speedBtn = document.getElementById(`speed_${audioId}`);
+        let nextSpeed = 1;
+        if (audioEl.playbackRate === 1) nextSpeed = 1.5;
+        else if (audioEl.playbackRate === 1.5) nextSpeed = 2;
+        else nextSpeed = 1;
+
+        audioEl.playbackRate = nextSpeed;
+        if (speedBtn) {
+            speedBtn.textContent = `${nextSpeed}x`;
         }
     };
 
     window.onVoiceNoteEnded = function (audioId) {
         const audioEl = document.getElementById(audioId);
         if (!audioEl) return;
-        const btn = audioEl.closest('.voice-note-bubble')?.querySelector('.voice-note-play-btn');
-        if (btn) {
-            btn.innerHTML = `
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                    <polygon points="5 3 19 12 5 21 5"></polygon>
-                </svg>
-            `;
+        window.onVoiceNotePause(audioId);
+
+        const wrapper = audioEl.closest('.vn-player-wrapper, .voice-note-bubble');
+        if (wrapper) {
+            wrapper.querySelectorAll('.vn-bar').forEach(b => b.classList.remove('active'));
         }
-        const progressEl = document.getElementById(`progress_${audioId}`);
-        if (progressEl) progressEl.style.width = '0%';
+
         const durEl = document.getElementById(`duration_${audioId}`);
-        if (durEl && audioEl.duration) {
+        if (durEl && audioEl.duration && !isNaN(audioEl.duration)) {
             const mins = Math.floor(audioEl.duration / 60);
             const secs = String(Math.floor(audioEl.duration % 60)).padStart(2, '0');
             durEl.textContent = `${mins}:${secs}`;
+        } else if (durEl) {
+            durEl.textContent = '0:00';
         }
     };
 
@@ -4981,7 +5058,7 @@
         const audioEl = document.getElementById(audioId);
         if (!audioEl || !audioEl.duration || isNaN(audioEl.duration)) return;
         const durEl = document.getElementById(`duration_${audioId}`);
-        if (durEl) {
+        if (durEl && audioEl.paused && (audioEl.currentTime === 0 || !audioEl.currentTime)) {
             const mins = Math.floor(audioEl.duration / 60);
             const secs = String(Math.floor(audioEl.duration % 60)).padStart(2, '0');
             durEl.textContent = `${mins}:${secs}`;

@@ -3722,85 +3722,201 @@ body.streamer-mode #btnStreamerMode {
   background: var(--accent-hover, #8b5cf6);
 }
 
-/* Voice Note Player in Message Bubble */
+/* Voice Note Player (Antislop Crafted Waveform & Audio Player) */
+.vn-player-wrapper,
 .voice-note-bubble {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.4rem 0.2rem;
-  min-width: 200px;
+  min-width: 240px;
+  max-width: 320px;
+  padding: 0.25rem 0.15rem 0.2rem;
+  box-sizing: border-box;
 }
 
-.btn-play-vn {
-  width: 36px;
-  height: 36px;
+/* Play / Pause Circular Action Button */
+.vn-play-btn,
+.voice-note-play-btn {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
   border-radius: 50%;
   border: none;
-  background: rgba(255, 255, 255, 0.18);
-  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
-  transition: transform 0.15s ease, background 0.15s ease;
+  transition: transform var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast);
+  padding: 0;
 }
 
-.btn-play-vn:hover {
-  transform: scale(1.08);
-  background: rgba(255, 255, 255, 0.28);
+.vn-play-btn:focus-visible,
+.voice-note-play-btn:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
 }
 
-.message-row.other .btn-play-vn {
-  background: rgba(124, 58, 237, 0.2);
-  color: #a78bfa;
+.vn-play-btn svg,
+.voice-note-play-btn svg {
+  display: block;
+  transition: transform 0.12s ease;
 }
 
-.message-row.other .btn-play-vn:hover {
-  background: rgba(124, 58, 237, 0.35);
+/* Outgoing (Me) Play Button */
+.message-row.me .vn-play-btn,
+.message-row.me .voice-note-play-btn {
+  background-color: rgba(255, 255, 255, 0.22);
   color: #ffffff;
 }
 
-.vn-track-wrapper {
+.message-row.me .vn-play-btn:hover,
+.message-row.me .voice-note-play-btn:hover {
+  background-color: rgba(255, 255, 255, 0.35);
+  transform: scale(1.05);
+}
+
+.message-row.me .vn-play-btn:active,
+.message-row.me .voice-note-play-btn:active {
+  transform: scale(0.95);
+}
+
+/* Incoming (Other) Play Button */
+.message-row.other .vn-play-btn,
+.message-row.other .voice-note-play-btn {
+  background-color: var(--accent-primary, #7c3aed);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);
+}
+
+.message-row.other .vn-play-btn:hover,
+.message-row.other .voice-note-play-btn:hover {
+  background-color: var(--accent-hover, #6d28d9);
+  transform: scale(1.05);
+}
+
+.message-row.other .vn-play-btn:active,
+.message-row.other .voice-note-play-btn:active {
+  transform: scale(0.95);
+}
+
+/* Player Content Body */
+.vn-content {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   flex: 1;
-  gap: 4px;
+  min-width: 0;
+  gap: 0.35rem;
 }
 
-.vn-progress-bar-bg {
-  width: 100%;
-  height: 5px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 9999px;
-  overflow: hidden;
+/* Interactive Waveform Track */
+.vn-waveform-track,
+.voice-note-waveform {
+  display: flex;
+  align-items: center;
+  gap: 2.5px;
+  height: 26px;
   cursor: pointer;
+  padding: 2px 0;
+  user-select: none;
+  touch-action: manipulation;
 }
 
-.message-row.other .vn-progress-bar-bg {
-  background: rgba(255, 255, 255, 0.08);
+.vn-waveform-track:hover .vn-bar,
+.voice-note-waveform:hover .vn-bar {
+  opacity: 0.95;
 }
 
-.vn-progress-fill {
-  height: 100%;
-  width: 0%;
-  background: #ffffff;
+/* Individual Waveform Bar */
+.vn-bar {
+  flex: 1;
+  width: 3px;
+  min-width: 2px;
+  max-width: 4px;
+  min-height: 4px;
   border-radius: 9999px;
-  transition: width 0.1s linear;
+  transition: background-color 0.1s ease, transform 0.1s ease;
 }
 
-.message-row.other .vn-progress-fill {
-  background: var(--accent-primary, #7c3aed);
+/* Outgoing Waveform Bars */
+.message-row.me .vn-bar {
+  background-color: rgba(255, 255, 255, 0.35);
 }
 
-.vn-duration-label {
-  font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.8);
-  font-family: monospace;
+.message-row.me .vn-bar.active {
+  background-color: #ffffff;
 }
 
-.message-row.other .vn-duration-label {
-  color: var(--text-muted, #94a3b8);
+/* Incoming Waveform Bars */
+.message-row.other .vn-bar {
+  background-color: rgba(255, 255, 255, 0.18);
+}
+
+.message-row.other .vn-bar.active {
+  background-color: var(--accent-primary, #a78bfa);
+}
+
+/* Bottom Information Row: Timer & Speed Badge */
+.vn-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  line-height: 1;
+}
+
+.vn-timer,
+.voice-note-duration {
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.message-row.me .vn-timer,
+.message-row.me .voice-note-duration {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.message-row.other .vn-timer,
+.message-row.other .voice-note-duration {
+  color: var(--text-secondary, #94a3b8);
+}
+
+/* Playback Speed Chip */
+.vn-speed-btn {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  border-radius: 10px;
+  padding: 2px 7px;
+  line-height: 1.2;
+  cursor: pointer;
+  border: none;
+  transition: background-color var(--transition-fast), transform 0.12s ease;
+}
+
+.message-row.me .vn-speed-btn {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.message-row.me .vn-speed-btn:hover {
+  background-color: rgba(255, 255, 255, 0.32);
+  transform: scale(1.05);
+}
+
+.message-row.other .vn-speed-btn {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary, #94a3b8);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.message-row.other .vn-speed-btn:hover {
+  background-color: rgba(124, 58, 237, 0.15);
+  color: #c4b5fd;
+  border-color: rgba(124, 58, 237, 0.35);
+  transform: scale(1.05);
 }
 
 /* Pinned & Muted Indicators in Sidebar */
