@@ -606,10 +606,21 @@
     })();
 
     // API Request Wrapper
-    async function apiRequest(endpoint, options = {}) {
+    async function apiRequest(endpoint, options = {}, maybeBody = null) {
+        // Normalize polymorphic signature: apiRequest('/path', 'POST', { ... })
+        if (typeof options === 'string') {
+            const method = options.toUpperCase();
+            options = {
+                method,
+                ...(maybeBody ? { body: (typeof maybeBody === 'string' || maybeBody instanceof FormData) ? maybeBody : JSON.stringify(maybeBody) } : {})
+            };
+        } else if (options && options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+            options.body = JSON.stringify(options.body);
+        }
+
         const headers = {
             'Accept': 'application/json',
-            'Content-Type': 'application/json',
+            ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
             ...(state.token ? { 'Authorization': `Bearer ${state.token}` } : {}),
             ...(options.headers || {})
         };
@@ -1179,9 +1190,12 @@
         const targetType = isGroup ? 'group' : 'direct';
 
         try {
-            const res = await apiRequest('/chat-preferences/pin', 'POST', {
-                target_type: targetType,
-                target_id: targetId
+            const res = await apiRequest('/chat-preferences/pin', {
+                method: 'POST',
+                body: JSON.stringify({
+                    target_type: targetType,
+                    target_id: targetId
+                })
             });
             if (res) {
                 if (res.is_pinned) {
@@ -1208,9 +1222,12 @@
         const targetType = isGroup ? 'group' : 'direct';
 
         try {
-            const res = await apiRequest('/chat-preferences/mute', 'POST', {
-                target_type: targetType,
-                target_id: targetId
+            const res = await apiRequest('/chat-preferences/mute', {
+                method: 'POST',
+                body: JSON.stringify({
+                    target_type: targetType,
+                    target_id: targetId
+                })
             });
             if (res) {
                 if (res.is_muted) {
@@ -1242,9 +1259,12 @@
         }
 
         try {
-            const res = await apiRequest('/starred-messages/toggle', 'POST', {
-                message_type: isGroup ? 'group' : 'direct',
-                message_id: msg.id
+            const res = await apiRequest('/starred-messages/toggle', {
+                method: 'POST',
+                body: JSON.stringify({
+                    message_type: isGroup ? 'group' : 'direct',
+                    message_id: msg.id
+                })
             });
             if (res) {
                 msg.is_starred = Boolean(res.is_starred);
@@ -2858,10 +2878,13 @@
         // Persist to backend database if message has an ID
         if (target.id) {
             try {
-                const res = await apiRequest('/reactions/toggle', 'POST', {
-                    message_id: target.id,
-                    message_type: state.activeContact.is_group ? 'group' : 'direct',
-                    emoji: emoji
+                const res = await apiRequest('/reactions/toggle', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        message_id: target.id,
+                        message_type: state.activeContact.is_group ? 'group' : 'direct',
+                        emoji: emoji
+                    })
                 });
                 if (res && res.reactions) {
                     target.reactions = res.reactions;
