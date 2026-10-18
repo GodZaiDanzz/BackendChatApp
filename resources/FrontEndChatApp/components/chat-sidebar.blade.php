@@ -697,6 +697,28 @@
                 </div>
 
                 <div class="subpanel-card">
+                    <div class="subpanel-card-title">Tanya Jawab Populer (FAQ)</div>
+                    <div class="faq-accordion-group" style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.65rem;">
+                        <details style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.65rem; cursor: pointer;">
+                            <summary style="font-size: 0.825rem; font-weight: 600; color: var(--text-primary); user-select: none;">Bagaimana cara panggilan suara atau video?</summary>
+                            <p style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.5rem; line-height: 1.45;">Buka percakapan dengan kontak yang ingin Anda hubungi, lalu klik ikon Telepon atau Kamera Video di pojok kanan atas layar percakapan.</p>
+                        </details>
+                        <details style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.65rem; cursor: pointer;">
+                            <summary style="font-size: 0.825rem; font-weight: 600; color: var(--text-primary); user-select: none;">Bagaimana cara merekam pesan suara (voice note)?</summary>
+                            <p style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.5rem; line-height: 1.45;">Klik ikon mikrofon di bilah input pesan. Rekaman akan dimulai dengan timer live. Klik tombol kirim ungu untuk mengirim, atau tombol batal untuk menghapusnya.</p>
+                        </details>
+                        <details style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.65rem; cursor: pointer;">
+                            <summary style="font-size: 0.825rem; font-weight: 600; color: var(--text-primary); user-select: none;">Bagaimana cara menyematkan (pin) chat ke atas?</summary>
+                            <p style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.5rem; line-height: 1.45;">Klik tombol menu titik tiga di bilah atas obrolan aktif, lalu pilih 'Sematkan Obrolan'. Obrolan akan berada di posisi teratas daftar sidebar dengan ikon pin.</p>
+                        </details>
+                        <details style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0.65rem; cursor: pointer;">
+                            <summary style="font-size: 0.825rem; font-weight: 600; color: var(--text-primary); user-select: none;">Apakah pesan saya dilindungi enkripsi?</summary>
+                            <p style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.5rem; line-height: 1.45;">Ya. Semua isi pesan teks dan media dilindungi enkripsi AES-256 dan transmisi aman TLS/WSS secara real-time.</p>
+                        </details>
+                    </div>
+                </div>
+
+                <div class="subpanel-card">
                     <div class="subpanel-card-title">Pengembang Aplikasi</div>
                     <div class="subpanel-card-desc" style="color: var(--text-primary); font-size: 0.875rem; margin-top: 2px;">
                         Muhammad Zaidan

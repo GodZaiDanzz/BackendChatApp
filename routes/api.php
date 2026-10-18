@@ -47,6 +47,22 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/typing', [MessageController::class, 'typing']);
     Route::get('/typing-status', [MessageController::class, 'typingStatus']);
 
+    // Message Reactions
+    Route::post('/reactions/toggle', [\App\Http\Controllers\ReactionController::class, 'toggle']);
+    Route::post('/reactions/batch', [\App\Http\Controllers\ReactionController::class, 'batch']);
+
+    // Chat Preferences (Pin, Mute, Starred Messages)
+    Route::get('/chats/preferences', [\App\Http\Controllers\ChatPreferenceController::class, 'index']);
+    Route::get('/chat-preferences', [\App\Http\Controllers\ChatPreferenceController::class, 'index']);
+    Route::post('/chats/pin', [\App\Http\Controllers\ChatPreferenceController::class, 'togglePin']);
+    Route::post('/chat-preferences/pin', [\App\Http\Controllers\ChatPreferenceController::class, 'togglePin']);
+    Route::post('/chats/mute', [\App\Http\Controllers\ChatPreferenceController::class, 'toggleMute']);
+    Route::post('/chat-preferences/mute', [\App\Http\Controllers\ChatPreferenceController::class, 'toggleMute']);
+    Route::get('/messages/starred', [\App\Http\Controllers\ChatPreferenceController::class, 'starred']);
+    Route::get('/starred-messages', [\App\Http\Controllers\ChatPreferenceController::class, 'starred']);
+    Route::post('/messages/star', [\App\Http\Controllers\ChatPreferenceController::class, 'toggleStar']);
+    Route::post('/starred-messages/toggle', [\App\Http\Controllers\ChatPreferenceController::class, 'toggleStar']);
+
     // Group messaging and management
     Route::get('/groups', [GroupController::class, 'index']);
     Route::post('/groups', [GroupController::class, 'store']);

@@ -200,8 +200,20 @@
         myTypingTimeout: null,
         conversationKeys: {},
         callLogs: [],
+        pinnedChats: { direct: new Set(), group: new Set() },
+        mutedChats: { direct: new Set(), group: new Set() },
+        voiceNote: {
+            isRecording: false,
+            mediaRecorder: null,
+            audioChunks: [],
+            timerInterval: null,
+            seconds: 0,
+            stream: null
+        },
         voice: {
             active: false,
+            isVideo: false,
+            cameraOff: false,
             roomType: null,
             groupId: null,
             targetUserId: null,
@@ -1093,6 +1105,158 @@
         }
     }
 
+    async function fetchChatPreferences() {
+        if (!state.token) return;
+        try {
+            const data = await apiRequest('/chat-preferences');
+            if (data) {
+                state.pinnedChats = {
+                    direct: new Set((data.pinned_direct_ids || []).map(Number)),
+                    group: new Set((data.pinned_group_ids || []).map(Number))
+                };
+                state.mutedChats = {
+                    direct: new Set((data.muted_direct_ids || []).map(Number)),
+                    group: new Set((data.muted_group_ids || []).map(Number))
+                };
+                renderChatsList();
+                updateChatPreferencesUI();
+            }
+        } catch (e) {
+            console.warn('Gagal memuat preferensi obrolan:', e);
+        }
+    }
+
+    function isChatMuted(id, isGroup = false) {
+        if (!id) return false;
+        const numId = Number(id);
+        if (isGroup) {
+            return state.mutedChats?.group?.has(numId) ?? false;
+        }
+        return state.mutedChats?.direct?.has(numId) ?? false;
+    }
+
+    function isChatPinned(id, isGroup = false) {
+        if (!id) return false;
+        const numId = Number(id);
+        if (isGroup) {
+            return state.pinnedChats?.group?.has(numId) ?? false;
+        }
+        return state.pinnedChats?.direct?.has(numId) ?? false;
+    }
+
+    function updateChatPreferencesUI() {
+        if (!state.activeContact) return;
+        const isGroup = Boolean(state.activeContact.is_group);
+        const targetId = isGroup ? Number(state.activeContact.group_id || state.activeContact.id) : Number(state.activeContact.id);
+        const pinned = isChatPinned(targetId, isGroup);
+        const muted = isChatMuted(targetId, isGroup);
+
+        const pinLabel = document.getElementById('menuItemPinLabel');
+        if (pinLabel) {
+            pinLabel.textContent = pinned ? 'Lepas Sematan Obrolan' : 'Sematkan Obrolan';
+        }
+
+        const muteLabel = document.getElementById('menuItemMuteLabel');
+        if (muteLabel) {
+            muteLabel.textContent = muted ? 'Bunyikan Notifikasi' : 'Bisukan Notifikasi';
+        }
+
+        const infoMuteBtn = document.getElementById('btnInfoMuteToggle');
+        const infoMuteLabel = document.getElementById('infoMuteLabel');
+        if (infoMuteBtn) {
+            infoMuteBtn.classList.toggle('active', muted);
+            infoMuteBtn.style.color = muted ? '#ef4444' : '';
+        }
+        if (infoMuteLabel) {
+            infoMuteLabel.textContent = muted ? 'Dibisukan' : 'Senyap';
+        }
+    }
+
+    window.handleTogglePinCurrentChat = async function () {
+        if (!state.activeContact) return;
+        const isGroup = Boolean(state.activeContact.is_group);
+        const targetId = isGroup ? Number(state.activeContact.group_id || state.activeContact.id) : Number(state.activeContact.id);
+        const targetType = isGroup ? 'group' : 'direct';
+
+        try {
+            const res = await apiRequest('/chat-preferences/pin', 'POST', {
+                target_type: targetType,
+                target_id: targetId
+            });
+            if (res) {
+                if (res.is_pinned) {
+                    if (isGroup) state.pinnedChats.group.add(targetId);
+                    else state.pinnedChats.direct.add(targetId);
+                    showToast('Obrolan disematkan ke atas 📌', 'success');
+                } else {
+                    if (isGroup) state.pinnedChats.group.delete(targetId);
+                    else state.pinnedChats.direct.delete(targetId);
+                    showToast('Sematan obrolan dilepas', 'info');
+                }
+                renderChatsList();
+                updateChatPreferencesUI();
+            }
+        } catch (e) {
+            showToast('Gagal mengubah status sematan: ' + e.message, 'error');
+        }
+    };
+
+    window.handleToggleMuteCurrentChat = async function () {
+        if (!state.activeContact) return;
+        const isGroup = Boolean(state.activeContact.is_group);
+        const targetId = isGroup ? Number(state.activeContact.group_id || state.activeContact.id) : Number(state.activeContact.id);
+        const targetType = isGroup ? 'group' : 'direct';
+
+        try {
+            const res = await apiRequest('/chat-preferences/mute', 'POST', {
+                target_type: targetType,
+                target_id: targetId
+            });
+            if (res) {
+                if (res.is_muted) {
+                    if (isGroup) state.mutedChats.group.add(targetId);
+                    else state.mutedChats.direct.add(targetId);
+                    showToast('Notifikasi obrolan dibisukan 🔕', 'info');
+                } else {
+                    if (isGroup) state.mutedChats.group.delete(targetId);
+                    else state.mutedChats.direct.delete(targetId);
+                    showToast('Notifikasi obrolan dibunyikan 🔔', 'success');
+                }
+                renderChatsList();
+                updateChatPreferencesUI();
+            }
+        } catch (e) {
+            showToast('Gagal mengubah status bisu notifikasi: ' + e.message, 'error');
+        }
+    };
+
+    window.handleToggleStarMessage = async function (msgIdentifier) {
+        if (!state.activeContact) return;
+        const isGroup = Boolean(state.activeContact.is_group);
+        const chatKey = state.activeContact.id;
+        const msgs = state.chats[chatKey] || [];
+        const msg = msgs.find(m => String(m.id) === String(msgIdentifier) || (m.client_uuid && String(m.client_uuid) === String(msgIdentifier)));
+        if (!msg || !msg.id) {
+            showToast('Pesan belum tersinkronisasi ke server', 'info');
+            return;
+        }
+
+        try {
+            const res = await apiRequest('/starred-messages/toggle', 'POST', {
+                message_type: isGroup ? 'group' : 'direct',
+                message_id: msg.id
+            });
+            if (res) {
+                msg.is_starred = Boolean(res.is_starred);
+                persistMessages();
+                renderActiveMessages();
+                showToast(res.is_starred ? 'Pesan dibintangi ⭐' : 'Bintang pesan dihapus', 'info');
+            }
+        } catch (e) {
+            showToast('Gagal membintangi pesan: ' + e.message, 'error');
+        }
+    };
+
     async function fetchRequests() {
         try {
             const data = await apiRequest('/contacts/requests');
@@ -1263,6 +1427,8 @@
             const msgs = state.chats[contact.id] || [];
             const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
             const lastTime = lastMsg ? new Date(lastMsg.created_at || 0).getTime() : 0;
+            const isPinned = state.pinnedChats && state.pinnedChats.direct && state.pinnedChats.direct.has(Number(contact.id));
+            const isMuted = state.mutedChats && state.mutedChats.direct && state.mutedChats.direct.has(Number(contact.id));
             conversationItems.push({
                 is_group: false,
                 id: contact.id,
@@ -1270,6 +1436,8 @@
                 display_name: contact.display_name,
                 username: contact.username,
                 is_online: Boolean(contact.is_online),
+                is_pinned: Boolean(isPinned),
+                is_muted: Boolean(isMuted),
                 lastMsg: lastMsg,
                 lastTime: lastTime,
                 unread: state.unread[contact.id] || 0
@@ -1281,6 +1449,8 @@
             const msgs = state.chats[chatKey] || [];
             const lastMsg = msgs.length ? msgs[msgs.length - 1] : group.last_message;
             const lastTime = lastMsg ? new Date(lastMsg.created_at || 0).getTime() : (group.created_at ? new Date(group.created_at).getTime() : 0);
+            const isPinned = state.pinnedChats && state.pinnedChats.group && state.pinnedChats.group.has(Number(group.id));
+            const isMuted = state.mutedChats && state.mutedChats.group && state.mutedChats.group.has(Number(group.id));
             conversationItems.push({
                 is_group: true,
                 id: chatKey,
@@ -1289,6 +1459,8 @@
                 display_name: group.name,
                 username: `${group.members_count || (group.members ? group.members.length : 1)} anggota`,
                 is_online: true,
+                is_pinned: Boolean(isPinned),
+                is_muted: Boolean(isMuted),
                 lastMsg: lastMsg,
                 lastTime: lastTime,
                 unread: state.unread[chatKey] || 0
@@ -1304,7 +1476,12 @@
             return;
         }
 
-        conversationItems.sort((a, b) => b.lastTime - a.lastTime);
+        conversationItems.sort((a, b) => {
+            if (a.is_pinned !== b.is_pinned) {
+                return a.is_pinned ? -1 : 1;
+            }
+            return b.lastTime - a.lastTime;
+        });
 
         const q = filterQuery.toLowerCase();
         const filtered = conversationItems.filter(item => {
@@ -1321,6 +1498,13 @@
         }
 
         container.innerHTML = filtered.map(item => {
+            const metaTagsHtml = `
+                <span class="chat-meta-tags">
+                    ${item.is_pinned ? '<span class="chat-pin-icon" title="Disematkan"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="17" x2="12" y2="22"></line><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6a3 3 0 0 0-6 0v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z"></path></svg></span>' : ''}
+                    ${item.is_muted ? '<span class="chat-mute-icon" title="Notifikasi dibisukan"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path><line x1="2" y1="2" x2="22" y2="22"></line></svg></span>' : ''}
+                </span>
+            `;
+
             if (item.is_group) {
                 const group = item.raw;
                 const lastMsg = item.lastMsg;
@@ -1360,6 +1544,7 @@
                             <div class="list-item-header">
                                 <span class="list-item-title" style="display: flex; align-items: center; gap: 4px;">
                                     <span>${escapeHtml(group.name)}</span>
+                                    ${metaTagsHtml}
                                 </span>
                                 <span class="list-item-time">${timeText}</span>
                             </div>
@@ -1399,7 +1584,10 @@
                     </div>
                     <div class="list-item-content">
                         <div class="list-item-header">
-                            <span class="list-item-title">${escapeHtml(contact.display_name)}</span>
+                            <span class="list-item-title" style="display: flex; align-items: center; gap: 4px;">
+                                <span>${escapeHtml(contact.display_name)}</span>
+                                ${metaTagsHtml}
+                            </span>
                             <span class="list-item-time">${timeText}</span>
                         </div>
                         <div class="list-item-preview">
@@ -2037,8 +2225,9 @@
         showToast(`${name} sedang disiapkan.`, 'info');
     };
 
-    function playMessageChime() {
+    function playMessageChime(sourceId = null, isGroup = false) {
         if (!state.soundEnabled) return;
+        if (sourceId && isChatMuted(sourceId, isGroup)) return;
         try {
             const AudioCtx = window.AudioContext || window.webkitAudioContext;
             if (!AudioCtx) return;
@@ -2640,15 +2829,17 @@
         }
     };
 
-    window.toggleMessageReaction = function (msgIdentifier, emoji) {
+    window.toggleMessageReaction = async function (msgIdentifier, emoji) {
         if (!state.activeContact || !state.user) return;
-        const msgs = state.chats[state.activeContact.id] || [];
+        const chatKey = state.activeContact.id;
+        const msgs = state.chats[chatKey] || [];
         const target = msgs.find(m => String(m.id) === String(msgIdentifier) || (m.client_uuid && String(m.client_uuid) === String(msgIdentifier)));
         if (!target) return;
 
         if (!target.reactions) target.reactions = {};
         const userName = state.user.display_name || state.user.username;
 
+        // Optimistic UI toggle
         if (!target.reactions[emoji]) {
             target.reactions[emoji] = [userName];
         } else {
@@ -2663,6 +2854,25 @@
 
         persistMessages();
         renderActiveMessages();
+
+        // Persist to backend database if message has an ID
+        if (target.id) {
+            try {
+                const res = await apiRequest('/reactions/toggle', 'POST', {
+                    message_id: target.id,
+                    message_type: state.activeContact.is_group ? 'group' : 'direct',
+                    emoji: emoji
+                });
+                if (res && res.reactions) {
+                    target.reactions = res.reactions;
+                    try { await AppDB.saveMessage(target, state.user.id); } catch (e) { }
+                    persistMessages();
+                    renderActiveMessages();
+                }
+            } catch (err) {
+                console.warn('Gagal sinkronisasi reaksi ke server:', err);
+            }
+        }
     };
 
     window.openAddFriendModal = function () {
@@ -2930,6 +3140,8 @@
         if (btnHeaderEdit) btnHeaderEdit.style.display = 'none';
         if (btnEditAction) btnEditAction.style.display = 'none';
 
+        updateChatPreferencesUI();
+
         // Focus message input
         const input = document.getElementById('messageInput');
         if (input) input.focus();
@@ -3061,6 +3273,8 @@
                 }, 40);
             }
         }
+
+        updateChatPreferencesUI();
 
         const input = document.getElementById('messageInput');
         if (input) input.focus();
@@ -4050,8 +4264,28 @@
             if (att && !isDeleted) {
                 const fileUrl = att.url || att.dataUrl || '#';
                 const isImage = (att.type && att.type.startsWith('image/')) || (att.name && att.name.match(/\.(jpeg|jpg|png|gif|webp|svg)$/i));
+                const isAudio = (att.type && att.type.startsWith('audio/')) || (att.name && att.name.match(/\.(webm|ogg|mp3|wav|m4a|aac)$/i)) || Boolean(att.is_audio);
 
-                if (isImage) {
+                if (isAudio) {
+                    const audioId = 'audio_' + (msg.id || msg.client_uuid || Math.random().toString(36).substr(2, 9));
+                    attachmentHtml = `
+                        <div class="voice-note-bubble" data-audio-id="${audioId}">
+                            <button type="button" class="voice-note-play-btn" onclick="togglePlayVoiceNote('${audioId}')" aria-label="Putar rekaman suara">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                    <polygon points="5 3 19 12 5 21 5"></polygon>
+                                </svg>
+                            </button>
+                            <div class="voice-note-waveform">
+                                <div class="voice-note-progress" id="progress_${audioId}"></div>
+                                <div class="voice-note-bars" aria-hidden="true">
+                                    <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                                </div>
+                            </div>
+                            <span class="voice-note-duration" id="duration_${audioId}">0:00</span>
+                            <audio id="${audioId}" src="${fileUrl}" preload="metadata" ontimeupdate="updateVoiceNoteProgress('${audioId}')" onended="onVoiceNoteEnded('${audioId}')" onloadedmetadata="initVoiceNoteDuration('${audioId}')"></audio>
+                        </div>
+                    `;
+                } else if (isImage) {
                     attachmentHtml = `
                         <div class="bubble-attachment-image">
                             <a href="${fileUrl}" target="_blank" rel="noopener noreferrer" title="Buka gambar penuh">
@@ -4078,7 +4312,7 @@
             }
 
             let renderedBody = '';
-            const isPlaceholderBody = att && msg.body && (msg.body === `[Berkas: ${att.name}]` || msg.body.startsWith('[Berkas:'));
+            const isPlaceholderBody = att && msg.body && (msg.body === `[Berkas: ${att.name}]` || msg.body.startsWith('[Berkas:') || msg.body.startsWith('[Pesan Suara'));
             if (!isPlaceholderBody && msg.body) {
                 let safeBody = escapeHtml(msg.body).replace(/\n/g, '<br>');
                 if (state.inChatSearchQuery && !isDeleted) {
@@ -4144,8 +4378,15 @@
                                         <path d="M20 18v-2a4 4 0 0 0-4-4H4"></path>
                                     </svg>
                                 </button>
+                                <button type="button" class="btn-msg-action ${msg.is_starred ? 'active' : ''}" onclick="handleToggleStarMessage('${safeIdAttr}')" title="${msg.is_starred ? 'Hapus bintang' : 'Bintangi pesan'}" aria-label="Bintang pesan">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="${msg.is_starred ? '#f59e0b' : 'none'}" stroke="${msg.is_starred ? '#f59e0b' : 'currentColor'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                    </svg>
+                                </button>
                                 <button type="button" class="btn-msg-action" onclick="toggleMessageReaction('${safeIdAttr}', '👍')" title="Suka" aria-label="Suka">👍</button>
                                 <button type="button" class="btn-msg-action" onclick="toggleMessageReaction('${safeIdAttr}', '❤️')" title="Cinta" aria-label="Cinta">❤️</button>
+                                <button type="button" class="btn-msg-action" onclick="toggleMessageReaction('${safeIdAttr}', '😂')" title="Tertawa" aria-label="Tertawa">😂</button>
+                                <button type="button" class="btn-msg-action" onclick="toggleMessageReaction('${safeIdAttr}', '🙏')" title="Terima kasih" aria-label="Terima kasih">🙏</button>
                                 ${isMe ? `
                                     <button type="button" class="btn-msg-action" onclick="startEditMessage('${safeIdAttr}')" title="Edit pesan" aria-label="Edit pesan">
                                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -4275,12 +4516,12 @@
         }
     }
 
-    window.handleSendMessage = async function (e) {
+    window.handleSendMessage = async function (e, explicitBody = null) {
         if (e) e.preventDefault();
         if (!state.activeContact) return;
 
         const textarea = document.getElementById('messageInput');
-        const body = (textarea ? textarea.value : '').trim();
+        const body = (explicitBody !== null ? explicitBody : (textarea ? textarea.value : '')).trim();
         const hasAttachment = Boolean(state.selectedAttachment);
         if (!body && !hasAttachment) return;
 
@@ -4373,8 +4614,10 @@
             renderActiveMessages();
             renderChatsList();
 
-            textarea.value = '';
-            textarea.style.height = 'auto';
+            if (explicitBody === null && textarea) {
+                textarea.value = '';
+                textarea.style.height = 'auto';
+            }
             window.cancelReplyMessage();
             window.cancelAttachment();
 
@@ -4430,8 +4673,10 @@
         renderActiveMessages();
         renderChatsList();
 
-        textarea.value = '';
-        textarea.style.height = 'auto';
+        if (explicitBody === null && textarea) {
+            textarea.value = '';
+            textarea.style.height = 'auto';
+        }
 
         window.cancelReplyMessage();
         window.cancelAttachment();
@@ -4464,6 +4709,240 @@
             }
         } catch (err) {
             showToast('Gagal mengirim pesan: ' + err.message, 'error');
+        }
+    };
+
+    // ==========================================
+    // Voice Note (Pesan Suara) Handlers
+    // ==========================================
+
+    window.startVoiceNoteRecording = async function () {
+        if (!state.activeContact) {
+            showToast('Pilih kontak atau grup terlebih dahulu.', 'info');
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            state.voiceNote.stream = stream;
+            state.voiceNote.audioChunks = [];
+            state.voiceNote.seconds = 0;
+
+            let mimeType = 'audio/webm;codecs=opus';
+            if (typeof MediaRecorder !== 'undefined') {
+                if (!MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                    if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+                        mimeType = 'audio/ogg;codecs=opus';
+                    } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                        mimeType = 'audio/mp4';
+                    } else {
+                        mimeType = '';
+                    }
+                }
+            }
+
+            const mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+            state.voiceNote.mediaRecorder = mediaRecorder;
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data && event.data.size > 0) {
+                    state.voiceNote.audioChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.start(200);
+            state.voiceNote.isRecording = true;
+
+            const form = document.getElementById('messageForm');
+            const bar = document.getElementById('voiceNoteRecordingBar');
+            const timerEl = document.getElementById('voiceNoteDurationText');
+            if (form) form.style.display = 'none';
+            if (bar) bar.style.display = 'flex';
+            if (timerEl) timerEl.textContent = '00:00';
+
+            if (state.voiceNote.timerInterval) clearInterval(state.voiceNote.timerInterval);
+            state.voiceNote.timerInterval = setInterval(() => {
+                state.voiceNote.seconds++;
+                const mins = String(Math.floor(state.voiceNote.seconds / 60)).padStart(2, '0');
+                const secs = String(state.voiceNote.seconds % 60).padStart(2, '0');
+                if (timerEl) timerEl.textContent = `${mins}:${secs}`;
+            }, 1000);
+
+        } catch (err) {
+            console.error('Gagal mengakses mikrofon untuk rekaman suara:', err);
+            showToast('Tidak dapat merekam: Pastikan izin mikrofon telah diberikan di browser.', 'error');
+        }
+    };
+
+    window.cancelVoiceNoteRecording = function () {
+        if (!state.voiceNote.isRecording && !state.voiceNote.mediaRecorder) return;
+        cleanupVoiceNoteRecording();
+        showToast('Rekaman suara dibatalkan', 'info');
+    };
+
+    function cleanupVoiceNoteRecording() {
+        if (state.voiceNote.timerInterval) {
+            clearInterval(state.voiceNote.timerInterval);
+            state.voiceNote.timerInterval = null;
+        }
+        if (state.voiceNote.mediaRecorder && state.voiceNote.mediaRecorder.state !== 'inactive') {
+            try { state.voiceNote.mediaRecorder.stop(); } catch (e) { }
+        }
+        if (state.voiceNote.stream) {
+            state.voiceNote.stream.getTracks().forEach(t => { try { t.stop(); } catch (e) { } });
+            state.voiceNote.stream = null;
+        }
+        state.voiceNote.mediaRecorder = null;
+        state.voiceNote.audioChunks = [];
+        state.voiceNote.isRecording = false;
+        state.voiceNote.seconds = 0;
+
+        const form = document.getElementById('messageForm');
+        const bar = document.getElementById('voiceNoteRecordingBar');
+        if (bar) bar.style.display = 'none';
+        if (form) form.style.display = 'flex';
+    }
+
+    window.stopAndSendVoiceNoteRecording = async function () {
+        if (!state.voiceNote.isRecording || !state.voiceNote.mediaRecorder) return;
+        const durationSec = state.voiceNote.seconds;
+        if (durationSec < 1) {
+            showToast('Pesan suara terlalu singkat.', 'info');
+            cleanupVoiceNoteRecording();
+            return;
+        }
+
+        const recorder = state.voiceNote.mediaRecorder;
+        recorder.onstop = async () => {
+            const blobType = recorder.mimeType || 'audio/webm';
+            const audioBlob = new Blob(state.voiceNote.audioChunks, { type: blobType });
+            const ext = blobType.includes('ogg') ? 'ogg' : (blobType.includes('mp4') ? 'mp4' : 'webm');
+            const fileName = `voice_note_${Date.now()}.${ext}`;
+            const audioFile = new File([audioBlob], fileName, { type: blobType });
+
+            cleanupVoiceNoteRecording();
+
+            showToast('Mengunggah pesan suara...', 'info');
+            try {
+                const uploadRes = await uploadAttachmentFile(audioFile);
+                if (uploadRes && uploadRes.url) {
+                    state.selectedAttachment = {
+                        name: fileName,
+                        size: audioFile.size,
+                        type: blobType,
+                        url: uploadRes.url,
+                        is_audio: true,
+                        duration: durationSec
+                    };
+                    const mins = Math.floor(durationSec / 60);
+                    const secs = String(durationSec % 60).padStart(2, '0');
+                    await window.handleSendMessage(null, `[Pesan Suara ${mins}:${secs}]`);
+                    showToast('Pesan suara terkirim!', 'success');
+                }
+            } catch (err) {
+                console.error('Gagal mengirim pesan suara:', err);
+                showToast('Gagal mengirim pesan suara: ' + err.message, 'error');
+            }
+        };
+
+        try {
+            recorder.stop();
+        } catch (e) {
+            cleanupVoiceNoteRecording();
+        }
+    };
+
+    window.togglePlayVoiceNote = function (audioId) {
+        const audioEl = document.getElementById(audioId);
+        if (!audioEl) return;
+        const btn = audioEl.closest('.voice-note-bubble')?.querySelector('.voice-note-play-btn');
+
+        document.querySelectorAll('.voice-note-bubble audio').forEach(other => {
+            if (other.id !== audioId && !other.paused) {
+                other.pause();
+                const otherBtn = other.closest('.voice-note-bubble')?.querySelector('.voice-note-play-btn');
+                if (otherBtn) {
+                    otherBtn.innerHTML = `
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5 3 19 12 5 21 5"></polygon>
+                        </svg>
+                    `;
+                }
+            }
+        });
+
+        if (audioEl.paused) {
+            audioEl.play().then(() => {
+                if (btn) {
+                    btn.innerHTML = `
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <rect x="6" y="4" width="4" height="16"></rect>
+                            <rect x="14" y="4" width="4" height="16"></rect>
+                        </svg>
+                    `;
+                }
+            }).catch(err => console.warn('Gagal memutar audio:', err));
+        } else {
+            audioEl.pause();
+            if (btn) {
+                btn.innerHTML = `
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5"></polygon>
+                    </svg>
+                `;
+            }
+        }
+    };
+
+    window.updateVoiceNoteProgress = function (audioId) {
+        const audioEl = document.getElementById(audioId);
+        if (!audioEl) return;
+        const progressEl = document.getElementById(`progress_${audioId}`);
+        const durEl = document.getElementById(`duration_${audioId}`);
+
+        const current = audioEl.currentTime || 0;
+        const duration = audioEl.duration || 0;
+        if (duration > 0 && progressEl) {
+            const pct = (current / duration) * 100;
+            progressEl.style.width = `${pct}%`;
+        }
+        if (durEl) {
+            const remaining = Math.max(0, duration - current);
+            const mins = Math.floor(remaining / 60);
+            const secs = String(Math.floor(remaining % 60)).padStart(2, '0');
+            durEl.textContent = `${mins}:${secs}`;
+        }
+    };
+
+    window.onVoiceNoteEnded = function (audioId) {
+        const audioEl = document.getElementById(audioId);
+        if (!audioEl) return;
+        const btn = audioEl.closest('.voice-note-bubble')?.querySelector('.voice-note-play-btn');
+        if (btn) {
+            btn.innerHTML = `
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5"></polygon>
+                </svg>
+            `;
+        }
+        const progressEl = document.getElementById(`progress_${audioId}`);
+        if (progressEl) progressEl.style.width = '0%';
+        const durEl = document.getElementById(`duration_${audioId}`);
+        if (durEl && audioEl.duration) {
+            const mins = Math.floor(audioEl.duration / 60);
+            const secs = String(Math.floor(audioEl.duration % 60)).padStart(2, '0');
+            durEl.textContent = `${mins}:${secs}`;
+        }
+    };
+
+    window.initVoiceNoteDuration = function (audioId) {
+        const audioEl = document.getElementById(audioId);
+        if (!audioEl || !audioEl.duration || isNaN(audioEl.duration)) return;
+        const durEl = document.getElementById(`duration_${audioId}`);
+        if (durEl) {
+            const mins = Math.floor(audioEl.duration / 60);
+            const secs = String(Math.floor(audioEl.duration % 60)).padStart(2, '0');
+            durEl.textContent = `${mins}:${secs}`;
         }
     };
 
@@ -5227,6 +5706,31 @@
             };
             channel.bind('friend.accepted', onFriendAccepted);
             channel.bind('.friend.accepted', onFriendAccepted);
+
+            const onMessageReaction = async (data) => {
+                if (!data || !data.message_id) return;
+                const msgId = Number(data.message_id);
+                const reactions = data.reactions || {};
+                let found = false;
+                for (const key in state.chats) {
+                    const list = state.chats[key];
+                    const m = list.find(item => Number(item.id) === msgId);
+                    if (m) {
+                        m.reactions = reactions;
+                        found = true;
+                        try { await AppDB.saveMessage(m, state.user.id); } catch (e) { }
+                        break;
+                    }
+                }
+                if (found) {
+                    persistMessages();
+                    if (state.activeContact) {
+                        renderActiveMessages();
+                    }
+                }
+            };
+            channel.bind('message.reaction', onMessageReaction);
+            channel.bind('.message.reaction', onMessageReaction);
         } catch (e) {
             console.warn('Reverb WebSocket initialization error:', e);
         }
@@ -5523,6 +6027,7 @@
         initWebSocket();
         sendHeartbeat();
         fetchContacts();
+        fetchChatPreferences();
         fetchRequests();
         fetchGroups();
         fetchCallLogs();
@@ -5551,6 +6056,10 @@
             if (syncTick % 2 === 0) {
                 fetchContacts();
                 fetchGroups();
+            }
+
+            if (syncTick % 6 === 0) {
+                fetchChatPreferences();
             }
         }, 2000);
     }
@@ -5658,8 +6167,27 @@
         }
     }
 
-    async function getMediaStream() {
-        if (state.voice.localStream) return state.voice.localStream;
+    async function getMediaStream(withVideo = false) {
+        if (state.voice.localStream) {
+            const hasVideo = state.voice.localStream.getVideoTracks().length > 0;
+            if (withVideo && !hasVideo) {
+                try {
+                    const vidStream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
+                    });
+                    const vidTrack = vidStream.getVideoTracks()[0];
+                    state.voice.localStream.addTrack(vidTrack);
+                    for (const pid in state.voice.peerConnections) {
+                        const pc = state.voice.peerConnections[pid];
+                        try { pc.addTrack(vidTrack, state.voice.localStream); } catch (e) { }
+                    }
+                } catch (err) {
+                    console.warn('Gagal menambah track kamera:', err);
+                }
+            }
+            return state.voice.localStream;
+        }
+
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
@@ -5667,14 +6195,14 @@
                     noiseSuppression: true,
                     autoGainControl: true
                 },
-                video: false
+                video: withVideo ? { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' } : false
             });
             state.voice.localStream = stream;
             initVoiceActivityDetection(stream);
             return stream;
         } catch (err) {
-            console.error('Gagal mengakses mikrofon:', err);
-            showToast('Tidak dapat mengakses mikrofon. Pastikan izin mikrofon diberikan di browser.', 'error');
+            console.error('Gagal mengakses perangkat media:', err);
+            showToast('Tidak dapat mengakses mikrofon atau kamera. Pastikan izin telah diberikan di browser.', 'error');
             return null;
         }
     }
@@ -5809,6 +6337,14 @@
             }
             state.voice.remoteStreams[peerId] = remoteStream;
             attachRemoteAudio(peerId, remoteStream);
+
+            if (state.voice.isVideo || event.track.kind === 'video') {
+                const remoteVid = document.getElementById('remoteVideoElement');
+                if (remoteVid) {
+                    remoteVid.srcObject = remoteStream;
+                    remoteVid.play().catch(e => console.warn('Remote video playback error:', e));
+                }
+            }
         };
 
         pc.oniceconnectionstatechange = () => {
@@ -6136,12 +6672,49 @@
         if (state.activeContact.is_group) {
             await window.joinGroupVoiceChannel(state.activeContact.group_id, state.activeContact.name);
         } else {
-            await window.startDirectVoiceCall(state.activeContact.id, state.activeContact.display_name);
+            await window.startDirectVoiceCall(state.activeContact.id, state.activeContact.display_name, false);
         }
     };
 
-    window.startDirectVoiceCall = async function (targetId, targetName) {
-        const stream = await getMediaStream();
+    window.handleStartVideoCall = async function () {
+        if (!state.activeContact) {
+            showToast('Pilih kontak atau grup terlebih dahulu.', 'info');
+            return;
+        }
+
+        if (state.voice.active) {
+            window.openVoiceStage();
+            return;
+        }
+
+        if (state.activeContact.is_group) {
+            showToast('Panggilan video grup akan tersedia di versi berikutnya.', 'info');
+            return;
+        }
+
+        await window.startDirectVoiceCall(state.activeContact.id, state.activeContact.display_name, true);
+    };
+
+    window.handleToggleCamera = function () {
+        if (!state.voice.localStream) return;
+        const vidTracks = state.voice.localStream.getVideoTracks();
+        if (vidTracks.length === 0) return;
+        const willEnable = !vidTracks[0].enabled;
+        vidTracks.forEach(t => t.enabled = willEnable);
+        state.voice.cameraOff = !willEnable;
+
+        const btn = document.getElementById('btnStageToggleCamera');
+        if (btn) {
+            btn.classList.toggle('muted', !willEnable);
+            btn.title = willEnable ? 'Matikan Kamera' : 'Nyalakan Kamera';
+        }
+        showToast(willEnable ? 'Kamera diaktifkan' : 'Kamera dimatikan', 'info');
+    };
+
+    window.startDirectVoiceCall = async function (targetId, targetName, isVideo = false) {
+        state.voice.isVideo = Boolean(isVideo);
+        state.voice.cameraOff = false;
+        const stream = await getMediaStream(isVideo);
         if (!stream) return;
 
         const callUuid = 'call_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -6161,7 +6734,7 @@
 
         const titleEl = document.getElementById('voiceStageTitle');
         if (titleEl) {
-            titleEl.textContent = `Panggilan: ${targetName}`;
+            titleEl.textContent = `${isVideo ? 'Panggilan Video' : 'Panggilan'}: ${targetName}`;
         }
 
         const subtitleEl = document.getElementById('voiceStageSubtitle');
@@ -6174,18 +6747,19 @@
             const pc = createPeerConnection(targetId);
             const offer = await pc.createOffer({
                 offerToReceiveAudio: true,
-                offerToReceiveVideo: false
+                offerToReceiveVideo: Boolean(isVideo)
             });
             await pc.setLocalDescription(offer);
             await sendVoiceSignal(targetId, 'call-offer', {
                 type: offer.type,
                 sdp: normalizeSdp(offer.sdp),
-                call_uuid: callUuid
+                call_uuid: callUuid,
+                is_video: Boolean(isVideo)
             });
             playIncomingRingtone();
         } catch (err) {
-            console.error('Error starting direct voice call:', err);
-            showToast('Gagal memulai panggilan suara: ' + err.message, 'error');
+            console.error('Error starting call:', err);
+            showToast('Gagal memulai panggilan: ' + err.message, 'error');
             handleDisconnectVoiceCall(true);
         }
     };
@@ -6204,8 +6778,10 @@
         const callerId = Number(incoming.sender_id);
         const callerName = incoming.sender_name || 'Kontak';
         const callUuid = incoming.call_uuid || (incoming.data && incoming.data.call_uuid) || null;
+        const isVideo = Boolean(incoming.is_video || (incoming.data && incoming.data.is_video));
+        state.voice.isVideo = isVideo;
 
-        const stream = await getMediaStream();
+        const stream = await getMediaStream(isVideo);
         if (!stream) {
             sendVoiceSignal(callerId, 'call-rejected', { call_uuid: callUuid });
             return;
@@ -6244,22 +6820,23 @@
 
             const answer = await pc.createAnswer({
                 offerToReceiveAudio: true,
-                offerToReceiveVideo: false
+                offerToReceiveVideo: isVideo
             });
             await pc.setLocalDescription(answer);
 
             await sendVoiceSignal(callerId, 'call-answer', {
                 type: answer.type,
                 sdp: normalizeSdp(answer.sdp),
-                call_uuid: callUuid
+                call_uuid: callUuid,
+                is_video: isVideo
             });
 
             startCallDurationTimer();
             state.voice.incomingCall = null;
             showToast(`Terhubung dengan ${callerName}`, 'success');
         } catch (err) {
-            console.error('Error accepting voice call:', err);
-            showToast('Gagal menghubungkan obrolan suara: ' + err.message, 'error');
+            console.error('Error accepting call:', err);
+            showToast('Gagal menghubungkan panggilan: ' + err.message, 'error');
             handleDisconnectVoiceCall(true);
         }
     };
@@ -6366,13 +6943,34 @@
             }
         }
 
-        // 1. Terminate all local audio tracks
+        // 1. Terminate all local audio & video tracks
         if (state.voice.localStream) {
             state.voice.localStream.getTracks().forEach(track => {
                 try { track.stop(); } catch (e) { }
             });
             state.voice.localStream = null;
         }
+
+        // Clean up video elements and container
+        const localVid = document.getElementById('localVideoElement');
+        if (localVid) {
+            try { localVid.pause(); } catch (e) { }
+            localVid.srcObject = null;
+        }
+        const remoteVid = document.getElementById('remoteVideoElement');
+        if (remoteVid) {
+            try { remoteVid.pause(); } catch (e) { }
+            remoteVid.srcObject = null;
+        }
+        const vidContainer = document.getElementById('videoCallContainer');
+        if (vidContainer) vidContainer.style.display = 'none';
+        const camBtn = document.getElementById('btnStageToggleCamera');
+        if (camBtn) {
+            camBtn.style.display = 'none';
+            camBtn.classList.remove('muted');
+        }
+        state.voice.isVideo = false;
+        state.voice.cameraOff = false;
 
         // 2. Terminate all remote audio tracks
         for (const peerId in state.voice.remoteStreams) {
@@ -6441,7 +7039,7 @@
         fetchCallLogs();
 
         if (wasActive && notifyPeer) {
-            showToast('Panggilan suara selesai.', 'info');
+            showToast('Panggilan selesai.', 'info');
         }
     };
 
@@ -6488,6 +7086,23 @@
             modal.classList.add('active');
             modal.style.display = 'flex';
             renderVoiceParticipantsGrid();
+
+            const vidContainer = document.getElementById('videoCallContainer');
+            const camBtn = document.getElementById('btnStageToggleCamera');
+            if (state.voice.isVideo) {
+                if (vidContainer) vidContainer.style.display = 'flex';
+                if (camBtn) camBtn.style.display = 'flex';
+                if (state.voice.localStream) {
+                    const localVid = document.getElementById('localVideoElement');
+                    if (localVid) {
+                        localVid.srcObject = state.voice.localStream;
+                        localVid.play().catch(() => {});
+                    }
+                }
+            } else {
+                if (vidContainer) vidContainer.style.display = 'none';
+                if (camBtn) camBtn.style.display = 'none';
+            }
         }
         hideVoiceDock();
     };

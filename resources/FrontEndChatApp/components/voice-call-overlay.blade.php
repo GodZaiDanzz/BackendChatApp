@@ -62,13 +62,30 @@
             </button>
         </div>
 
-        {{-- Participants Grid (Stage Area) --}}
+        {{-- Video Call Viewport (Active when call type is video) --}}
+        <div id="videoCallContainer" style="display: none; position: relative; width: 100%; height: 380px; max-height: 55vh; background: #0b0d13; border-radius: 14px; overflow: hidden; margin: 1rem 0;">
+            {{-- Remote Partner Video (Main Screen) --}}
+            <video id="remoteVideoElement" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover; background: #0f1117;"></video>
+            
+            {{-- Local Self Video (Floating PIP in bottom-right) --}}
+            <div id="localVideoWrapper" style="position: absolute; bottom: 0.85rem; right: 0.85rem; width: 130px; height: 95px; border-radius: 10px; overflow: hidden; border: 2px solid rgba(124, 58, 237, 0.7); box-shadow: 0 8px 24px rgba(0,0,0,0.6); background: #181c28; z-index: 10;">
+                <video id="localVideoElement" autoplay muted playsinline style="width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);"></video>
+            </div>
+
+            {{-- Partner Name Label --}}
+            <div style="position: absolute; top: 0.85rem; left: 0.85rem; background: rgba(0,0,0,0.65); backdrop-filter: blur(8px); padding: 0.3rem 0.75rem; border-radius: 20px; font-size: 0.78rem; color: #ffffff; display: flex; align-items: center; gap: 6px; z-index: 5;">
+                <span style="width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
+                <span id="videoCallPartnerName">Video Call</span>
+            </div>
+        </div>
+
+        {{-- Participants Grid (Stage Area for Voice) --}}
         <div id="voiceParticipantsGrid" style="flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; padding: 1.5rem 0; min-height: 240px; align-content: center;">
             {{-- Dynamically populated: cards with speaking green glow --}}
         </div>
 
         {{-- Stage Bottom Controls Bar --}}
-        <div style="display: flex; justify-content: center; align-items: center; gap: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color, rgba(255,255,255,0.08));">
+        <div style="display: flex; justify-content: center; align-items: center; gap: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color, rgba(255,255,255,0.08)); flex-wrap: wrap;">
             {{-- Mic Toggle --}}
             <button type="button" id="btnStageToggleMic" onclick="toggleVoiceMute()" class="btn-action-primary" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.65rem 1.1rem; border-radius: 9999px;" title="Nyalakan / Matikan Mikrofon">
                 <span id="stageMicIcon">
@@ -80,6 +97,17 @@
                     </svg>
                 </span>
                 <span id="stageMicLabel">Mute</span>
+            </button>
+
+            {{-- Camera Video Toggle (Shown during video call) --}}
+            <button type="button" id="btnStageToggleCamera" onclick="toggleVideoCamera()" class="btn-outline-action" style="display: none; align-items: center; gap: 0.5rem; padding: 0.65rem 1.1rem; border-radius: 9999px;" title="Nyalakan / Matikan Kamera">
+                <span id="stageCameraIcon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                    </svg>
+                </span>
+                <span id="stageCameraLabel">Kamera</span>
             </button>
 
             {{-- Deafen Toggle --}}
@@ -94,7 +122,7 @@
             </button>
 
             {{-- Disconnect Button (Red) --}}
-            <button type="button" id="btnStageDisconnect" onclick="handleDisconnectVoiceCall()" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.65rem 1.25rem; border-radius: 9999px; background: #ef4444; color: #ffffff; border: none; font-weight: 600; cursor: pointer; transition: opacity 0.2s ease;" title="Putuskan Sambungan Suara">
+            <button type="button" id="btnStageDisconnect" onclick="handleDisconnectVoiceCall()" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.65rem 1.25rem; border-radius: 9999px; background: #ef4444; color: #ffffff; border: none; font-weight: 600; cursor: pointer; transition: opacity 0.2s ease;" title="Putuskan Sambungan">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M16 2v4M8 2v4M3 10h18"></path>
                     <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>

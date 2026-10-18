@@ -89,7 +89,7 @@
                     </svg>
                 </button>
 
-                <button type="button" class="btn-header-action" onclick="handleSimulatedAction('Panggilan Video')" title="Panggilan Video" aria-label="Panggilan Video">
+                <button type="button" class="btn-header-action" onclick="handleStartVideoCall()" title="Panggilan Video" aria-label="Panggilan Video">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polygon points="23 7 16 12 23 17 23 7"></polygon>
                         <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
@@ -113,6 +113,23 @@
                                 <line x1="12" y1="8" x2="12.01" y2="8"></line>
                             </svg>
                             <span id="menuItemInfoLabel">Informasi Kontak</span>
+                        </button>
+                        {{-- Pin / Unpin Conversation --}}
+                        <button type="button" id="menuItemPinChat" class="dropdown-item" onclick="handleTogglePinCurrentChat()" role="menuitem">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="17" x2="12" y2="22"></line>
+                                <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6a3 3 0 0 0-6 0v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z"></path>
+                            </svg>
+                            <span id="menuItemPinLabel">Sematkan Obrolan</span>
+                        </button>
+                        {{-- Mute / Unmute Notifications --}}
+                        <button type="button" id="menuItemMuteChat" class="dropdown-item" onclick="handleToggleMuteCurrentChat()" role="menuitem">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                                <line x1="2" y1="2" x2="22" y2="22"></line>
+                            </svg>
+                            <span id="menuItemMuteLabel">Bisukan Notifikasi</span>
                         </button>
                         {{-- Group Action Items in Dropdown --}}
                         <button type="button" id="menuItemEditGroup" class="dropdown-item" style="display: none;" onclick="openEditGroupModal()" role="menuitem">
@@ -301,6 +318,30 @@
                 </div>
             </div>
 
+            {{-- Voice Note Live Recording Bar --}}
+            <div id="voiceNoteRecordingBar" class="voice-note-recording-bar" style="display: none;">
+                <div class="recording-indicator">
+                    <span class="recording-pulse-dot"></span>
+                    <span id="voiceNoteDurationText" class="recording-timer">00:00</span>
+                    <span class="recording-label">Merekam pesan suara...</span>
+                </div>
+                <div class="recording-actions">
+                    <button type="button" class="btn-cancel-recording" onclick="cancelVoiceNoteRecording()" title="Batal rekam" aria-label="Batal rekam">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                        <span>Batal</span>
+                    </button>
+                    <button type="button" class="btn-send-recording" onclick="stopAndSendVoiceNoteRecording()" title="Kirim rekaman suara" aria-label="Kirim rekaman">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
             <form id="messageForm" class="chat-input-pill-wrapper" onsubmit="handleSendMessage(event)">
                 {{-- Paperclip Attachment Button --}}
                 <button type="button" class="btn-input-accessory" onclick="triggerFileAttachment()" title="Lampirkan Dokumen / Media" aria-label="Lampirkan Dokumen">
@@ -326,6 +367,16 @@
                         <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
                         <line x1="9" y1="9" x2="9.01" y2="9"></line>
                         <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                    </svg>
+                </button>
+
+                {{-- Microphone Voice Note Button --}}
+                <button type="button" id="btnVoiceNoteRecord" class="btn-input-accessory" onclick="startVoiceNoteRecording()" title="Rekam Pesan Suara" aria-label="Rekam Pesan Suara">
+                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                        <line x1="12" y1="19" x2="12" y2="23"></line>
+                        <line x1="8" y1="23" x2="16" y2="23"></line>
                     </svg>
                 </button>
 

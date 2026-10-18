@@ -45,7 +45,7 @@
 
                 {{-- Video --}}
                 <div class="info-action-col">
-                    <button type="button" class="btn-info-circle-action" onclick="handleSimulatedAction('Panggilan Video')" title="Panggilan Video" aria-label="Video">
+                    <button type="button" class="btn-info-circle-action" onclick="handleStartVideoCall()" title="Panggilan Video" aria-label="Video">
                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <polygon points="23 7 16 12 23 17 23 7"></polygon>
                             <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
@@ -56,13 +56,13 @@
 
                 {{-- Senyap (Mute) --}}
                 <div class="info-action-col">
-                    <button type="button" class="btn-info-circle-action" onclick="handleSimulatedAction('Mode Senyap')" title="Senyapkan Notifikasi" aria-label="Senyap">
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <button type="button" id="btnInfoMuteToggle" class="btn-info-circle-action" onclick="handleToggleMuteCurrentChat()" title="Senyapkan / Bunyikan Notifikasi" aria-label="Senyap">
+                        <svg id="infoMuteIcon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
                             <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
                         </svg>
                     </button>
-                    <span class="info-action-label">Senyap</span>
+                    <span id="infoMuteLabel" class="info-action-label">Senyap</span>
                 </div>
             </div>
         </div>
@@ -76,7 +76,7 @@
                     </svg>
                 </div>
                 <div>
-                    <div style="font-size: 0.8125rem; font-weight: 600; color: #10b981;">Terenkripsi End-to-End</div>
+                    <div style="font-size: 0.8125rem; font-weight: 600; color: #10b981;">Enkripsi Server AES-256 Terlindungi</div>
                 </div>
             </div>
         </div>
@@ -167,7 +167,7 @@
     <button
         type="button"
         class="floating-help-btn"
-        onclick="handleSimulatedAction('Pusat Bantuan')"
+        onclick="openHelpSubpanel()"
         title="Bantuan & Panduan Pengguna"
         aria-label="Pusat Bantuan"
     >
