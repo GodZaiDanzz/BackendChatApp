@@ -1069,6 +1069,19 @@ body.streamer-mode #btnStreamerMode {
   color: #38bdf8; /* Blue double check */
 }
 
+.status-check.group-read {
+  color: #38bdf8; /* Eye icon read status */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s ease;
+}
+
+.status-check.group-read svg,
+.list-item-status-check.group-read svg {
+  vertical-align: middle;
+}
+
 .message-actions {
   position: absolute;
   top: 50%;

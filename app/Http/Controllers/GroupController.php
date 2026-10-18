@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Events\GroupMessageSent;
 use App\Events\GroupMessageUpdated;
+use App\Events\GroupMessageStatusUpdated;
 use App\Models\Group;
 use App\Models\GroupMember;
 use App\Models\GroupMessage;
+use App\Models\GroupMessageReceipt;
 use App\Services\ChatEncryption;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -50,15 +52,44 @@ class GroupController extends Controller
                             'joined_at'    => $m->joined_at?->toIso8601String(),
                         ];
                     }),
-                    'last_message'  => $lastMsg ? [
-                        'id'          => $lastMsg->id,
-                        'client_uuid' => $lastMsg->client_uuid,
-                        'sender_id'   => $lastMsg->sender_id,
-                        'sender_name' => $lastMsg->sender?->display_name ?: $lastMsg->sender?->username,
-                        'body'        => $lastMsg->body,
-                        'attachment'  => $lastMsg->attachment,
-                        'created_at'  => $lastMsg->created_at?->toIso8601String(),
-                    ] : null,
+                    'last_message'  => $lastMsg ? (function () use ($lastMsg, $group) {
+                        $otherMembersCount = GroupMember::where('group_id', $group->id)
+                            ->where('user_id', '!=', $lastMsg->sender_id)
+                            ->count();
+                        $readCount = GroupMessageReceipt::where('group_id', $group->id)
+                            ->where('client_uuid', $lastMsg->client_uuid)
+                            ->where('status', 'read')
+                            ->count();
+                        $deliveredCount = GroupMessageReceipt::where('group_id', $group->id)
+                            ->where('client_uuid', $lastMsg->client_uuid)
+                            ->whereIn('status', ['delivered', 'read'])
+                            ->count();
+
+                        $status = 'sent';
+                        if ($otherMembersCount > 0) {
+                            if ($readCount >= $otherMembersCount) {
+                                $status = 'read';
+                            } elseif ($deliveredCount >= $otherMembersCount) {
+                                $status = 'delivered';
+                            }
+                        } else {
+                            $status = 'read';
+                        }
+
+                        return [
+                            'id'              => $lastMsg->id,
+                            'client_uuid'     => $lastMsg->client_uuid,
+                            'sender_id'       => $lastMsg->sender_id,
+                            'sender_name'     => $lastMsg->sender?->display_name ?: $lastMsg->sender?->username,
+                            'body'            => $lastMsg->body,
+                            'attachment'      => $lastMsg->attachment,
+                            'status'          => $status,
+                            'read_count'      => $readCount,
+                            'delivered_count' => $deliveredCount,
+                            'members_count'   => $otherMembersCount + 1,
+                            'created_at'      => $lastMsg->created_at?->toIso8601String(),
+                        ];
+                    })() : null,
                 ];
             });
 
@@ -161,23 +192,60 @@ class GroupController extends Controller
                     ->get();
             }
 
+            $otherMembersCount = GroupMember::where('group_id', $group->id)
+                ->where('user_id', '!=', $userId)
+                ->count();
+
+            $msgUuids = $groupMessages->pluck('client_uuid')->filter()->toArray();
+            $receipts = !empty($msgUuids)
+                ? GroupMessageReceipt::where('group_id', $group->id)
+                    ->whereIn('client_uuid', $msgUuids)
+                    ->select('client_uuid', 'status', DB::raw('count(*) as count'))
+                    ->groupBy('client_uuid', 'status')
+                    ->get()
+                : collect();
+
+            $statusCounts = [];
+            foreach ($receipts as $r) {
+                $statusCounts[$r->client_uuid][$r->status] = (int) $r->count;
+            }
+
             foreach ($groupMessages as $msg) {
                 if (!ChatEncryption::isEncrypted($msg->body) && !$msg->is_deleted) {
                     $msg->body = ChatEncryption::encryptWithKey($msg->body, $group->group_key);
                 }
                 $sender = $msg->sender;
+
+                $readCount = $statusCounts[$msg->client_uuid]['read'] ?? 0;
+                $deliveredCount = ($statusCounts[$msg->client_uuid]['delivered'] ?? 0) + $readCount;
+
+                $computedStatus = 'sent';
+                if ($otherMembersCount > 0) {
+                    if ($readCount >= $otherMembersCount) {
+                        $computedStatus = 'read';
+                    } elseif ($deliveredCount >= $otherMembersCount) {
+                        $computedStatus = 'delivered';
+                    }
+                } else {
+                    $computedStatus = 'read';
+                }
+
                 $messages[] = [
-                    'id'          => $msg->id,
-                    'client_uuid' => $msg->client_uuid,
-                    'group_id'    => $msg->group_id,
-                    'sender_id'   => $msg->sender_id,
-                    'sender_name' => $sender ? ($sender->display_name ?: $sender->username) : 'Pengguna',
-                    'body'        => $msg->body,
-                    'attachment'  => $msg->attachment,
-                    'reply_to'    => $msg->reply_to,
-                    'is_edited'   => (bool) $msg->is_edited,
-                    'is_deleted'  => (bool) $msg->is_deleted,
-                    'created_at'  => $msg->created_at?->toIso8601String(),
+                    'id'              => $msg->id,
+                    'client_uuid'     => $msg->client_uuid,
+                    'group_id'        => $msg->group_id,
+                    'sender_id'       => $msg->sender_id,
+                    'sender_name'     => $sender ? ($sender->display_name ?: $sender->username) : 'Pengguna',
+                    'body'            => $msg->body,
+                    'attachment'      => $msg->attachment,
+                    'reply_to'        => $msg->reply_to,
+                    'is_edited'       => (bool) $msg->is_edited,
+                    'is_deleted'      => (bool) $msg->is_deleted,
+                    'status'          => $computedStatus,
+                    'read_count'      => $readCount,
+                    'delivered_count' => $deliveredCount,
+                    'members_count'   => $otherMembersCount + 1,
+                    'created_at'      => $msg->created_at?->toIso8601String(),
                 ];
             }
         }
@@ -372,36 +440,71 @@ class GroupController extends Controller
 
     public function messages(Request $request, $id)
     {
-        $isMember = GroupMember::where('group_id', $id)->where('user_id', $request->user()->id)->exists();
+        $userId = $request->user()->id;
+        $isMember = GroupMember::where('group_id', $id)->where('user_id', $userId)->exists();
         if (!$isMember) {
             return response()->json(['message' => 'Anda bukan anggota grup ini'], 403);
         }
 
         $group = Group::findOrFail($id);
 
+        $otherMembersCount = GroupMember::where('group_id', $id)
+            ->where('user_id', '!=', $userId)
+            ->count();
+
+        // Status receipts lookup per message
+        $receipts = GroupMessageReceipt::where('group_id', $id)
+            ->select('client_uuid', 'status', DB::raw('count(*) as count'))
+            ->groupBy('client_uuid', 'status')
+            ->get();
+
+        $statusCounts = [];
+        foreach ($receipts as $r) {
+            $statusCounts[$r->client_uuid][$r->status] = (int) $r->count;
+        }
+
         $messages = GroupMessage::where('group_id', $id)
             ->with('sender:id,username,display_name')
             ->orderBy('created_at', 'asc')
             ->limit(100)
             ->get()
-            ->map(function ($msg) use ($group) {
+            ->map(function ($msg) use ($group, $statusCounts, $otherMembersCount) {
                 // Ensure payload is encrypted with group_key
                 if (!ChatEncryption::isEncrypted($msg->body) && !$msg->is_deleted) {
                     $msg->body = ChatEncryption::encryptWithKey($msg->body, $group->group_key);
                 }
                 $sender = $msg->sender;
+
+                $readCount = $statusCounts[$msg->client_uuid]['read'] ?? 0;
+                $deliveredCount = ($statusCounts[$msg->client_uuid]['delivered'] ?? 0) + $readCount;
+
+                $computedStatus = 'sent';
+                if ($otherMembersCount > 0) {
+                    if ($readCount >= $otherMembersCount) {
+                        $computedStatus = 'read';
+                    } elseif ($deliveredCount >= $otherMembersCount) {
+                        $computedStatus = 'delivered';
+                    }
+                } else {
+                    $computedStatus = 'read';
+                }
+
                 return [
-                    'id'          => $msg->id,
-                    'client_uuid' => $msg->client_uuid,
-                    'group_id'    => $msg->group_id,
-                    'sender_id'   => $msg->sender_id,
-                    'sender_name' => $sender ? ($sender->display_name ?: $sender->username) : 'Pengguna',
-                    'body'        => $msg->body,
-                    'attachment'  => $msg->attachment,
-                    'reply_to'    => $msg->reply_to,
-                    'is_edited'   => (bool) $msg->is_edited,
-                    'is_deleted'  => (bool) $msg->is_deleted,
-                    'created_at'  => $msg->created_at?->toIso8601String(),
+                    'id'              => $msg->id,
+                    'client_uuid'     => $msg->client_uuid,
+                    'group_id'        => $msg->group_id,
+                    'sender_id'       => $msg->sender_id,
+                    'sender_name'     => $sender ? ($sender->display_name ?: $sender->username) : 'Pengguna',
+                    'body'            => $msg->body,
+                    'attachment'      => $msg->attachment,
+                    'reply_to'        => $msg->reply_to,
+                    'is_edited'       => (bool) $msg->is_edited,
+                    'is_deleted'      => (bool) $msg->is_deleted,
+                    'status'          => $computedStatus,
+                    'read_count'      => $readCount,
+                    'delivered_count' => $deliveredCount,
+                    'members_count'   => $otherMembersCount + 1,
+                    'created_at'      => $msg->created_at?->toIso8601String(),
                 ];
             });
 
@@ -616,5 +719,119 @@ class GroupController extends Controller
             'message' => 'Pesan grup berhasil dihapus',
             'deleted' => $deletedList,
         ]);
+    }
+
+    public function acknowledgeMessages(Request $request, $id)
+    {
+        $userId = $request->user()->id;
+        $isMember = GroupMember::where('group_id', $id)->where('user_id', $userId)->exists();
+        if (!$isMember) {
+            return response()->json(['message' => 'Anda bukan anggota grup ini'], 403);
+        }
+
+        $data = $request->validate([
+            'status'         => 'required|in:delivered,read',
+            'client_uuids'   => 'nullable|array',
+            'client_uuids.*' => 'string',
+            'message_ids'    => 'nullable|array',
+        ]);
+
+        $group = Group::findOrFail($id);
+        $status = $data['status'];
+        $clientUuids = $data['client_uuids'] ?? [];
+        $messageIds = $data['message_ids'] ?? [];
+
+        $query = GroupMessage::where('group_id', $id)
+            ->where('sender_id', '!=', $userId);
+
+        if (!empty($clientUuids) || !empty($messageIds)) {
+            $query->where(function ($q) use ($clientUuids, $messageIds) {
+                if (!empty($clientUuids)) {
+                    $q->whereIn('client_uuid', $clientUuids);
+                }
+                if (!empty($messageIds)) {
+                    $q->orWhereIn('id', $messageIds);
+                }
+            });
+        } else {
+            $query->latest()->limit(100);
+        }
+
+        $messagesToAck = $query->get();
+
+        foreach ($messagesToAck as $msg) {
+            $receipt = GroupMessageReceipt::where('group_id', $id)
+                ->where('client_uuid', $msg->client_uuid)
+                ->where('user_id', $userId)
+                ->first();
+
+            if ($receipt) {
+                if ($receipt->status === 'read' && $status === 'delivered') {
+                    continue;
+                }
+                $receipt->status = $status;
+                if ($status === 'read') {
+                    $receipt->read_at = now();
+                    if (!$receipt->delivered_at) {
+                        $receipt->delivered_at = now();
+                    }
+                } elseif ($status === 'delivered' && !$receipt->delivered_at) {
+                    $receipt->delivered_at = now();
+                }
+                $receipt->save();
+            } else {
+                GroupMessageReceipt::create([
+                    'group_id'         => $id,
+                    'group_message_id' => $msg->id,
+                    'client_uuid'      => $msg->client_uuid,
+                    'user_id'          => $userId,
+                    'status'           => $status,
+                    'delivered_at'     => now(),
+                    'read_at'          => $status === 'read' ? now() : null,
+                ]);
+            }
+
+            $otherMembersCount = GroupMember::where('group_id', $id)
+                ->where('user_id', '!=', $msg->sender_id)
+                ->count();
+
+            $readCount = GroupMessageReceipt::where('group_id', $id)
+                ->where('client_uuid', $msg->client_uuid)
+                ->where('status', 'read')
+                ->count();
+
+            $deliveredCount = GroupMessageReceipt::where('group_id', $id)
+                ->where('client_uuid', $msg->client_uuid)
+                ->whereIn('status', ['delivered', 'read'])
+                ->count();
+
+            $computedStatus = 'sent';
+            if ($otherMembersCount > 0) {
+                if ($readCount >= $otherMembersCount) {
+                    $computedStatus = 'read';
+                } elseif ($deliveredCount >= $otherMembersCount) {
+                    $computedStatus = 'delivered';
+                }
+            } else {
+                $computedStatus = 'read';
+            }
+
+            try {
+                broadcast(new GroupMessageStatusUpdated(
+                    groupId: (int)$id,
+                    senderId: (int)$msg->sender_id,
+                    clientUuid: $msg->client_uuid,
+                    messageId: (int)$msg->id,
+                    status: $computedStatus,
+                    readCount: $readCount,
+                    deliveredCount: $deliveredCount,
+                    targetCount: $otherMembersCount
+                ));
+            } catch (\Throwable $e) {
+                Log::warning('Failed broadcasting GroupMessageStatusUpdated: ' . $e->getMessage());
+            }
+        }
+
+        return response()->json(['message' => 'Status pesan grup berhasil diperbarui']);
     }
 }

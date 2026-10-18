@@ -33,4 +33,9 @@ class GroupMessage extends Model
     {
         return $this->belongsTo(User::class, 'sender_id');
     }
+
+    public function receipts()
+    {
+        return $this->hasMany(GroupMessageReceipt::class, 'client_uuid', 'client_uuid');
+    }
 }

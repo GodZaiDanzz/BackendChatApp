@@ -78,6 +78,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/groups/{id}/messages/{messageId}', [GroupController::class, 'updateMessage']);
     Route::delete('/groups/{id}/messages/{messageId}', [GroupController::class, 'destroyMessage']);
     Route::post('/groups/{id}/messages/batch-delete', [GroupController::class, 'batchDestroyMessages']);
+    Route::post('/groups/{id}/messages/ack', [GroupController::class, 'acknowledgeMessages']);
 
     // WebRTC Voice Channels and Calls
     Route::post('/voice/signal', [\App\Http\Controllers\VoiceCallController::class, 'sendSignal']);

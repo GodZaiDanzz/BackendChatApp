@@ -426,10 +426,18 @@
         return pastelColorClasses[index];
     }
 
-    // Helper: Render SVG Checkmarks (Ceklis 1, Ceklis 2, Ceklis 2 Putih)
-    function renderStatusCheck(status) {
-        if (status === 'read') {
-            // Ceklis 2 Putih (Pesan telah dibaca)
+    // Helper: Render SVG Checkmarks / Group Read Status (Ceklis 1, Ceklis 2, Mata)
+    function renderStatusCheck(status, isGroup = false) {
+        if (isGroup && status === 'read') {
+            // Icon Mata (Semua anggota telah membaca pesan)
+            return `<span class="status-check read group-read" title="Dibaca oleh semua anggota">
+                <svg width="16" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+            </span>`;
+        } else if (status === 'read') {
+            // Ceklis 2 Putih/Cyan (Pesan telah dibaca)
             return `<span class="status-check read" title="Dibaca">
                 <svg width="16" height="13" viewBox="0 0 28 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M18 6L7 17l-5-5"></path>
@@ -437,8 +445,9 @@
                 </svg>
             </span>`;
         } else if (status === 'delivered') {
-            // Ceklis 2 (Pesan tersampaikan)
-            return `<span class="status-check delivered" title="Tersampaikan">
+            // Ceklis 2 (Tersampaikan ke semua anggota di grup / tersampaikan ke penerima)
+            const title = isGroup ? 'Tersampaikan ke semua anggota' : 'Tersampaikan';
+            return `<span class="status-check delivered" title="${title}">
                 <svg width="16" height="13" viewBox="0 0 28 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M18 6L7 17l-5-5"></path>
                     <path d="M26 6l-11 11-2-2"></path>
@@ -454,9 +463,17 @@
         }
     }
 
-    // Helper: Render Checkmarks di luar chat (Daftar Chat Sidebar di bawah jam)
-    function renderListStatusCheck(status) {
-        if (status === 'read') {
+    // Helper: Render Checkmarks / Group Read Status di luar chat (Daftar Chat Sidebar)
+    function renderListStatusCheck(status, isGroup = false) {
+        if (isGroup && status === 'read') {
+            // Icon Mata Biru/Cyan (Dibaca semua anggota)
+            return `<span class="list-item-status-check read group-read" title="Dibaca semua anggota" style="display: inline-flex; align-items: center; color: #38bdf8; margin-left: 0.5rem; flex-shrink: 0;">
+                <svg width="15" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+            </span>`;
+        } else if (status === 'read') {
             // Ceklis 2 Biru/Cyan (Dibaca)
             return `<span class="list-item-status-check read" title="Dibaca" style="display: inline-flex; align-items: center; color: #38bdf8; margin-left: 0.5rem; flex-shrink: 0;">
                 <svg width="15" height="13" viewBox="0 0 28 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
@@ -466,7 +483,8 @@
             </span>`;
         } else if (status === 'delivered') {
             // Ceklis 2 Abu-abu (Tersampaikan)
-            return `<span class="list-item-status-check delivered" title="Tersampaikan" style="display: inline-flex; align-items: center; color: var(--text-muted, #9ca3af); margin-left: 0.5rem; flex-shrink: 0;">
+            const title = isGroup ? 'Tersampaikan ke semua anggota' : 'Tersampaikan';
+            return `<span class="list-item-status-check delivered" title="${title}" style="display: inline-flex; align-items: center; color: var(--text-muted, #9ca3af); margin-left: 0.5rem; flex-shrink: 0;">
                 <svg width="15" height="13" viewBox="0 0 28 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M18 6L7 17l-5-5"></path>
                     <path d="M26 6l-11 11-2-2"></path>
@@ -1542,7 +1560,7 @@
                 const unreadCount = item.unread;
                 const isActive = state.activeContact && state.activeContact.is_group && Number(state.activeContact.group_id) === Number(group.id) ? 'active' : '';
                 const isMeLastMsg = Boolean(lastMsg && state.user && Number(lastMsg.sender_id) === Number(state.user.id));
-                const statusCheckHtml = isMeLastMsg ? renderListStatusCheck(lastMsg.status) : '';
+                const statusCheckHtml = isMeLastMsg ? renderListStatusCheck(lastMsg.status, true) : '';
 
                 const groupAvatarContent = group.avatar
                     ? `<img src="${escapeHtml(group.avatar)}" alt="${escapeHtml(group.name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`
@@ -1591,7 +1609,7 @@
             const isActive = state.activeContact && !state.activeContact.is_group && Number(state.activeContact.id) === Number(contact.id) ? 'active' : '';
             const isOnline = Boolean(contact.is_online);
             const isMeLastMsg = Boolean(lastMsg && state.user && Number(lastMsg.sender_id) === Number(state.user.id));
-            const statusCheckHtml = isMeLastMsg ? renderListStatusCheck(lastMsg.status) : '';
+            const statusCheckHtml = isMeLastMsg ? renderListStatusCheck(lastMsg.status, false) : '';
             const avatarContent = contact.avatar
                 ? `<img src="${escapeHtml(contact.avatar)}" alt="${escapeHtml(contact.display_name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;">`
                 : initials;
@@ -3189,6 +3207,22 @@
         }
     }
 
+    async function acknowledgeGroupMessages(groupId, status = 'read', clientUuids = null) {
+        if (!groupId || !state.user) return;
+        try {
+            const payload = { status };
+            if (Array.isArray(clientUuids) && clientUuids.length > 0) {
+                payload.client_uuids = clientUuids;
+            }
+            await apiRequest(`/groups/${groupId}/messages/ack`, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+        } catch (e) {
+            // Silently handle
+        }
+    }
+
     window.selectGroup = async function (groupId) {
         const group = (state.groups || []).find(g => Number(g.id) === Number(groupId));
         if (!group) return;
@@ -3277,6 +3311,7 @@
                 state.chats[chatKey] = apiMsgs;
                 await AppDB.saveMessagesBatch(apiMsgs.map(m => ({ ...m, group_id: groupId })), state.user.id);
                 persistMessages();
+                acknowledgeGroupMessages(groupId, 'read');
             }
         } catch (e) {
             console.warn('Gagal memuat pesan grup:', e);
@@ -4213,7 +4248,8 @@
             const isMe = Boolean(state.user && msg.sender_id === state.user.id);
             const rowClass = isMe ? 'me' : 'other';
             const timeText = formatTime(msg.created_at);
-            const statusMarker = isMe ? renderStatusCheck(msg.status) : '';
+            const isGroup = Boolean(state.activeContact && (state.activeContact.is_group || state.activeContact.isGroup));
+            const statusMarker = isMe ? renderStatusCheck(msg.status, isGroup) : '';
             const isDeleted = Boolean(msg.is_deleted) || msg.body === 'Pesan ini telah dihapus';
             const isEdited = Boolean(msg.is_edited) && !isDeleted;
             const msgIdentifier = msg.id ? String(msg.id) : (msg.client_uuid || '');
@@ -5785,6 +5821,39 @@
             channel.bind('.message.status', onMessageStatus);
             channel.bind('message.status_updated', onMessageStatus);
 
+            const onGroupMessageStatus = async (data) => {
+                const info = data.message || data;
+                if (!info || !info.status) return;
+
+                const chatKey = info.group_id ? ('group_' + info.group_id) : null;
+                let hasChanges = false;
+
+                const targetChats = chatKey && state.chats[chatKey] ? [state.chats[chatKey]] : Object.values(state.chats);
+
+                for (const list of targetChats) {
+                    if (!Array.isArray(list)) continue;
+                    const found = list.find(m => (m.client_uuid && m.client_uuid === info.client_uuid) || (m.id && m.id === (info.id || info.message_id)));
+                    if (found) {
+                        found.status = info.status;
+                        if (info.read_count !== undefined) found.read_count = info.read_count;
+                        if (info.delivered_count !== undefined) found.delivered_count = info.delivered_count;
+                        if (info.target_count !== undefined) found.target_count = info.target_count;
+                        hasChanges = true;
+                    }
+                }
+
+                if (hasChanges) {
+                    persistMessages();
+                    if (state.activeContact) {
+                        renderActiveMessages();
+                    }
+                    renderChatsList();
+                }
+            };
+
+            channel.bind('group.message.status', onGroupMessageStatus);
+            channel.bind('.group.message.status', onGroupMessageStatus);
+
             const onVoiceSignal = async (rawSignal) => {
                 let signal = rawSignal;
                 if (typeof signal === 'string') {
@@ -5892,11 +5961,13 @@
                 renderActiveMessages();
                 if (Number(msg.sender_id) !== Number(state.user.id)) {
                     playMessageChime();
+                    acknowledgeGroupMessages(groupId, 'read', [msg.client_uuid]);
                 }
             } else {
                 if (Number(msg.sender_id) !== Number(state.user.id)) {
                     state.unread[chatKey] = (state.unread[chatKey] || 0) + 1;
                     playMessageChime();
+                    acknowledgeGroupMessages(groupId, 'delivered', [msg.client_uuid]);
                     const group = (state.groups || []).find(g => Number(g.id) === Number(groupId));
                     const groupName = group ? group.name : 'Grup';
                     showToast(`Pesan baru di ${groupName} dari ${msg.sender_name}: "${msg.body.substring(0, 40)}"`, 'info');
