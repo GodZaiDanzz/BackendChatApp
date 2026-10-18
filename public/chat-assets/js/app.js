@@ -3140,6 +3140,7 @@
         if (btnHeaderEdit) btnHeaderEdit.style.display = 'none';
         if (btnEditAction) btnEditAction.style.display = 'none';
 
+        window.closeChatDropdown();
         updateChatPreferencesUI();
 
         // Focus message input
@@ -3373,6 +3374,7 @@
                 `;
             }).join('');
         }
+        window.closeChatDropdown();
     }
 
     window.openCreateGroupModal = function () {
@@ -3940,6 +3942,9 @@
             const infoLabel = document.getElementById('menuItemInfoLabel');
             const editGrpItem = document.getElementById('menuItemEditGroup');
             const addMemItem = document.getElementById('menuItemAddMember');
+            const delContactItem = document.getElementById('menuItemDeleteContact');
+            const leaveGrpItem = document.getElementById('menuItemLeaveGroup');
+            const delGrpItem = document.getElementById('menuItemDeleteGroup');
 
             if (infoLabel) {
                 infoLabel.textContent = isGroup ? 'Informasi Grup' : 'Informasi Kontak';
@@ -3947,8 +3952,22 @@
 
             const isAdmin = isGroup && (state.activeContact.my_role === 'admin' || Number(state.activeContact.created_by) === Number(state.user?.id));
 
-            if (editGrpItem) editGrpItem.style.display = (isGroup && isAdmin) ? 'flex' : 'none';
-            if (addMemItem) addMemItem.style.display = (isGroup && isAdmin) ? 'flex' : 'none';
+            const setItemVisibility = (el, show) => {
+                if (!el) return;
+                if (show) {
+                    el.classList.remove('d-none');
+                    el.style.setProperty('display', 'flex', 'important');
+                } else {
+                    el.classList.add('d-none');
+                    el.style.setProperty('display', 'none', 'important');
+                }
+            };
+
+            setItemVisibility(editGrpItem, isGroup && isAdmin);
+            setItemVisibility(addMemItem, isGroup && isAdmin);
+            setItemVisibility(delContactItem, !isGroup);
+            setItemVisibility(leaveGrpItem, isGroup);
+            setItemVisibility(delGrpItem, isGroup && isAdmin);
 
             menu.classList.add('show');
             menu.style.display = 'flex';

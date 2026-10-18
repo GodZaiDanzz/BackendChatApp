@@ -132,14 +132,14 @@
                             <span id="menuItemMuteLabel">Bisukan Notifikasi</span>
                         </button>
                         {{-- Group Action Items in Dropdown --}}
-                        <button type="button" id="menuItemEditGroup" class="dropdown-item" style="display: none;" onclick="openEditGroupModal()" role="menuitem">
+                        <button type="button" id="menuItemEditGroup" class="dropdown-item d-none" style="display: none !important;" onclick="openEditGroupModal()" role="menuitem">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                             </svg>
                             <span>Edit Detail Grup</span>
                         </button>
-                        <button type="button" id="menuItemAddMember" class="dropdown-item" style="display: none;" onclick="openAddGroupMemberModal()" role="menuitem">
+                        <button type="button" id="menuItemAddMember" class="dropdown-item d-none" style="display: none !important;" onclick="openAddGroupMemberModal()" role="menuitem">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                                 <circle cx="8.5" cy="7" r="4"></circle>
@@ -170,7 +170,7 @@
                             </svg>
                             <span>Bersihkan Riwayat Pesan</span>
                         </button>
-                        <button type="button" class="dropdown-item danger" onclick="confirmDeleteContact()" role="menuitem">
+                        <button type="button" id="menuItemDeleteContact" class="dropdown-item danger" onclick="confirmDeleteContact()" role="menuitem">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                                 <circle cx="8.5" cy="7" r="4"></circle>
@@ -178,6 +178,21 @@
                                 <line x1="23" y1="8" x2="18" y2="13"></line>
                             </svg>
                             <span>Hapus Kontak</span>
+                        </button>
+                        <button type="button" id="menuItemLeaveGroup" class="dropdown-item danger d-none" style="display: none !important;" onclick="handleLeaveGroup()" role="menuitem">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                <polyline points="16 17 21 12 16 7"></polyline>
+                                <line x1="21" y1="12" x2="9" y2="12"></line>
+                            </svg>
+                            <span>Keluar dari Grup</span>
+                        </button>
+                        <button type="button" id="menuItemDeleteGroup" class="dropdown-item danger d-none" style="display: none !important;" onclick="handleDeleteGroup()" role="menuitem">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                            <span>Bubarkan Grup</span>
                         </button>
                     </div>
                 </div>

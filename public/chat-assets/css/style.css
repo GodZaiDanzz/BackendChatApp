@@ -856,35 +856,41 @@ body.streamer-mode #btnStreamerMode {
 }
 
 .dropdown-item {
-  display: flex !important;
-  align-items: center !important;
+  display: flex;
+  align-items: center;
   gap: 0.75rem;
-  padding: 0.625rem 0.85rem !important;
-  background-color: transparent !important;
-  border: none !important;
-  border-radius: var(--radius-sm) !important;
-  color: var(--text-primary) !important;
-  font-size: 0.84375rem !important;
+  padding: 0.625rem 0.85rem;
+  background-color: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.84375rem;
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
   text-align: left;
-  width: 100% !important;
+  width: 100%;
   box-sizing: border-box;
   transition: all var(--transition-fast);
   white-space: nowrap;
 }
 
 .dropdown-item:hover {
-  background-color: var(--bg-surface-elevated) !important;
+  background-color: var(--bg-surface-elevated);
 }
 
 .dropdown-item.danger {
-  color: var(--status-danger) !important;
+  color: var(--status-danger);
 }
 
 .dropdown-item.danger:hover {
-  background-color: rgba(239, 68, 68, 0.15) !important;
+  background-color: rgba(239, 68, 68, 0.15);
+}
+
+.dropdown-item.d-none,
+.dropdown-item[style*="display: none"],
+.dropdown-item[hidden] {
+  display: none !important;
 }
 
 .dropdown-divider {
