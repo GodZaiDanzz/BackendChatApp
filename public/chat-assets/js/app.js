@@ -3301,16 +3301,35 @@
 
         try {
             const apiMsgs = await apiRequest(`/groups/${groupId}/messages`);
-            if (Array.isArray(apiMsgs)) {
+            if (Array.isArray(apiMsgs) && apiMsgs.length > 0) {
                 const hexKey = group.group_key;
+                if (!state.chats[chatKey]) state.chats[chatKey] = [];
+                const existingUuids = new Set(state.chats[chatKey].map(m => m.client_uuid).filter(Boolean));
+                const existingIds = new Set(state.chats[chatKey].map(m => m.id).filter(Boolean));
+
+                const newToSave = [];
                 for (const m of apiMsgs) {
+                    if (m.client_uuid && existingUuids.has(m.client_uuid)) {
+                        const existing = state.chats[chatKey].find(x => x.client_uuid === m.client_uuid);
+                        if (existing && m.status) existing.status = m.status;
+                        continue;
+                    }
+                    if (m.id && existingIds.has(m.id)) continue;
+
                     if (m.body && m.body.startsWith('enc:v1:')) {
                         m.body = await decryptMessageBody(m.body, hexKey);
                     }
+                    state.chats[chatKey].push(m);
+                    newToSave.push({ ...m, group_id: groupId });
                 }
-                state.chats[chatKey] = apiMsgs;
-                await AppDB.saveMessagesBatch(apiMsgs.map(m => ({ ...m, group_id: groupId })), state.user.id);
-                persistMessages();
+
+                if (newToSave.length > 0) {
+                    state.chats[chatKey].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+                    await AppDB.saveMessagesBatch(newToSave, state.user.id);
+                    persistMessages();
+                }
+                acknowledgeGroupMessages(groupId, 'read');
+            } else if (state.chats[chatKey] && state.chats[chatKey].length > 0) {
                 acknowledgeGroupMessages(groupId, 'read');
             }
         } catch (e) {
@@ -6120,11 +6139,13 @@
                             activeUpdated = true;
                             if (Number(m.sender_id) !== Number(state.user.id)) {
                                 playMessageChime();
+                                acknowledgeGroupMessages(m.group_id, 'read', [m.client_uuid]);
                             }
                         } else {
                             if (Number(m.sender_id) !== Number(state.user.id)) {
                                 state.unread[chatKey] = (state.unread[chatKey] || 0) + 1;
                                 playMessageChime();
+                                acknowledgeGroupMessages(m.group_id, 'delivered', [m.client_uuid]);
                                 const group = (state.groups || []).find(g => Number(g.id) === Number(m.group_id));
                                 const groupName = group ? group.name : 'Grup';
                                 showToast(`Pesan baru di ${groupName} dari ${m.sender_name}: "${m.body.substring(0, 40)}"`, 'info');

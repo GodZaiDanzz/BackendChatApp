@@ -10,6 +10,7 @@ class GroupMessageReceipt extends Model
         'group_id',
         'group_message_id',
         'client_uuid',
+        'sender_id',
         'user_id',
         'status',
         'delivered_at',

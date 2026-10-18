@@ -758,8 +758,11 @@ class GroupController extends Controller
         }
 
         $messagesToAck = $query->get();
+        $processedUuids = [];
 
         foreach ($messagesToAck as $msg) {
+            $processedUuids[] = $msg->client_uuid;
+
             $receipt = GroupMessageReceipt::where('group_id', $id)
                 ->where('client_uuid', $msg->client_uuid)
                 ->where('user_id', $userId)
@@ -767,23 +770,28 @@ class GroupController extends Controller
 
             if ($receipt) {
                 if ($receipt->status === 'read' && $status === 'delivered') {
-                    continue;
-                }
-                $receipt->status = $status;
-                if ($status === 'read') {
-                    $receipt->read_at = now();
-                    if (!$receipt->delivered_at) {
+                    // Jangan downgrade dari read ke delivered
+                } else {
+                    $receipt->status = $status;
+                    if ($status === 'read') {
+                        $receipt->read_at = now();
+                        if (!$receipt->delivered_at) {
+                            $receipt->delivered_at = now();
+                        }
+                    } elseif ($status === 'delivered' && !$receipt->delivered_at) {
                         $receipt->delivered_at = now();
                     }
-                } elseif ($status === 'delivered' && !$receipt->delivered_at) {
-                    $receipt->delivered_at = now();
+                    if (!$receipt->sender_id) {
+                        $receipt->sender_id = $msg->sender_id;
+                    }
+                    $receipt->save();
                 }
-                $receipt->save();
             } else {
                 GroupMessageReceipt::create([
                     'group_id'         => $id,
                     'group_message_id' => $msg->id,
                     'client_uuid'      => $msg->client_uuid,
+                    'sender_id'        => $msg->sender_id,
                     'user_id'          => $userId,
                     'status'           => $status,
                     'delivered_at'     => now(),
@@ -830,7 +838,118 @@ class GroupController extends Controller
             } catch (\Throwable $e) {
                 Log::warning('Failed broadcasting GroupMessageStatusUpdated: ' . $e->getMessage());
             }
+
+            // Store-and-Forward Ephemeral Architecture (sama seperti chat pesan biasa):
+            // Jika pesan telah tersampaikan ke semua anggota (delivered/read), hapus dari database server agar tidak menumpuk
+            if ($otherMembersCount === 0 || $deliveredCount >= $otherMembersCount) {
+                $msg->delete();
+            }
+
+            // Jika semua anggota telah membaca, bersihkan receipts untuk client_uuid ini
+            if ($otherMembersCount === 0 || $readCount >= $otherMembersCount) {
+                GroupMessageReceipt::where('group_id', $id)
+                    ->where('client_uuid', $msg->client_uuid)
+                    ->delete();
+            }
         }
+
+        // Tangani client_uuids yang pesannya di MySQL sudah terhapus karena sebelumnya telah delivered ke yang lain
+        $remainingUuids = array_diff($clientUuids, $processedUuids);
+        if (!empty($remainingUuids)) {
+            foreach ($remainingUuids as $uuid) {
+                $receipt = GroupMessageReceipt::where('group_id', $id)
+                    ->where('client_uuid', $uuid)
+                    ->where('user_id', $userId)
+                    ->first();
+
+                $knownReceipt = GroupMessageReceipt::where('group_id', $id)
+                    ->where('client_uuid', $uuid)
+                    ->first();
+
+                $senderId = $knownReceipt?->sender_id;
+                if ($senderId && (int)$senderId === (int)$userId) {
+                    continue;
+                }
+
+                if ($receipt) {
+                    if ($receipt->status === 'read' && $status === 'delivered') {
+                        continue;
+                    }
+                    $receipt->status = $status;
+                    if ($status === 'read') {
+                        $receipt->read_at = now();
+                        if (!$receipt->delivered_at) {
+                            $receipt->delivered_at = now();
+                        }
+                    } elseif ($status === 'delivered' && !$receipt->delivered_at) {
+                        $receipt->delivered_at = now();
+                    }
+                    $receipt->save();
+                } else {
+                    GroupMessageReceipt::create([
+                        'group_id'     => $id,
+                        'client_uuid'  => $uuid,
+                        'sender_id'    => $senderId,
+                        'user_id'      => $userId,
+                        'status'       => $status,
+                        'delivered_at' => now(),
+                        'read_at'      => $status === 'read' ? now() : null,
+                    ]);
+                }
+
+                if ($senderId) {
+                    $otherMembersCount = GroupMember::where('group_id', $id)
+                        ->where('user_id', '!=', $senderId)
+                        ->count();
+
+                    $readCount = GroupMessageReceipt::where('group_id', $id)
+                        ->where('client_uuid', $uuid)
+                        ->where('status', 'read')
+                        ->count();
+
+                    $deliveredCount = GroupMessageReceipt::where('group_id', $id)
+                        ->where('client_uuid', $uuid)
+                        ->whereIn('status', ['delivered', 'read'])
+                        ->count();
+
+                    $computedStatus = 'sent';
+                    if ($otherMembersCount > 0) {
+                        if ($readCount >= $otherMembersCount) {
+                            $computedStatus = 'read';
+                        } elseif ($deliveredCount >= $otherMembersCount) {
+                            $computedStatus = 'delivered';
+                        }
+                    } else {
+                        $computedStatus = 'read';
+                    }
+
+                    try {
+                        broadcast(new GroupMessageStatusUpdated(
+                            groupId: (int)$id,
+                            senderId: (int)$senderId,
+                            clientUuid: $uuid,
+                            messageId: null,
+                            status: $computedStatus,
+                            readCount: $readCount,
+                            deliveredCount: $deliveredCount,
+                            targetCount: $otherMembersCount
+                        ));
+                    } catch (\Throwable $e) {}
+
+                    if ($otherMembersCount === 0 || $readCount >= $otherMembersCount) {
+                        GroupMessageReceipt::where('group_id', $id)
+                            ->where('client_uuid', $uuid)
+                            ->delete();
+                    }
+                }
+            }
+        }
+
+        // Auto-prune pesan lama (> 24 jam) dan receipts lama agar MySQL tidak menumpuk
+        try {
+            GroupMessage::where('created_at', '<', now()->subHours(24))->delete();
+            GroupMessageReceipt::where('created_at', '<', now()->subHours(24))->delete();
+        } catch (\Throwable $e) {}
 
         return response()->json(['message' => 'Status pesan grup berhasil diperbarui']);
     }
