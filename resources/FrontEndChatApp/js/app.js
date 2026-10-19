@@ -5910,13 +5910,13 @@
         if (multipleCheck) multipleCheck.checked = false;
 
         updatePollOptionNumbers();
-        modal.classList.remove('hidden');
+        modal.classList.add('active');
         if (questionInput) questionInput.focus();
     };
 
     window.closeCreatePollModal = function () {
         const modal = document.getElementById('createPollModal');
-        if (modal) modal.classList.add('hidden');
+        if (modal) modal.classList.remove('active');
     };
 
     function updatePollOptionNumbers() {
@@ -6240,7 +6240,20 @@
     window.openForwardModal = function (msgId, event) {
         if (event) event.stopPropagation();
 
-        const msg = (state.activeMessages || []).find(m => String(m.id || m.client_uuid) === String(msgId));
+        const activeChatId = state.activeContact ? state.activeContact.id : null;
+        let msg = null;
+        if (activeChatId && state.chats[activeChatId]) {
+            msg = state.chats[activeChatId].find(m => String(m.id) === String(msgId) || String(m.client_uuid) === String(msgId));
+        }
+        if (!msg && state.chats) {
+            for (const k in state.chats) {
+                if (Array.isArray(state.chats[k])) {
+                    msg = state.chats[k].find(m => String(m.id) === String(msgId) || String(m.client_uuid) === String(msgId));
+                    if (msg) break;
+                }
+            }
+        }
+
         if (!msg) {
             showToast('Pesan tidak ditemukan untuk diteruskan.', 'error');
             return;
@@ -6287,13 +6300,13 @@
         renderForwardRecipientsList('');
         updateForwardSelectedCount();
 
-        modal.classList.remove('hidden');
+        modal.classList.add('active');
         if (searchInput) searchInput.focus();
     };
 
     window.closeForwardModal = function () {
         const modal = document.getElementById('forwardMessageModal');
-        if (modal) modal.classList.add('hidden');
+        if (modal) modal.classList.remove('active');
         state.forwardingMessage = null;
         state.forwardSelectedRecipients = [];
     };
@@ -6485,8 +6498,7 @@
                     });
 
                     if (savedMsg && savedMsg.id) {
-                        if (!state.chats[targetUserId]) state.chats[targetUserId] = [];
-                        state.chats[targetUserId].push({
+                        const localMsg = {
                             id: savedMsg.id,
                             client_uuid: clientUuid,
                             sender_id: state.user.id,
@@ -6497,7 +6509,12 @@
                             reactions: {},
                             status: 'sent',
                             created_at: new Date().toISOString()
-                        });
+                        };
+                        if (!state.chats[targetUserId]) state.chats[targetUserId] = [];
+                        state.chats[targetUserId].push(localMsg);
+                        if (typeof AppDB !== 'undefined' && AppDB.saveMessage) {
+                            try { await AppDB.saveMessage(localMsg, state.user.id); } catch (e) {}
+                        }
                         successCount++;
                     }
                 } else if (targetKey.startsWith('group_')) {
@@ -6518,8 +6535,7 @@
 
                     if (savedMsg && savedMsg.id) {
                         const chatKey = `group_${targetGroupId}`;
-                        if (!state.chats[chatKey]) state.chats[chatKey] = [];
-                        state.chats[chatKey].push({
+                        const localMsg = {
                             id: savedMsg.id,
                             client_uuid: clientUuid,
                             sender_id: state.user.id,
@@ -6530,7 +6546,12 @@
                             reactions: {},
                             status: 'sent',
                             created_at: new Date().toISOString()
-                        });
+                        };
+                        if (!state.chats[chatKey]) state.chats[chatKey] = [];
+                        state.chats[chatKey].push(localMsg);
+                        if (typeof AppDB !== 'undefined' && AppDB.saveMessage) {
+                            try { await AppDB.saveMessage(localMsg, state.user.id); } catch (e) {}
+                        }
                         successCount++;
                     }
                 }
@@ -6558,13 +6579,13 @@
         if (!modal) return;
         const input = document.getElementById('joinGroupCodeInput');
         if (input) input.value = '';
-        modal.classList.remove('hidden');
+        modal.classList.add('active');
         if (input) input.focus();
     };
 
     window.closeJoinGroupModal = function () {
         const modal = document.getElementById('joinGroupModal');
-        if (modal) modal.classList.add('hidden');
+        if (modal) modal.classList.remove('active');
     };
 
     window.submitJoinGroupByCode = async function () {
