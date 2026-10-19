@@ -1,6 +1,6 @@
 {{-- Contact Information Modal Component --}}
 <div id="contactInfoModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="contactInfoTitle">
-    <div class="modal-card">
+    <div class="modal-card contact-modal-card">
         <div class="modal-header">
             <h2 id="contactInfoTitle" class="modal-title">Informasi Kontak</h2>
             <button type="button" class="btn-icon" onclick="closeContactInfoModal()" aria-label="Tutup modal informasi">
@@ -11,19 +11,19 @@
             </button>
         </div>
 
-        <div class="contact-info-profile">
-            <div class="avatar-container">
-                <div id="contactModalAvatarCircle" class="avatar-circle contact-info-avatar" style="overflow: hidden; display: flex; align-items: center; justify-content: center;">?</div>
-                <span id="contactModalStatusDot" class="status-indicator-dot offline" style="width: 15px; height: 15px; border-width: 3px;"></span>
+        <div class="contact-modal-profile">
+            <div class="avatar-container contact-modal-avatar-wrap">
+                <div id="contactModalAvatarCircle" class="avatar-circle contact-info-avatar">?</div>
+                <span id="contactModalStatusDot" class="status-indicator-dot offline"></span>
             </div>
 
-            <div>
+            <div class="contact-modal-meta">
                 <h3 id="contactModalDisplayName" class="contact-info-name">-</h3>
                 <div id="contactModalUsername" class="contact-info-handle">@username</div>
             </div>
 
             <div id="contactModalStatusBadge" class="contact-status-badge offline">
-                <span style="width: 6px; height: 6px; border-radius: 50%; background-color: currentColor;"></span>
+                <span class="status-badge-dot"></span>
                 <span id="contactModalStatusText">Offline</span>
             </div>
         </div>
@@ -39,7 +39,7 @@
             </div>
             <div class="contact-detail-row">
                 <span class="contact-detail-label">Hubungan Akun</span>
-                <span class="contact-detail-val" style="color: var(--status-online);">Teman Terhubung</span>
+                <span class="contact-detail-val status-online-text">Teman Terhubung</span>
             </div>
             <div class="contact-detail-row">
                 <span class="contact-detail-label">Bergabung Sejak</span>
@@ -51,24 +51,38 @@
             </div>
             <div class="contact-detail-row">
                 <span class="contact-detail-label">Keamanan Obrolan</span>
-                <span class="contact-detail-val" style="color: #10b981; display: inline-flex; align-items: center; gap: 4px;">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <span class="contact-detail-val security-verified-text">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                         <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                     </svg>
-                    Enkripsi Server AES-256 Terlindungi
+                    Enkripsi Server Terlindungi
                 </span>
             </div>
         </div>
 
-        <div style="display: flex; gap: 0.75rem; margin-top: 0.25rem; flex-wrap: wrap;">
-            <button type="button" class="btn-action-primary" style="flex: 1; min-width: 120px;" onclick="closeContactInfoModal(); focusMessageInput();">
-                Kirim Pesan
+        <div class="contact-modal-actions">
+            <button type="button" class="btn-action-primary contact-modal-btn" onclick="closeContactInfoModal(); focusMessageInput();">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+                <span>Kirim Pesan</span>
             </button>
-            <button type="button" class="btn-action-primary" style="background-color: rgba(239, 68, 68, 0.12); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);" onclick="confirmDeleteContact()">
-                Hapus Kontak
+            <button type="button" id="contactModalBlockBtn" class="btn-outline-warning contact-modal-btn" onclick="handleContactModalToggleBlock()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                </svg>
+                <span id="contactModalBlockBtnText">Blokir Kontak</span>
             </button>
-            <button type="button" class="btn-action-primary" style="background-color: var(--bg-surface-elevated); color: var(--text-primary); border: 1px solid var(--border-subtle);" onclick="closeContactInfoModal()">
+            <button type="button" class="btn-action-danger-outline contact-modal-btn" onclick="confirmDeleteContact()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                <span>Hapus Kontak</span>
+            </button>
+            <button type="button" class="btn-outline-action contact-modal-btn" onclick="closeContactInfoModal()">
                 Tutup
             </button>
         </div>

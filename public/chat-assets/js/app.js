@@ -4280,7 +4280,8 @@
 
         if (list) {
             list.innerHTML = `
-                <div class="empty-state" style="padding: 1rem 0;">
+                <div class="empty-state" style="padding: 2rem 0;">
+                    <div class="btn-spinner" style="margin: 0 auto 0.6rem; width: 22px; height: 22px; border-width: 2.5px; border-top-color: var(--accent-primary);"></div>
                     <p class="empty-state-desc">Mencari pengguna...</p>
                 </div>
             `;
@@ -4300,25 +4301,31 @@
 
             list.innerHTML = users.map(user => {
                 const initial = (user.display_name || user.username).charAt(0).toUpperCase();
-                const isFriend = state.contacts.some(c => c.id === user.id);
+                const pastelClass = getPastelColorClass(user.display_name || user.username);
+                const isFriend = state.contacts.some(c => Number(c.id) === Number(user.id));
                 const userAvatarHtml = user.avatar
                     ? `<img src="${escapeHtml(user.avatar)}" alt="${escapeHtml(user.display_name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;">`
                     : initial;
 
                 return `
-                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.625rem; background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
-                        <div style="display: flex; align-items: center; gap: 0.75rem;">
-                            <div class="avatar-circle" style="width: 34px; height: 34px; font-size: 0.875rem; overflow: hidden; display: flex; align-items: center; justify-content: center;">${userAvatarHtml}</div>
-                            <div>
-                                <div style="font-weight: 600; font-size: 0.875rem; color: var(--text-primary);">${escapeHtml(user.display_name)}</div>
-                                <div style="font-size: 0.75rem; color: var(--text-secondary);">@${escapeHtml(user.username)}</div>
+                    <div class="search-user-row">
+                        <div class="search-user-left">
+                            <div class="avatar-circle ${pastelClass}" style="width: 36px; height: 36px; font-size: 0.85rem; overflow: hidden; display: flex; align-items: center; justify-content: center;">${userAvatarHtml}</div>
+                            <div class="search-user-info">
+                                <div class="search-user-name">${escapeHtml(user.display_name)}</div>
+                                <div class="search-user-handle">@${escapeHtml(user.username)}</div>
                             </div>
                         </div>
 
                         ${isFriend ? `
-                            <span style="font-size: 0.8125rem; color: var(--status-online); font-weight: 600;">Sudah Teman</span>
+                            <span class="search-user-badge">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                                <span>Sudah Teman</span>
+                            </span>
                         ` : `
-                            <button type="button" class="btn-action-primary" style="padding: 0.4rem 0.75rem; font-size: 0.8125rem; min-height: 32px;" onclick="handleAddFriendSubmit(${user.id}, this)">
+                            <button type="button" class="btn-action-primary" style="padding: 0.35rem 0.85rem; font-size: 0.8125rem; min-height: 32px;" onclick="handleAddFriendSubmit(${user.id}, this)">
                                 Tambah
                             </button>
                         `}
@@ -4794,26 +4801,38 @@
         if (nameInput) nameInput.value = '';
         if (descInput) descInput.value = '';
 
+        const countBadge = document.getElementById('createGroupSelectedCount');
+        if (countBadge) countBadge.textContent = '0 dipilih';
+
         if (membersList) {
             if (!state.contacts || state.contacts.length === 0) {
                 membersList.innerHTML = `
-                    <div style="padding: 1rem; text-align: center; font-size: 0.8125rem; color: var(--text-muted);">
+                    <div style="padding: 1.5rem 1rem; text-align: center; font-size: 0.8125rem; color: var(--text-muted);">
                         Belum ada kontak teman. Tambahkan teman terlebih dahulu untuk diundang ke grup.
                     </div>
                 `;
             } else {
                 membersList.innerHTML = state.contacts.map(c => {
                     const initial = (c.display_name || c.username || 'U').charAt(0).toUpperCase();
+                    const pastelClass = getPastelColorClass(c.display_name || c.username);
+                    let avatarHtml = `<div class="avatar-circle ${pastelClass}" style="width: 32px; height: 32px; font-size: 0.75rem;">${initial}</div>`;
+                    if (c.avatar) {
+                        avatarHtml = `
+                            <div class="avatar-circle" style="width: 32px; height: 32px; overflow: hidden; padding: 0;">
+                                <img src="${escapeHtml(c.avatar)}" alt="${escapeHtml(c.display_name)}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                            </div>
+                        `;
+                    }
                     return `
-                        <label style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.6rem; border-radius: 6px; cursor: pointer; transition: background 0.15s ease; background: var(--bg-surface-elevated, rgba(255,255,255,0.02));">
-                            <div style="display: flex; align-items: center; gap: 0.6rem;">
-                                <div class="avatar-circle" style="width: 28px; height: 28px; font-size: 0.75rem;">${initial}</div>
-                                <div>
-                                    <div style="font-size: 0.8125rem; font-weight: 600; color: var(--text-primary);">${escapeHtml(c.display_name)}</div>
-                                    <div style="font-size: 0.7rem; color: var(--text-muted);">@${escapeHtml(c.username)}</div>
+                        <label class="member-select-item">
+                            <div class="member-select-left">
+                                ${avatarHtml}
+                                <div class="member-select-info">
+                                    <div class="member-select-name">${escapeHtml(c.display_name)}</div>
+                                    <div class="member-select-handle">@${escapeHtml(c.username)}</div>
                                 </div>
                             </div>
-                            <input type="checkbox" name="selected_group_members" value="${c.id}" style="width: 16px; height: 16px; accent-color: var(--accent-primary); cursor: pointer;">
+                            <input type="checkbox" name="selected_group_members" value="${c.id}" class="member-select-checkbox" onchange="updateCreateGroupSelectedCount()">
                         </label>
                     `;
                 }).join('');
@@ -4832,6 +4851,14 @@
         if (modal) {
             modal.classList.remove('active');
             modal.style.display = 'none';
+        }
+    };
+
+    window.updateCreateGroupSelectedCount = function () {
+        const countBadge = document.getElementById('createGroupSelectedCount');
+        const checked = document.querySelectorAll('input[name="selected_group_members"]:checked');
+        if (countBadge) {
+            countBadge.textContent = `${checked.length} dipilih`;
         }
     };
 
@@ -4945,17 +4972,27 @@
 
         listEl.innerHTML = candidates.map(c => {
             const initial = (c.display_name || c.username || 'U').charAt(0).toUpperCase();
+            const pastelClass = getPastelColorClass(c.display_name || c.username);
             const isChecked = currentlyChecked.has(Number(c.id));
+            let avatarHtml = `<div class="avatar-circle ${pastelClass}" style="width: 32px; height: 32px; font-size: 0.75rem;">${initial}</div>`;
+            if (c.avatar) {
+                avatarHtml = `
+                    <div class="avatar-circle" style="width: 32px; height: 32px; overflow: hidden; padding: 0;">
+                        <img src="${escapeHtml(c.avatar)}" alt="${escapeHtml(c.display_name)}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                    </div>
+                `;
+            }
+
             return `
-                <label style="display: flex; align-items: center; justify-content: space-between; padding: 0.45rem 0.65rem; border-radius: 8px; cursor: pointer; transition: background 0.15s ease; background: var(--bg-surface-elevated, rgba(255,255,255,0.03)); border: 1px solid var(--border-subtle, rgba(255,255,255,0.06)); margin-bottom: 2px;">
-                    <div style="display: flex; align-items: center; gap: 0.65rem;">
-                        <div class="avatar-circle" style="width: 32px; height: 32px; font-size: 0.75rem; flex-shrink: 0; background: linear-gradient(135deg, rgba(124, 58, 237, 0.3), rgba(139, 92, 246, 0.15)); color: #c4b5fd;">${initial}</div>
-                        <div>
-                            <div style="font-size: 0.8125rem; font-weight: 600; color: var(--text-primary);">${escapeHtml(c.display_name)}</div>
-                            <div style="font-size: 0.7rem; color: var(--text-muted);">@${escapeHtml(c.username)}</div>
+                <label class="member-select-item ${isChecked ? 'selected' : ''}">
+                    <div class="member-select-left">
+                        ${avatarHtml}
+                        <div class="member-select-info">
+                            <div class="member-select-name">${escapeHtml(c.display_name)}</div>
+                            <div class="member-select-handle">@${escapeHtml(c.username)}</div>
                         </div>
                     </div>
-                    <input type="checkbox" name="add_to_group_members" value="${c.id}" ${isChecked ? 'checked' : ''} onchange="updateAddMemberSubmitCount()" style="width: 17px; height: 17px; accent-color: var(--accent-primary); cursor: pointer;">
+                    <input type="checkbox" name="add_to_group_members" value="${c.id}" ${isChecked ? 'checked' : ''} onchange="updateAddMemberSubmitCount()" class="member-select-checkbox">
                 </label>
             `;
         }).join('');
@@ -5453,8 +5490,39 @@
             msgsEl.textContent = `${list.length} pesan`;
         }
 
+        const blockBtn = document.getElementById('contactModalBlockBtn');
+        const blockBtnText = document.getElementById('contactModalBlockBtnText');
+        const isBlocked = (state.blockedUserIds && state.blockedUserIds.has(Number(contact.id))) || Boolean(contact.is_blocked);
+        if (blockBtn && blockBtnText) {
+            if (isBlocked) {
+                blockBtnText.textContent = 'Buka Blokir';
+                blockBtn.className = 'btn-outline-action contact-modal-btn';
+            } else {
+                blockBtnText.textContent = 'Blokir Kontak';
+                blockBtn.className = 'btn-outline-warning contact-modal-btn';
+            }
+        }
+
         if (modal) {
             modal.classList.add('active');
+        }
+    };
+
+    window.handleContactModalToggleBlock = async function () {
+        if (!state.activeContact) return;
+        await window.handleToggleBlockContact();
+        const contact = state.activeContact;
+        const blockBtn = document.getElementById('contactModalBlockBtn');
+        const blockBtnText = document.getElementById('contactModalBlockBtnText');
+        const isBlocked = (state.blockedUserIds && state.blockedUserIds.has(Number(contact.id))) || Boolean(contact.is_blocked);
+        if (blockBtn && blockBtnText) {
+            if (isBlocked) {
+                blockBtnText.textContent = 'Buka Blokir';
+                blockBtn.className = 'btn-outline-action contact-modal-btn';
+            } else {
+                blockBtnText.textContent = 'Blokir Kontak';
+                blockBtn.className = 'btn-outline-warning contact-modal-btn';
+            }
         }
     };
 
@@ -5819,7 +5887,7 @@
             let groupSenderHtml = '';
             if (state.activeContact && state.activeContact.is_group && !isMe) {
                 const sName = msg.sender_name || 'Anggota';
-                groupSenderHtml = `<div class="group-msg-sender" style="font-size: 0.75rem; font-weight: 700; color: #a78bfa; margin-bottom: 3px;">${escapeHtml(sName)}</div>`;
+                groupSenderHtml = `<div class="group-msg-sender">${escapeHtml(sName)}</div>`;
             }
 
             return `

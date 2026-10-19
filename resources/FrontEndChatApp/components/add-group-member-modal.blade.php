@@ -14,36 +14,35 @@
             </button>
         </div>
 
-        <form id="addGroupMemberForm" onsubmit="handleAddGroupMembersSubmit(event)" style="display: flex; flex-direction: column; gap: 1rem;">
+        <form id="addGroupMemberForm" onsubmit="handleAddGroupMembersSubmit(event)" class="modal-form-stack">
             {{-- Search contacts input --}}
-            <div class="form-group" style="position: relative;">
-                <input 
-                    id="searchAddMemberInput" 
-                    type="text" 
-                    class="form-input" 
-                    placeholder="Cari teman di kontak..." 
-                    oninput="filterAddMemberCandidates(event)"
-                    style="padding-left: 2.25rem;"
-                >
-                <div style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-muted); display: flex;">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <div class="form-group">
+                <div class="search-input-icon-wrap">
+                    <svg class="search-icon-svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <circle cx="11" cy="11" r="8"></circle>
                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                     </svg>
+                    <input 
+                        id="searchAddMemberInput" 
+                        type="text" 
+                        class="form-input search-input-with-icon" 
+                        placeholder="Cari teman di kontak..." 
+                        oninput="filterAddMemberCandidates(event)"
+                    >
                 </div>
             </div>
 
             <div class="form-group">
-                <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="font-weight: 600;">Daftar Kontak Tersedia</span>
-                    <span id="addMemberSelectedBadge" style="font-size: 0.75rem; color: #a78bfa; font-weight: 600;">0 dipilih</span>
-                </label>
-                <div id="addMembersChecklist" style="max-height: 230px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.5rem; background: var(--bg-surface-elevated, rgba(255,255,255,0.02));">
+                <div class="member-header-row">
+                    <span class="form-label mb-0">Daftar Kontak Tersedia</span>
+                    <span id="addMemberSelectedBadge" class="selected-counter-badge">0 dipilih</span>
+                </div>
+                <div id="addMembersChecklist" class="member-selection-box">
                     {{-- Dynamically populated by app.js --}}
                 </div>
             </div>
 
-            <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.25rem;">
+            <div class="modal-footer-row">
                 <button type="button" class="btn-outline-action" onclick="closeAddGroupMemberModal()">
                     Batal
                 </button>

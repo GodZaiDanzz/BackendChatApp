@@ -14,16 +14,16 @@
             </button>
         </div>
 
-        <form id="editGroupForm" onsubmit="handleEditGroupSubmit(event)" style="display: flex; flex-direction: column; gap: 1.15rem;">
+        <form id="editGroupForm" onsubmit="handleEditGroupSubmit(event)" class="modal-form-stack">
             {{-- Group Avatar Preview & Upload --}}
-            <div style="display: flex; align-items: center; gap: 1rem; padding: 0.85rem; border-radius: 12px; background: var(--bg-surface-elevated, rgba(255,255,255,0.03)); border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));">
-                <div id="editGroupAvatarPreview" style="width: 58px; height: 58px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: var(--bg-surface); border: 2px solid rgba(124, 58, 237, 0.3); display: flex; align-items: center; justify-content: center;">
+            <div class="group-avatar-upload-card">
+                <div id="editGroupAvatarPreview" class="group-avatar-preview-box">
                     {{-- Dynamically populated --}}
                 </div>
                 <div style="flex: 1; min-width: 0;">
-                    <div style="font-size: 0.8125rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.3rem;">Foto Profil Grup</div>
+                    <div class="form-label" style="margin-bottom: 0.35rem;">Foto Profil Grup</div>
                     <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                        <label for="editGroupAvatarFile" class="btn-outline-action" style="padding: 0.35rem 0.75rem; font-size: 0.75rem; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 0; border-radius: 6px;">
+                        <label for="editGroupAvatarFile" class="btn-outline-action" style="padding: 0.35rem 0.75rem; font-size: 0.75rem; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; margin-bottom: 0; min-height: 32px;">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
                                 <circle cx="12" cy="13" r="4"></circle>
@@ -31,14 +31,14 @@
                             <span>Pilih Foto</span>
                         </label>
                         <input type="file" id="editGroupAvatarFile" accept="image/*" style="display: none;" onchange="previewGroupAvatar(event)">
-                        <span id="editGroupAvatarFileName" style="font-size: 0.7rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;"></span>
+                        <span id="editGroupAvatarFileName" style="font-size: 0.72rem; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px;"></span>
                     </div>
                 </div>
             </div>
 
             {{-- Group Name Input --}}
             <div class="form-group">
-                <label for="editGroupNameInput" class="form-label" style="font-weight: 600;">Nama Grup <span style="color: #ef4444;">*</span></label>
+                <label for="editGroupNameInput" class="form-label">Nama Grup <span style="color: #ef4444;">*</span></label>
                 <input 
                     id="editGroupNameInput" 
                     type="text" 
@@ -51,7 +51,7 @@
 
             {{-- Group Description Input --}}
             <div class="form-group">
-                <label for="editGroupDescInput" class="form-label" style="font-weight: 600;">Deskripsi Grup (Opsional)</label>
+                <label for="editGroupDescInput" class="form-label">Deskripsi Grup (Opsional)</label>
                 <textarea 
                     id="editGroupDescInput" 
                     class="form-input" 
@@ -60,11 +60,11 @@
                     placeholder="Tuliskan topik atau deskripsi grup ini..."
                     style="resize: vertical; min-height: 70px; line-height: 1.45;"
                 ></textarea>
-                <span class="form-helper" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem;">Maksimal 255 karakter</span>
+                <span class="form-helper">Maksimal 255 karakter</span>
             </div>
 
             {{-- Action buttons --}}
-            <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.25rem;">
+            <div class="modal-footer-row">
                 <button type="button" class="btn-outline-action" onclick="closeEditGroupModal()">
                     Batal
                 </button>

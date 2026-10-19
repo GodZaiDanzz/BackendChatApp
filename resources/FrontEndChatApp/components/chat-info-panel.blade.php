@@ -22,7 +22,7 @@
 
             <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-top: 0.25rem;">
                 <h3 id="infoDisplayName" class="info-profile-name" style="margin-top: 0;">Info Kontak</h3>
-                <button type="button" id="btnHeaderEditGroup" class="btn-icon" onclick="openEditGroupModal()" title="Edit Nama & Deskripsi Grup" style="display: none; width: 26px; height: 26px; border-radius: 6px; background: rgba(124, 58, 237, 0.15); color: #a78bfa; padding: 4px;" aria-label="Edit Grup">
+                <button type="button" id="btnHeaderEditGroup" class="btn-edit-group-header" onclick="openEditGroupModal()" title="Edit Nama & Deskripsi Grup" style="display: none;" aria-label="Edit Grup">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -67,16 +67,17 @@
             </div>
         </div>
 
-        <div class="info-section" style="padding-top: 0.5rem; padding-bottom: 0.5rem;">
-            <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border-radius: 10px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2);">
-                <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(16, 185, 129, 0.15); display: flex; align-items: center; justify-content: center; color: #10b981; flex-shrink: 0;">
+        <div class="info-section">
+            <div class="info-security-card">
+                <div class="info-security-icon">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                         <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                     </svg>
                 </div>
                 <div>
-                    <div style="font-size: 0.8125rem; font-weight: 600; color: #10b981;">Enkripsi Server AES-256 Terlindungi</div>
+                    <div class="info-security-title">Enkripsi Server Terlindungi</div>
+                    <div class="info-security-desc">Pesan dan media dilindungi protokol TLS & enkripsi aman</div>
                 </div>
             </div>
         </div>
@@ -121,9 +122,9 @@
         </div>
 
         {{-- Actions at bottom: Contact vs Group --}}
-        <div class="info-section" style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.08)); display: flex; flex-direction: column; gap: 0.5rem;">
+        <div class="info-section-actions">
             {{-- Contact Action: Block / Unblock --}}
-            <button type="button" id="btnBlockContactAction" class="btn-block-contact" onclick="handleToggleBlockContact()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid rgba(245, 158, 11, 0.35); background: rgba(245, 158, 11, 0.1); color: #fbbf24; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
+            <button type="button" id="btnBlockContactAction" class="info-action-btn warning" onclick="handleToggleBlockContact()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"></circle>
                     <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
@@ -132,7 +133,7 @@
             </button>
 
             {{-- Contact Action: Delete --}}
-            <button type="button" id="btnDeleteContactAction" class="btn-delete-contact" onclick="confirmDeleteContact()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.1); color: #ef4444; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
+            <button type="button" id="btnDeleteContactAction" class="info-action-btn danger" onclick="confirmDeleteContact()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                     <circle cx="8.5" cy="7" r="4"></circle>
@@ -143,7 +144,7 @@
             </button>
 
             {{-- Group Action: Edit Detail Grup (Admin only) --}}
-            <button type="button" id="btnEditGroupAction" onclick="openEditGroupModal()" style="display: none; width: 100%; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid rgba(124, 58, 237, 0.4); background: rgba(124, 58, 237, 0.12); color: #c4b5fd; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
+            <button type="button" id="btnEditGroupAction" class="info-action-btn accent" onclick="openEditGroupModal()" style="display: none;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
@@ -152,7 +153,7 @@
             </button>
 
             {{-- Group Action: Keluar dari Grup --}}
-            <button type="button" id="btnLeaveGroupAction" onclick="handleLeaveGroup()" style="display: none; width: 100%; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.1); color: #ef4444; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
+            <button type="button" id="btnLeaveGroupAction" class="info-action-btn danger" onclick="handleLeaveGroup()" style="display: none;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                     <polyline points="16 17 21 12 16 7"></polyline>
@@ -162,7 +163,7 @@
             </button>
 
             {{-- Group Action: Bubarkan Grup (Admin only) --}}
-            <button type="button" id="btnDeleteGroupAction" onclick="handleDeleteGroup()" style="display: none; width: 100%; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.2); color: #f87171; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
+            <button type="button" id="btnDeleteGroupAction" class="info-action-btn danger-filled" onclick="handleDeleteGroup()" style="display: none;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="3 6 5 6 21 6"></polyline>
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -172,7 +173,7 @@
         </div>
     </div>
 
-    {{-- Bottom-Right Floating Help / Info Circle (?) Button --}}
+    {{-- Bottom-Right Floating Help / Info Circle Button --}}
     <button
         type="button"
         class="floating-help-btn"
@@ -180,6 +181,10 @@
         title="Bantuan & Panduan Pengguna"
         aria-label="Pusat Bantuan"
     >
-        ?
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
     </button>
 </aside>
