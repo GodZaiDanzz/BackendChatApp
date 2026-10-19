@@ -4181,3 +4181,385 @@ mark.search-highlight-active {
   border-color: var(--accent-primary, #7c3aed);
   color: #ffffff;
 }
+
+/* ==========================================================================
+   Fase 2 Component Styles: Media Lightbox Gallery & Voice Note Waveforms
+   ========================================================================== */
+
+/* Fullscreen Media Lightbox Overlay */
+.media-lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background-color: rgba(11, 13, 19, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  animation: lightboxFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+@keyframes lightboxFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Lightbox Header */
+.lightbox-header {
+  height: 60px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(180deg, rgba(15, 17, 23, 0.9) 0%, rgba(15, 17, 23, 0) 100%);
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.lightbox-meta-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 40%;
+}
+
+.lightbox-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lightbox-subtitle {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lightbox-counter-badge {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #c4b5fd;
+  background: rgba(124, 58, 237, 0.2);
+  border: 1px solid rgba(124, 58, 237, 0.35);
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lightbox-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-lightbox-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f3f4f6;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.btn-lightbox-action:hover {
+  background: rgba(124, 58, 237, 0.25);
+  border-color: rgba(124, 58, 237, 0.5);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.btn-lightbox-action.danger:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+}
+
+/* Lightbox Stage (Central Canvas) */
+.lightbox-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+  padding: 10px 16px;
+}
+
+.lightbox-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(24, 28, 40, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 10;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.lightbox-nav-btn:hover:not(:disabled) {
+  background: var(--accent-primary, #7c3aed);
+  border-color: var(--accent-primary, #7c3aed);
+  transform: scale(1.1);
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.4);
+}
+
+.lightbox-nav-btn:disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+}
+
+.lightbox-media-wrapper {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.lightbox-image {
+  max-width: 90vw;
+  max-height: 75vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: zoom-in;
+  will-change: transform;
+}
+
+.lightbox-image.is-zoomed {
+  cursor: grab;
+}
+
+.lightbox-image.is-dragging {
+  cursor: grabbing;
+  transition: none;
+}
+
+.lightbox-video {
+  max-width: 85vw;
+  max-height: 72vh;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+  background: #000000;
+  outline: none;
+}
+
+/* Lightbox Bottom Filmstrip */
+.lightbox-thumb-strip {
+  height: 80px;
+  background: linear-gradient(0deg, rgba(15, 17, 23, 0.95) 0%, rgba(15, 17, 23, 0) 100%);
+  padding: 8px 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.lightbox-thumb-list {
+  display: flex;
+  gap: 8px;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 4px 6px;
+  scrollbar-width: thin;
+}
+
+.lightbox-thumb-item {
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-size: cover;
+  background-position: center;
+  background-color: #1a1e2b;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0.55;
+  transition: all 0.18s ease;
+  overflow: hidden;
+  position: relative;
+}
+
+.lightbox-thumb-item:hover {
+  opacity: 0.9;
+  transform: scale(1.05);
+}
+
+.lightbox-thumb-item.active {
+  opacity: 1;
+  border-color: #a78bfa;
+  box-shadow: 0 0 12px rgba(124, 58, 237, 0.5);
+  transform: scale(1.08);
+}
+
+/* Real-Time Live Recording Waveform Bars */
+.vn-live-waveform-bars {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+  padding: 0 8px;
+}
+
+.vn-live-bar {
+  width: 3px;
+  min-height: 4px;
+  max-height: 22px;
+  border-radius: 2px;
+  background: #ef4444;
+  transition: height 0.08s ease;
+}
+
+/* Interactive Waveform Seeking & Hover Polish */
+.vn-waveform-track {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+
+.vn-waveform-track:hover .vn-bar {
+  filter: brightness(1.15);
+}
+
+.vn-bar {
+  transition: height 0.15s ease, background-color 0.12s ease;
+}
+
+.bubble-attachment-image {
+  cursor: pointer;
+  overflow: hidden;
+  border-radius: 10px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.bubble-attachment-image:hover {
+  transform: scale(1.015);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.media-thumb-card {
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+.media-thumb-card:hover {
+  transform: scale(1.04);
+  border-color: #a78bfa !important;
+}
+
+/* Lightbox bubble trigger styling */
+.bubble-lightbox-trigger {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: inherit;
+  text-align: left;
+}
+
+.bubble-lightbox-trigger img {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  object-fit: cover;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.bubble-lightbox-trigger video {
+  display: block;
+  max-width: 100%;
+  max-height: 280px;
+  object-fit: cover;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.lightbox-hint-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(15, 17, 23, 0.75);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.bubble-lightbox-trigger:hover .lightbox-hint-badge {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.video-play-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 17, 23, 0.4);
+  color: #fff;
+  transition: background 0.2s ease;
+  pointer-events: none;
+}
+
+.video-play-overlay svg {
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  border-radius: 50%;
+  background: rgba(124, 58, 237, 0.9);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.bubble-lightbox-trigger:hover .video-play-overlay svg {
+  transform: scale(1.1);
+  background: #8b5cf6;
+}
+
+.vn-waveform-track.scrubbing {
+  cursor: grabbing !important;
+}
+

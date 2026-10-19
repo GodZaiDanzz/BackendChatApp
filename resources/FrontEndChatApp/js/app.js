@@ -257,6 +257,21 @@
             seconds: 0,
             stream: null
         },
+        lightbox: {
+            items: [],
+            currentIndex: 0,
+            zoom: 1,
+            panX: 0,
+            panY: 0,
+            isDragging: false,
+            startX: 0,
+            startY: 0
+        },
+        voiceNoteAnalyser: {
+            audioCtx: null,
+            analyser: null,
+            animFrame: null
+        },
         voice: {
             active: false,
             isVideo: false,
@@ -2244,11 +2259,14 @@
         } else {
             const recentImages = images.slice(-9).reverse();
             mediaContainer.innerHTML = recentImages.map(img => {
-                const imgUrl = img.url || '#';
+                const imgUrl = img.url || '';
                 const imgName = escapeHtml(img.name || 'Gambar');
+                if (!imgUrl) return '';
+                const jsSafeUrl = imgUrl.replace(/'/g, "\\'");
+                const jsSafeName = imgName.replace(/'/g, "\\'");
                 return `
-                    <a href="${imgUrl}" target="_blank" rel="noopener noreferrer" class="media-thumb-card" title="${imgName}" style="background-image: url('${imgUrl}'); background-size: cover; background-position: center; border: 1px solid var(--border-card); display: block; text-decoration: none;">
-                    </a>
+                    <button type="button" class="media-thumb-card" title="${imgName}" onclick="openMediaLightbox('${jsSafeUrl}', { name: '${jsSafeName}' })" style="background-image: url('${imgUrl}'); background-size: cover; background-position: center; border: 1px solid var(--border-card); display: block; width: 100%; cursor: pointer;">
+                    </button>
                 `;
             }).join('');
         }
@@ -3412,6 +3430,328 @@
         };
         reader.readAsText(selectedBackupFile);
     };
+
+    // ==========================================
+    // Media Lightbox Gallery (Fullscreen Preview)
+    // ==========================================
+    window.openMediaLightbox = function (targetUrl, directMeta = null) {
+        if (!state.activeContact) return;
+
+        const currentContactId = state.activeContact.id;
+        const messages = state.chats[currentContactId] || [];
+
+        const mediaItems = [];
+        messages.forEach(msg => {
+            if (msg.is_deleted || msg.body === 'Pesan ini telah dihapus') return;
+            let att = msg.attachment;
+
+            if (!att && msg.body && msg.body.startsWith('[Berkas:')) {
+                const match = msg.body.match(/^\[Berkas:\s*(.+?)\]$/);
+                if (match) {
+                    const fName = match[1];
+                    const isImg = Boolean(fName.match(/\.(jpeg|jpg|png|gif|webp|svg)$/i));
+                    const isVid = Boolean(fName.match(/\.(mp4|webm|mov|mkv)$/i));
+                    if (isImg || isVid) {
+                        att = {
+                            name: fName,
+                            url: `/uploads/chat/${encodeURIComponent(fName)}`,
+                            type: isImg ? 'image/jpeg' : 'video/mp4'
+                        };
+                    }
+                }
+            }
+
+            if (att && (att.url || att.dataUrl)) {
+                const url = att.url || att.dataUrl;
+                const name = (att.name || '').toLowerCase();
+                const type = (att.type || '').toLowerCase();
+                const isImg = type.startsWith('image/') || Boolean(name.match(/\.(jpeg|jpg|png|gif|webp|svg)$/i));
+                const isVid = type.startsWith('video/') || Boolean(name.match(/\.(mp4|webm|mov|mkv)$/i));
+
+                if (isImg || isVid) {
+                    const isMe = Number(msg.sender_id) === Number(state.user ? state.user.id : 0);
+                    const senderName = isMe ? 'Anda' : (msg.sender_name || state.activeContact.display_name || state.activeContact.username);
+                    const timestamp = formatTime(msg.created_at);
+
+                    mediaItems.push({
+                        url: url,
+                        name: att.name || (isVid ? 'Video' : 'Gambar'),
+                        isVideo: isVid,
+                        sender: senderName,
+                        timestamp: timestamp,
+                        id: msg.id || msg.client_uuid
+                    });
+                }
+            }
+        });
+
+        let foundIdx = mediaItems.findIndex(m => m.url === targetUrl);
+        if (foundIdx === -1) {
+            const fallbackItem = {
+                url: targetUrl,
+                name: (directMeta && directMeta.name) || 'Media',
+                isVideo: Boolean(directMeta && directMeta.isVideo),
+                sender: (directMeta && directMeta.sender) || (state.activeContact.display_name || 'Kontak'),
+                timestamp: (directMeta && directMeta.timestamp) || 'Baru saja'
+            };
+            mediaItems.unshift(fallbackItem);
+            foundIdx = 0;
+        }
+
+        state.lightbox.items = mediaItems;
+        state.lightbox.currentIndex = foundIdx >= 0 ? foundIdx : 0;
+        state.lightbox.zoom = 1;
+        state.lightbox.panX = 0;
+        state.lightbox.panY = 0;
+
+        renderLightboxMedia();
+        renderLightboxFilmstrip();
+        initLightboxPanAndZoom();
+
+        const modal = document.getElementById('mediaLightboxModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+        }
+    };
+
+    window.closeMediaLightbox = function () {
+        const modal = document.getElementById('mediaLightboxModal');
+        const videoEl = document.getElementById('lightboxVideo');
+        if (videoEl && !videoEl.paused) {
+            videoEl.pause();
+        }
+        if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('active');
+        }
+        state.lightbox.zoom = 1;
+        state.lightbox.panX = 0;
+        state.lightbox.panY = 0;
+    };
+
+    window.lightboxNext = function () {
+        const { items, currentIndex } = state.lightbox;
+        if (!items || items.length <= 1) return;
+        state.lightbox.currentIndex = (currentIndex + 1) % items.length;
+        state.lightbox.zoom = 1;
+        state.lightbox.panX = 0;
+        state.lightbox.panY = 0;
+        renderLightboxMedia();
+        updateLightboxFilmstripActive();
+    };
+
+    window.lightboxPrev = function () {
+        const { items, currentIndex } = state.lightbox;
+        if (!items || items.length <= 1) return;
+        state.lightbox.currentIndex = (currentIndex - 1 + items.length) % items.length;
+        state.lightbox.zoom = 1;
+        state.lightbox.panX = 0;
+        state.lightbox.panY = 0;
+        renderLightboxMedia();
+        updateLightboxFilmstripActive();
+    };
+
+    window.lightboxSelectIndex = function (index) {
+        if (!state.lightbox.items || index < 0 || index >= state.lightbox.items.length) return;
+        state.lightbox.currentIndex = index;
+        state.lightbox.zoom = 1;
+        state.lightbox.panX = 0;
+        state.lightbox.panY = 0;
+        renderLightboxMedia();
+        updateLightboxFilmstripActive();
+    };
+
+    function renderLightboxMedia() {
+        const { items, currentIndex, zoom } = state.lightbox;
+        const currentItem = items[currentIndex];
+        if (!currentItem) return;
+
+        const imgEl = document.getElementById('lightboxImage');
+        const vidEl = document.getElementById('lightboxVideo');
+        const titleEl = document.getElementById('lightboxMediaTitle');
+        const senderEl = document.getElementById('lightboxSenderName');
+        const timeEl = document.getElementById('lightboxTimestamp');
+        const badgeEl = document.getElementById('lightboxCounterBadge');
+        const resetZoomBtn = document.getElementById('btnLightboxResetZoom');
+        const prevBtn = document.getElementById('btnLightboxPrev');
+        const nextBtn = document.getElementById('btnLightboxNext');
+
+        if (titleEl) titleEl.textContent = currentItem.name;
+        if (senderEl) senderEl.textContent = currentItem.sender;
+        if (timeEl) timeEl.textContent = currentItem.timestamp;
+        if (badgeEl) badgeEl.textContent = `${currentIndex + 1} dari ${items.length}`;
+        if (resetZoomBtn) resetZoomBtn.textContent = `${Math.round(zoom * 100)}%`;
+
+        if (prevBtn) prevBtn.disabled = items.length <= 1;
+        if (nextBtn) nextBtn.disabled = items.length <= 1;
+
+        if (currentItem.isVideo) {
+            if (imgEl) imgEl.style.display = 'none';
+            if (vidEl) {
+                vidEl.style.display = 'block';
+                vidEl.src = currentItem.url;
+            }
+        } else {
+            if (vidEl) {
+                if (!vidEl.paused) vidEl.pause();
+                vidEl.style.display = 'none';
+            }
+            if (imgEl) {
+                imgEl.style.display = 'block';
+                imgEl.src = currentItem.url;
+                applyLightboxImageTransform();
+            }
+        }
+    }
+
+    function applyLightboxImageTransform() {
+        const imgEl = document.getElementById('lightboxImage');
+        const resetBtn = document.getElementById('btnLightboxResetZoom');
+        const { zoom, panX, panY } = state.lightbox;
+        if (!imgEl) return;
+
+        imgEl.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+        if (zoom > 1) {
+            imgEl.classList.add('is-zoomed');
+        } else {
+            imgEl.classList.remove('is-zoomed');
+        }
+        if (resetBtn) resetBtn.textContent = `${Math.round(zoom * 100)}%`;
+    }
+
+    window.lightboxZoomIn = function () {
+        state.lightbox.zoom = Math.min(4, +(state.lightbox.zoom + 0.25).toFixed(2));
+        applyLightboxImageTransform();
+    };
+
+    window.lightboxZoomOut = function () {
+        state.lightbox.zoom = Math.max(0.5, +(state.lightbox.zoom - 0.25).toFixed(2));
+        if (state.lightbox.zoom <= 1) {
+            state.lightbox.panX = 0;
+            state.lightbox.panY = 0;
+        }
+        applyLightboxImageTransform();
+    };
+
+    window.lightboxResetZoom = function () {
+        state.lightbox.zoom = 1;
+        state.lightbox.panX = 0;
+        state.lightbox.panY = 0;
+        applyLightboxImageTransform();
+    };
+
+    window.toggleLightboxZoom = function (e) {
+        if (e) e.stopPropagation();
+        if (state.lightbox.zoom > 1) {
+            window.lightboxResetZoom();
+        } else {
+            state.lightbox.zoom = 2;
+            applyLightboxImageTransform();
+        }
+    };
+
+    window.lightboxDownloadCurrent = function () {
+        const { items, currentIndex } = state.lightbox;
+        const currentItem = items[currentIndex];
+        if (!currentItem || !currentItem.url) return;
+
+        const a = document.createElement('a');
+        a.href = currentItem.url;
+        a.download = currentItem.name || 'media';
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showToast('Mengunduh media...', 'info');
+    };
+
+    function renderLightboxFilmstrip() {
+        const strip = document.getElementById('lightboxThumbStrip');
+        const list = document.getElementById('lightboxThumbList');
+        if (!strip || !list) return;
+
+        const items = state.lightbox.items || [];
+        if (items.length <= 1) {
+            strip.style.display = 'none';
+            return;
+        }
+
+        strip.style.display = 'flex';
+        list.innerHTML = items.map((item, idx) => {
+            const isActive = idx === state.lightbox.currentIndex;
+            const bg = item.isVideo
+                ? `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#fff;"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg></div>`
+                : '';
+            return `
+                <div class="lightbox-thumb-item ${isActive ? 'active' : ''}" style="background-image: url('${escapeHtml(item.url)}');" onclick="lightboxSelectIndex(${idx})" title="${escapeHtml(item.name)}">
+                    ${bg}
+                </div>
+            `;
+        }).join('');
+    }
+
+    function updateLightboxFilmstripActive() {
+        const items = document.querySelectorAll('#lightboxThumbList .lightbox-thumb-item');
+        items.forEach((thumb, idx) => {
+            if (idx === state.lightbox.currentIndex) {
+                thumb.classList.add('active');
+                thumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            } else {
+                thumb.classList.remove('active');
+            }
+        });
+    }
+
+    window.handleLightboxStageClick = function (e) {
+        if (e.target.id === 'lightboxMediaWrapper' || e.target.classList.contains('lightbox-stage')) {
+            window.closeMediaLightbox();
+        }
+    };
+
+    function initLightboxPanAndZoom() {
+        const img = document.getElementById('lightboxImage');
+        const wrapper = document.getElementById('lightboxMediaWrapper');
+        if (!img || img._hasPanListener) return;
+        img._hasPanListener = true;
+
+        img.addEventListener('mousedown', (e) => {
+            if (state.lightbox.zoom <= 1) return;
+            e.preventDefault();
+            state.lightbox.isDragging = true;
+            state.lightbox.startX = e.clientX - state.lightbox.panX;
+            state.lightbox.startY = e.clientY - state.lightbox.panY;
+            img.classList.add('is-dragging');
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!state.lightbox.isDragging) return;
+            state.lightbox.panX = e.clientX - state.lightbox.startX;
+            state.lightbox.panY = e.clientY - state.lightbox.startY;
+            applyLightboxImageTransform();
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (state.lightbox.isDragging) {
+                state.lightbox.isDragging = false;
+                img.classList.remove('is-dragging');
+            }
+        });
+
+        wrapper?.addEventListener('wheel', (e) => {
+            const modal = document.getElementById('mediaLightboxModal');
+            if (!modal || modal.style.display !== 'flex') return;
+            const videoEl = document.getElementById('lightboxVideo');
+            if (videoEl && videoEl.style.display !== 'none') return;
+
+            e.preventDefault();
+            if (e.deltaY < 0) {
+                window.lightboxZoomIn();
+            } else {
+                window.lightboxZoomOut();
+            }
+        }, { passive: false });
+    }
 
     async function uploadAttachmentFile(file) {
         const formData = new FormData();
@@ -5064,6 +5404,7 @@
             if (att && !isDeleted) {
                 const fileUrl = att.url || att.dataUrl || '#';
                 const isImage = (att.type && att.type.startsWith('image/')) || (att.name && att.name.match(/\.(jpeg|jpg|png|gif|webp|svg)$/i));
+                const isVideo = (att.type && att.type.startsWith('video/')) || (att.name && att.name.match(/\.(mp4|webm|mov|mkv)$/i));
                 const isAudio = (att.type && att.type.startsWith('audio/')) || (att.name && att.name.match(/\.(webm|ogg|mp3|wav|m4a|aac)$/i)) || Boolean(att.is_audio);
 
                 if (isAudio) {
@@ -5079,7 +5420,7 @@
                                 </svg>
                             </button>
                             <div class="vn-content">
-                                <div class="vn-waveform-track voice-note-waveform" onclick="event.stopPropagation(); seekVoiceNote('${audioId}', event)" title="Klik untuk memajukan / memundurkan">
+                                <div class="vn-waveform-track voice-note-waveform" onmousedown="event.stopPropagation(); initVoiceNoteScrubbing('${audioId}', event)" onclick="event.stopPropagation(); seekVoiceNote('${audioId}', event)" title="Klik atau seret untuk memajukan / memundurkan">
                                     ${barsHtml}
                                 </div>
                                 <div class="vn-info-row">
@@ -5091,11 +5432,38 @@
                         </div>
                     `;
                 } else if (isImage) {
+                    const safeName = escapeHtml(att.name || 'Gambar');
+                    const jsSafeUrl = fileUrl.replace(/'/g, "\\'");
+                    const jsSafeName = safeName.replace(/'/g, "\\'");
                     attachmentHtml = `
                         <div class="bubble-attachment-image">
-                            <a href="${fileUrl}" target="_blank" rel="noopener noreferrer" title="Buka gambar penuh">
-                                <img src="${fileUrl}" alt="${escapeHtml(att.name || 'Gambar')}" loading="lazy">
-                            </a>
+                            <button type="button" class="bubble-lightbox-trigger" onclick="event.stopPropagation(); openMediaLightbox('${jsSafeUrl}', { name: '${jsSafeName}' })" title="Buka dalam Lightbox Galeri">
+                                <img src="${fileUrl}" alt="${safeName}" loading="lazy">
+                                <span class="lightbox-hint-badge" title="Perbesar Layar Penuh">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="15 3 21 3 21 9"></polyline>
+                                        <polyline points="9 21 3 21 3 15"></polyline>
+                                        <line x1="21" y1="3" x2="14" y2="10"></line>
+                                        <line x1="3" y1="21" x2="10" y2="14"></line>
+                                    </svg>
+                                </span>
+                            </button>
+                        </div>
+                    `;
+                } else if (isVideo) {
+                    const safeName = escapeHtml(att.name || 'Video');
+                    const jsSafeUrl = fileUrl.replace(/'/g, "\\'");
+                    const jsSafeName = safeName.replace(/'/g, "\\'");
+                    attachmentHtml = `
+                        <div class="bubble-attachment-image bubble-attachment-video">
+                            <button type="button" class="bubble-lightbox-trigger video-trigger" onclick="event.stopPropagation(); openMediaLightbox('${jsSafeUrl}', { name: '${jsSafeName}', isVideo: true })" title="Putar video dalam Lightbox">
+                                <video src="${fileUrl}" preload="metadata" muted></video>
+                                <div class="video-play-overlay">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                                        <polygon points="6 4 20 12 6 20 6 4"></polygon>
+                                    </svg>
+                                </div>
+                            </button>
                         </div>
                     `;
                 } else {
@@ -5570,6 +5938,49 @@
             if (bar) bar.style.display = 'flex';
             if (timerEl) timerEl.textContent = '00:00';
 
+            // Real-Time Live Recording Waveform via Web Audio API
+            try {
+                const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioCtxClass) {
+                    const audioCtx = new AudioCtxClass();
+                    const analyser = audioCtx.createAnalyser();
+                    analyser.fftSize = 64;
+                    analyser.smoothingTimeConstant = 0.5;
+                    const source = audioCtx.createMediaStreamSource(stream);
+                    source.connect(analyser);
+
+                    state.voiceNoteAnalyser.audioCtx = audioCtx;
+                    state.voiceNoteAnalyser.analyser = analyser;
+
+                    const waveformContainer = document.getElementById('voiceNoteLiveWaveform');
+                    if (waveformContainer) {
+                        const BAR_COUNT = 16;
+                        waveformContainer.innerHTML = Array.from({ length: BAR_COUNT }, (_, i) => `<span class="vn-live-bar" id="vnLiveBar_${i}"></span>`).join('');
+                        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+                        const updateLiveBars = () => {
+                            if (!state.voiceNote.isRecording) return;
+                            analyser.getByteFrequencyData(dataArray);
+
+                            for (let i = 0; i < BAR_COUNT; i++) {
+                                const barEl = document.getElementById(`vnLiveBar_${i}`);
+                                if (barEl) {
+                                    const binIdx = Math.min(i + 1, dataArray.length - 1);
+                                    const val = dataArray[binIdx] || 0;
+                                    const heightPx = Math.max(4, Math.round((val / 255) * 22));
+                                    barEl.style.height = `${heightPx}px`;
+                                    barEl.style.background = val > 130 ? 'var(--primary-color, #7c3aed)' : '#ef4444';
+                                }
+                            }
+                            state.voiceNoteAnalyser.animFrame = requestAnimationFrame(updateLiveBars);
+                        };
+                        state.voiceNoteAnalyser.animFrame = requestAnimationFrame(updateLiveBars);
+                    }
+                }
+            } catch (vizErr) {
+                console.warn('Voice note live waveform init error:', vizErr);
+            }
+
             if (state.voiceNote.timerInterval) clearInterval(state.voiceNote.timerInterval);
             state.voiceNote.timerInterval = setInterval(() => {
                 state.voiceNote.seconds++;
@@ -5591,6 +6002,18 @@
     };
 
     function cleanupVoiceNoteRecording() {
+        if (state.voiceNoteAnalyser.animFrame) {
+            cancelAnimationFrame(state.voiceNoteAnalyser.animFrame);
+            state.voiceNoteAnalyser.animFrame = null;
+        }
+        if (state.voiceNoteAnalyser.audioCtx) {
+            try { state.voiceNoteAnalyser.audioCtx.close(); } catch (e) { }
+            state.voiceNoteAnalyser.audioCtx = null;
+            state.voiceNoteAnalyser.analyser = null;
+        }
+        const waveformContainer = document.getElementById('voiceNoteLiveWaveform');
+        if (waveformContainer) waveformContainer.innerHTML = '';
+
         if (state.voiceNote.timerInterval) {
             clearInterval(state.voiceNote.timerInterval);
             state.voiceNote.timerInterval = null;
@@ -5762,22 +6185,46 @@
     };
 
     window.seekVoiceNote = function (audioId, event) {
+        window.initVoiceNoteScrubbing(audioId, event);
+    };
+
+    window.initVoiceNoteScrubbing = function (audioId, event) {
+        if (event) event.stopPropagation();
         const audioEl = document.getElementById(audioId);
         if (!audioEl || !audioEl.duration || isNaN(audioEl.duration)) return;
 
-        const track = event.currentTarget;
+        const track = event.currentTarget || event.target.closest('.vn-waveform-track');
+        if (!track) return;
         const rect = track.getBoundingClientRect();
-        const clickX = event.clientX - rect.left;
-        const fraction = Math.max(0, Math.min(1, clickX / rect.width));
 
-        audioEl.currentTime = fraction * audioEl.duration;
-        window.updateVoiceNoteProgress(audioId);
+        const updateFromClientX = (clientX) => {
+            const clickX = clientX - rect.left;
+            const fraction = Math.max(0, Math.min(1, clickX / rect.width));
+            audioEl.currentTime = fraction * audioEl.duration;
+            window.updateVoiceNoteProgress(audioId);
+        };
 
-        if (audioEl.paused) {
-            audioEl.play().then(() => {
-                window.onVoiceNotePlay(audioId);
-            }).catch(() => { });
-        }
+        updateFromClientX(event.clientX);
+        track.classList.add('scrubbing');
+
+        const onMouseMove = (moveEv) => {
+            moveEv.preventDefault();
+            updateFromClientX(moveEv.clientX);
+        };
+
+        const onMouseUp = () => {
+            track.classList.remove('scrubbing');
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+            if (audioEl.paused) {
+                audioEl.play().then(() => {
+                    window.onVoiceNotePlay(audioId);
+                }).catch(() => { });
+            }
+        };
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
     };
 
     window.toggleVoiceNoteSpeed = function (audioId, event) {
@@ -8172,8 +8619,45 @@
         }
     });
 
-    // Aksesibilitas Keyboard: Escape dan Focus Trap
+    // Aksesibilitas Keyboard: Escape, Navigasi Lightbox, dan Focus Trap
     document.addEventListener('keydown', (e) => {
+        // Media Lightbox Gallery Keyboard Navigation & Controls
+        const lightboxModal = document.getElementById('mediaLightboxModal');
+        const isLightboxActive = lightboxModal && (lightboxModal.classList.contains('active') || lightboxModal.style.display === 'flex');
+
+        if (isLightboxActive) {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                window.closeMediaLightbox();
+                return;
+            }
+            if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                window.lightboxNext();
+                return;
+            }
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                window.lightboxPrev();
+                return;
+            }
+            if (e.key === '+' || e.key === '=') {
+                e.preventDefault();
+                window.lightboxZoomIn();
+                return;
+            }
+            if (e.key === '-' || e.key === '_') {
+                e.preventDefault();
+                window.lightboxZoomOut();
+                return;
+            }
+            if (e.key === '0') {
+                e.preventDefault();
+                window.lightboxResetZoom();
+                return;
+            }
+        }
+
         if (e.key === 'Escape') {
             const confirmModal = document.getElementById('confirmModal');
             if (confirmModal && (confirmModal.classList.contains('active') || confirmModal.style.display === 'flex')) {

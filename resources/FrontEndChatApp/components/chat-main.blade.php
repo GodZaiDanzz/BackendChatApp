@@ -367,7 +367,10 @@
                 <div class="recording-indicator">
                     <span class="recording-pulse-dot"></span>
                     <span id="voiceNoteDurationText" class="recording-timer">00:00</span>
-                    <span class="recording-label">Merekam pesan suara...</span>
+                    <div id="voiceNoteLiveWaveform" class="vn-live-waveform-bars" aria-hidden="true">
+                        <!-- Dynamic audio bars animated in real time -->
+                    </div>
+                    <span class="recording-label">Merekam suara...</span>
                 </div>
                 <div class="recording-actions">
                     <button type="button" class="btn-cancel-recording" onclick="cancelVoiceNoteRecording()" title="Batal rekam" aria-label="Batal rekam">
