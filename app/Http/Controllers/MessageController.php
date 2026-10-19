@@ -58,6 +58,14 @@ class MessageController extends Controller
         $senderId = $request->user()->id;
         $receiverId = (int) $data['receiver_id'];
 
+        if (\App\Models\BlockedUser::where('user_id', $receiverId)->where('blocked_user_id', $senderId)->exists()) {
+            return response()->json(['message' => 'Anda telah diblokir oleh pengguna ini.'], 403);
+        }
+
+        if (\App\Models\BlockedUser::where('user_id', $senderId)->where('blocked_user_id', $receiverId)->exists()) {
+            return response()->json(['message' => 'Anda telah memblokir kontak ini. Buka blokir terlebih dahulu untuk mengirim pesan.'], 403);
+        }
+
         $body = $data['body'] ?? '';
         if (trim($body) === '' && !empty($data['attachment']['name'])) {
             $body = '[Berkas: ' . $data['attachment']['name'] . ']';

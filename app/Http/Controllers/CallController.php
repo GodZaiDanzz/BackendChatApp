@@ -76,6 +76,18 @@ class CallController extends Controller
             ], 422);
         }
 
+        if (\App\Models\BlockedUser::where('user_id', $calleeId)->where('blocked_user_id', $user->id)->exists()) {
+            return response()->json([
+                'message' => 'Panggilan ditolak (Anda telah diblokir oleh kontak ini).',
+            ], 403);
+        }
+
+        if (\App\Models\BlockedUser::where('user_id', $user->id)->where('blocked_user_id', $calleeId)->exists()) {
+            return response()->json([
+                'message' => 'Anda telah memblokir kontak ini. Buka blokir terlebih dahulu untuk melakukan panggilan.',
+            ], 403);
+        }
+
         // Check if callee currently has an active call (ringing or accepted)
         $isBusy = Call::where(function ($q) use ($calleeId) {
             $q->where('caller_id', $calleeId)

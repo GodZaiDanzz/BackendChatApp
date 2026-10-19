@@ -162,12 +162,55 @@
             });
         }
 
+        async function getAllRawRecords() {
+            const db = await open();
+            if (!db) return [];
+
+            return new Promise((resolve) => {
+                try {
+                    const tx = db.transaction(STORE_MESSAGES, 'readonly');
+                    const store = tx.objectStore(STORE_MESSAGES);
+                    const req = store.getAll();
+                    req.onsuccess = () => resolve(req.result || []);
+                    req.onerror = () => resolve([]);
+                } catch (e) {
+                    resolve([]);
+                }
+            });
+        }
+
+        async function restoreRecordsBatch(records) {
+            if (!records || !Array.isArray(records) || records.length === 0) return 0;
+            const db = await open();
+            if (!db) return 0;
+
+            return new Promise((resolve) => {
+                try {
+                    const tx = db.transaction(STORE_MESSAGES, 'readwrite');
+                    const store = tx.objectStore(STORE_MESSAGES);
+                    let count = 0;
+                    records.forEach(item => {
+                        if (item && item.client_uuid) {
+                            store.put(item);
+                            count++;
+                        }
+                    });
+                    tx.oncomplete = () => resolve(count);
+                    tx.onerror = () => resolve(0);
+                } catch (e) {
+                    resolve(0);
+                }
+            });
+        }
+
         return {
             open,
             saveMessage,
             saveMessagesBatch,
             getAllChats,
-            clearContactChat
+            clearContactChat,
+            getAllRawRecords,
+            restoreRecordsBatch
         };
     })();
 
@@ -190,6 +233,10 @@
         selectedAttachment: null,
         soundEnabled: localStorage.getItem('zchat_sound_enabled') !== 'false',
         inChatSearchQuery: '',
+        inChatSearchMatches: [],
+        inChatSearchIndex: -1,
+        blockedUsers: [],
+        blockedUserIds: new Set(),
         activeEmojiCategory: 'popular',
         isSelectionMode: false,
         selectedMessageIds: new Set(),
@@ -682,6 +729,7 @@
         updateCurrentUserUI();
         await loadClientDatabase();
         renderChatsList();
+        window.fetchBlockedUsers();
         startDataSync();
     }
 
@@ -2707,15 +2755,662 @@
     };
 
     window.scrollToMessage = function (msgId) {
-        const row = document.querySelector(`.message-row[data-msg-id="${msgId}"]`);
+        if (!msgId) return;
+        const rawId = String(msgId).trim();
+        const safeId = CSS.escape(rawId);
+        const row = document.querySelector(`.message-row[data-msg-id="${safeId}"]`) ||
+                    document.querySelector(`.message-row[data-msg-uuid="${safeId}"]`);
         if (row) {
             row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            row.style.transition = 'background-color 0.4s ease';
-            row.style.backgroundColor = 'rgba(124, 58, 237, 0.15)';
+            row.classList.remove('reply-highlight-pulse');
+            void row.offsetWidth; // Trigger DOM reflow to re-trigger pulse
+            row.classList.add('reply-highlight-pulse');
             setTimeout(() => {
-                row.style.backgroundColor = 'transparent';
-            }, 1200);
+                row.classList.remove('reply-highlight-pulse');
+            }, 1400);
+        } else {
+            if (typeof showToast === 'function') {
+                showToast('Pesan asli tidak ditemukan di riwayat percakapan saat ini.', 'info');
+            }
         }
+    };
+
+    // ==========================================
+    // In-Chat Search Navigation & Match Jumping
+    // ==========================================
+    window.toggleInChatSearch = function (show) {
+        const bar = document.getElementById('inChatSearchBar');
+        const input = document.getElementById('inChatSearchInput');
+        if (!bar) return;
+
+        const willShow = (typeof show === 'boolean') ? show : (bar.style.display === 'none' || !bar.style.display);
+        if (willShow) {
+            bar.style.display = 'block';
+            if (input) {
+                input.focus();
+                input.select();
+            }
+            if (input && input.value.trim()) {
+                window.handleInChatSearch({ target: input });
+            }
+        } else {
+            bar.style.display = 'none';
+            state.inChatSearchQuery = '';
+            state.inChatSearchMatches = [];
+            state.inChatSearchIndex = -1;
+            if (input) input.value = '';
+            const countEl = document.getElementById('inChatSearchCount');
+            if (countEl) countEl.textContent = '0 hasil';
+            if (state.activeContact) {
+                renderMessages();
+            }
+        }
+    };
+
+    window.handleInChatSearch = function (e) {
+        const query = (e.target.value || '').trim();
+        state.inChatSearchQuery = query;
+        if (!query) {
+            state.inChatSearchMatches = [];
+            state.inChatSearchIndex = -1;
+            const countEl = document.getElementById('inChatSearchCount');
+            if (countEl) countEl.textContent = '0 hasil';
+            renderMessages();
+            return;
+        }
+
+        renderMessages();
+
+        const marks = Array.from(document.querySelectorAll('#messagesContainer mark.search-highlight'));
+        state.inChatSearchMatches = marks;
+        state.inChatSearchIndex = marks.length > 0 ? 0 : -1;
+
+        updateInChatSearchUI();
+        if (marks.length > 0) {
+            jumpToSearchMatch(0);
+        }
+    };
+
+    window.handleInChatSearchKeydown = function (e) {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            window.toggleInChatSearch(false);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (e.shiftKey) {
+                window.prevInChatSearchMatch();
+            } else {
+                window.nextInChatSearchMatch();
+            }
+        }
+    };
+
+    window.nextInChatSearchMatch = function () {
+        if (!state.inChatSearchMatches || state.inChatSearchMatches.length === 0) return;
+        state.inChatSearchIndex = (state.inChatSearchIndex + 1) % state.inChatSearchMatches.length;
+        jumpToSearchMatch(state.inChatSearchIndex);
+    };
+
+    window.prevInChatSearchMatch = function () {
+        if (!state.inChatSearchMatches || state.inChatSearchMatches.length === 0) return;
+        state.inChatSearchIndex = (state.inChatSearchIndex - 1 + state.inChatSearchMatches.length) % state.inChatSearchMatches.length;
+        jumpToSearchMatch(state.inChatSearchIndex);
+    };
+
+    function jumpToSearchMatch(index) {
+        const marks = state.inChatSearchMatches;
+        if (!marks || index < 0 || index >= marks.length) return;
+
+        marks.forEach((m, idx) => {
+            if (idx === index) {
+                m.classList.add('search-highlight-active');
+                m.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                m.classList.remove('search-highlight-active');
+            }
+        });
+        updateInChatSearchUI();
+    }
+
+    function updateInChatSearchUI() {
+        const countEl = document.getElementById('inChatSearchCount');
+        const prevBtn = document.getElementById('btnInChatSearchPrev');
+        const nextBtn = document.getElementById('btnInChatSearchNext');
+        const total = state.inChatSearchMatches ? state.inChatSearchMatches.length : 0;
+        const current = total > 0 ? (state.inChatSearchIndex + 1) : 0;
+
+        if (countEl) {
+            countEl.textContent = total > 0 ? `${current} dari ${total}` : '0 hasil';
+        }
+        if (prevBtn) prevBtn.disabled = total <= 1;
+        if (nextBtn) nextBtn.disabled = total <= 1;
+    }
+
+    // ==========================================
+    // Block & Unblock Contact Management
+    // ==========================================
+    window.fetchBlockedUsers = async function () {
+        if (!state.token) return [];
+        try {
+            const res = await apiRequest('/blocked-users');
+            if (Array.isArray(res)) {
+                state.blockedUsers = res;
+                state.blockedUserIds = new Set(res.map(u => Number(u.id)));
+
+                const countEl = document.getElementById('subpanelBlockedCount');
+                if (countEl) {
+                    countEl.textContent = `${res.length} kontak`;
+                }
+
+                renderBlockedUsersList();
+                updateActiveChatBlockState();
+                return res;
+            }
+        } catch (err) {
+            console.warn('Gagal memuat daftar kontak diblokir:', err);
+        }
+        return [];
+    };
+
+    window.openBlockedUsersModal = function () {
+        const modal = document.getElementById('blockedUsersModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+        }
+        const filterInput = document.getElementById('searchBlockedUsersInput');
+        if (filterInput) filterInput.value = '';
+        window.fetchBlockedUsers();
+    };
+
+    window.closeBlockedUsersModal = function () {
+        const modal = document.getElementById('blockedUsersModal');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('active');
+        }
+    };
+
+    window.filterBlockedUsersList = function (query) {
+        const q = (query || '').toLowerCase().trim();
+        if (!q) {
+            renderBlockedUsersList();
+            return;
+        }
+        const filtered = (state.blockedUsers || []).filter(u => {
+            const name = (u.display_name || u.name || '').toLowerCase();
+            const username = (u.username || '').toLowerCase();
+            return name.includes(q) || username.includes(q);
+        });
+        renderBlockedUsersList(filtered);
+    };
+
+    function renderBlockedUsersList(filteredList = null) {
+        const list = document.getElementById('blockedUsersList');
+        if (!list) return;
+
+        const users = filteredList !== null ? filteredList : (state.blockedUsers || []);
+        if (users.length === 0) {
+            list.innerHTML = `
+                <div class="empty-state" style="padding: 2rem 0; text-align: center;">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted); margin: 0 auto 0.5rem; opacity: 0.6;">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                    </svg>
+                    <p class="empty-state-desc" style="color: var(--text-muted); font-size: 0.85rem;">Tidak ada kontak yang sedang diblokir.</p>
+                </div>
+            `;
+            return;
+        }
+
+        list.innerHTML = users.map(u => {
+            const displayName = escapeHtml(u.display_name || u.name || u.username);
+            const username = escapeHtml(u.username ? `@${u.username}` : (u.email || ''));
+            const pastelClass = getPastelColorClass(displayName);
+            const initials = displayName.split(' ').map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase() || 'U';
+
+            let avatarHtml = `<div class="avatar-circle ${pastelClass}" style="width: 38px; height: 38px; font-size: 0.8rem;">${initials}</div>`;
+            if (u.avatar) {
+                avatarHtml = `
+                    <div class="avatar-circle" style="width: 38px; height: 38px; overflow: hidden; padding: 0;">
+                        <img src="${escapeHtml(u.avatar)}" alt="${displayName}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="blocked-user-item">
+                    <div class="blocked-user-left">
+                        ${avatarHtml}
+                        <div style="min-width: 0;">
+                            <div class="blocked-user-name">${displayName}</div>
+                            <div class="blocked-user-sub">${username}</div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-unblock-pill" onclick="unblockContact(${u.id})">
+                        Buka Blokir
+                    </button>
+                </div>
+            `;
+        }).join('');
+    }
+
+    window.handleToggleBlockContact = async function () {
+        if (!state.activeContact || state.activeContact.is_group) return;
+        const targetId = Number(state.activeContact.id);
+        const contactName = state.activeContact.display_name || state.activeContact.username || 'Kontak ini';
+
+        if (state.blockedUserIds && state.blockedUserIds.has(targetId)) {
+            await window.unblockContact(targetId);
+        } else {
+            openConfirmModal({
+                title: 'Blokir Kontak?',
+                message: `Apakah Anda yakin ingin memblokir ${contactName}? Kontak yang diblokir tidak akan bisa mengirimkan pesan atau melakukan panggilan kepada Anda.`,
+                confirmText: 'Blokir',
+                danger: true,
+                onConfirm: async () => {
+                    try {
+                        await apiRequest(`/contacts/${targetId}/block`, { method: 'POST' });
+                        showToast(`${contactName} berhasil diblokir.`, 'success');
+                        await window.fetchBlockedUsers();
+                    } catch (err) {
+                        showToast(err.message || 'Gagal memblokir kontak.', 'error');
+                    }
+                }
+            });
+        }
+    };
+
+    window.unblockContact = async function (targetUserId) {
+        try {
+            await apiRequest(`/contacts/${targetUserId}/unblock`, { method: 'POST' });
+            showToast('Blokir kontak berhasil dibuka.', 'success');
+            await window.fetchBlockedUsers();
+        } catch (err) {
+            showToast(err.message || 'Gagal membuka blokir kontak.', 'error');
+        }
+    };
+
+    window.updateActiveChatBlockState = function () {
+        const banner = document.getElementById('blockedContactBanner');
+        const form = document.getElementById('messageForm');
+        const textarea = document.getElementById('messageInput');
+        const btnSend = document.getElementById('btnSendMessage');
+        const btnRecord = document.getElementById('btnVoiceNoteRecord');
+        const menuBlock = document.getElementById('menuItemBlockContact');
+        const menuBlockLabel = document.getElementById('menuItemBlockContactLabel');
+        const panelBlock = document.getElementById('btnBlockContactAction');
+        const panelBlockLabel = document.getElementById('btnBlockContactActionLabel');
+
+        if (!state.activeContact || state.activeContact.is_group) {
+            if (banner) banner.style.display = 'none';
+            if (form) form.classList.remove('chat-input-disabled');
+            if (textarea) textarea.disabled = false;
+            if (btnSend) btnSend.disabled = false;
+            if (btnRecord) btnRecord.disabled = false;
+            if (menuBlock) menuBlock.style.display = 'none';
+            if (panelBlock) panelBlock.style.display = 'none';
+            return;
+        }
+
+        if (menuBlock) menuBlock.style.display = 'flex';
+        if (panelBlock) panelBlock.style.display = 'flex';
+
+        const isBlocked = state.blockedUserIds && state.blockedUserIds.has(Number(state.activeContact.id));
+        if (isBlocked) {
+            if (banner) banner.style.display = 'flex';
+            if (form) form.classList.add('chat-input-disabled');
+            if (textarea) textarea.disabled = true;
+            if (btnSend) btnSend.disabled = true;
+            if (btnRecord) btnRecord.disabled = true;
+
+            if (menuBlockLabel) menuBlockLabel.textContent = 'Buka Blokir';
+            if (panelBlockLabel) panelBlockLabel.textContent = 'Buka Blokir';
+            if (panelBlock) {
+                panelBlock.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+                panelBlock.style.background = 'rgba(16, 185, 129, 0.1)';
+                panelBlock.style.color = '#10b981';
+            }
+        } else {
+            if (banner) banner.style.display = 'none';
+            if (form) form.classList.remove('chat-input-disabled');
+            if (textarea) textarea.disabled = false;
+            if (btnSend) btnSend.disabled = false;
+            if (btnRecord) btnRecord.disabled = false;
+
+            if (menuBlockLabel) menuBlockLabel.textContent = 'Blokir Kontak';
+            if (panelBlockLabel) panelBlockLabel.textContent = 'Blokir Kontak';
+            if (panelBlock) {
+                panelBlock.style.borderColor = 'rgba(245, 158, 11, 0.35)';
+                panelBlock.style.background = 'rgba(245, 158, 11, 0.1)';
+                panelBlock.style.color = '#fbbf24';
+            }
+        }
+    };
+
+    // ==========================================
+    // Local Encrypted Backup & Restore (.zchat)
+    // ==========================================
+    let selectedBackupFile = null;
+
+    async function deriveKeyFromPassword(password, saltUint8, usage) {
+        const enc = new TextEncoder();
+        const keyMaterial = await crypto.subtle.importKey(
+            'raw',
+            enc.encode(password),
+            { name: 'PBKDF2' },
+            false,
+            ['deriveKey']
+        );
+        return crypto.subtle.deriveKey(
+            {
+                name: 'PBKDF2',
+                salt: saltUint8,
+                iterations: 100000,
+                hash: 'SHA-256'
+            },
+            keyMaterial,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            usage
+        );
+    }
+
+    function bufferToBase64(buffer) {
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary);
+    }
+
+    function base64ToBuffer(base64) {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes.buffer;
+    }
+
+    window.openBackupRestoreModal = async function () {
+        const modal = document.getElementById('backupRestoreModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+        }
+        window.switchBackupTab('export');
+
+        try {
+            const raw = await AppDB.getAllRawRecords();
+            const totalMsgsEl = document.getElementById('backupTotalMessages');
+            const totalChatsEl = document.getElementById('backupTotalChats');
+            if (totalMsgsEl) totalMsgsEl.textContent = (raw ? raw.length : 0).toLocaleString();
+            if (totalChatsEl) totalChatsEl.textContent = Object.keys(state.chats || {}).length.toLocaleString();
+        } catch (e) { }
+    };
+
+    window.closeBackupRestoreModal = function () {
+        const modal = document.getElementById('backupRestoreModal');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('active');
+        }
+        selectedBackupFile = null;
+        const pwExport = document.getElementById('backupExportPassword');
+        const pwImport = document.getElementById('backupImportPassword');
+        const fileInput = document.getElementById('backupFileInput');
+        const fileNameEl = document.getElementById('backupFileSelectedName');
+        const pwGroup = document.getElementById('backupImportPasswordGroup');
+        const btnRestore = document.getElementById('btnRunRestoreBackup');
+
+        if (pwExport) pwExport.value = '';
+        if (pwImport) pwImport.value = '';
+        if (fileInput) fileInput.value = '';
+        if (fileNameEl) fileNameEl.textContent = 'Pilih Berkas Cadangan';
+        if (pwGroup) pwGroup.style.display = 'none';
+        if (btnRestore) {
+            btnRestore.disabled = true;
+            btnRestore.style.opacity = '0.5';
+            btnRestore.style.cursor = 'not-allowed';
+        }
+    };
+
+    window.switchBackupTab = function (tab) {
+        const exportPanel = document.getElementById('backupExportPanel');
+        const importPanel = document.getElementById('backupImportPanel');
+        const tabExport = document.getElementById('tabBackupExport');
+        const tabImport = document.getElementById('tabBackupImport');
+
+        if (tab === 'export') {
+            if (exportPanel) exportPanel.style.display = 'flex';
+            if (importPanel) importPanel.style.display = 'none';
+            if (tabExport) {
+                tabExport.className = 'btn-action-primary';
+            }
+            if (tabImport) {
+                tabImport.className = 'btn-outline-action';
+            }
+        } else {
+            if (exportPanel) exportPanel.style.display = 'none';
+            if (importPanel) importPanel.style.display = 'flex';
+            if (tabExport) {
+                tabExport.className = 'btn-outline-action';
+            }
+            if (tabImport) {
+                tabImport.className = 'btn-action-primary';
+            }
+        }
+    };
+
+    window.handleExportBackup = async function () {
+        try {
+            const records = await AppDB.getAllRawRecords();
+            if (!records || records.length === 0) {
+                showToast('Tidak ada riwayat pesan di penyimpanan lokal untuk dicadangkan.', 'info');
+                return;
+            }
+
+            const pwInput = document.getElementById('backupExportPassword');
+            const password = (pwInput ? pwInput.value : '').trim();
+
+            const meta = {
+                app: 'ZChat',
+                exported_at: new Date().toISOString(),
+                user_id: state.user ? state.user.id : null,
+                user_name: state.user ? (state.user.display_name || state.user.username) : 'User',
+                records_count: records.length
+            };
+
+            let exportPayload = null;
+
+            if (password) {
+                if (!window.crypto || !window.crypto.subtle) {
+                    showToast('Enkripsi WebCrypto tidak didukung pada browser Anda.', 'error');
+                    return;
+                }
+                const salt = crypto.getRandomValues(new Uint8Array(16));
+                const iv = crypto.getRandomValues(new Uint8Array(12));
+                const key = await deriveKeyFromPassword(password, salt, ['encrypt']);
+
+                const enc = new TextEncoder();
+                const plainJson = JSON.stringify({ meta, records });
+                const cipherBuffer = await crypto.subtle.encrypt(
+                    { name: 'AES-GCM', iv },
+                    key,
+                    enc.encode(plainJson)
+                );
+
+                exportPayload = JSON.stringify({
+                    app: 'ZChat',
+                    encrypted: true,
+                    salt: bufferToBase64(salt),
+                    iv: bufferToBase64(iv),
+                    ciphertext: bufferToBase64(cipherBuffer),
+                    exported_at: meta.exported_at,
+                    records_count: records.length
+                }, null, 2);
+            } else {
+                exportPayload = JSON.stringify({
+                    app: 'ZChat',
+                    encrypted: false,
+                    meta,
+                    records
+                }, null, 2);
+            }
+
+            const blob = new Blob([exportPayload], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const dateStr = new Date().toISOString().slice(0, 10);
+            const uName = state.user ? state.user.username : 'user';
+            a.href = url;
+            a.download = `zchat_backup_${uName}_${dateStr}.zchat`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showToast(`Cadangan ${records.length} pesan berhasil diunduh.`, 'success');
+            if (pwInput) pwInput.value = '';
+            window.closeBackupRestoreModal();
+        } catch (err) {
+            console.error('Error saat mengekspor cadangan:', err);
+            showToast('Gagal membuat berkas cadangan: ' + err.message, 'error');
+        }
+    };
+
+    window.handleBackupFileSelected = function (e) {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        selectedBackupFile = file;
+
+        const nameEl = document.getElementById('backupFileSelectedName');
+        const pwGroup = document.getElementById('backupImportPasswordGroup');
+        const btnRestore = document.getElementById('btnRunRestoreBackup');
+
+        if (nameEl) nameEl.textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+
+        const reader = new FileReader();
+        reader.onload = function (evt) {
+            try {
+                const parsed = JSON.parse(evt.target.result);
+                if (parsed.encrypted) {
+                    if (pwGroup) pwGroup.style.display = 'block';
+                } else {
+                    if (pwGroup) pwGroup.style.display = 'none';
+                }
+                if (btnRestore) {
+                    btnRestore.disabled = false;
+                    btnRestore.style.opacity = '1';
+                    btnRestore.style.cursor = 'pointer';
+                }
+            } catch (err) {
+                showToast('Format berkas cadangan tidak valid (harus .zchat atau .json).', 'error');
+                if (btnRestore) {
+                    btnRestore.disabled = true;
+                    btnRestore.style.opacity = '0.5';
+                    btnRestore.style.cursor = 'not-allowed';
+                }
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    window.handleImportBackup = async function () {
+        if (!selectedBackupFile) {
+            showToast('Pilih berkas cadangan terlebih dahulu.', 'info');
+            return;
+        }
+
+        const btnRestore = document.getElementById('btnRunRestoreBackup');
+        if (btnRestore) {
+            btnRestore.disabled = true;
+            btnRestore.innerHTML = '<span>Memulihkan pesan...</span>';
+        }
+
+        const reader = new FileReader();
+        reader.onload = async function (evt) {
+            try {
+                const parsed = JSON.parse(evt.target.result);
+                let recordsToRestore = [];
+
+                if (parsed.encrypted) {
+                    const pwInput = document.getElementById('backupImportPassword');
+                    const password = (pwInput ? pwInput.value : '').trim();
+                    if (!password) {
+                        showToast('Masukkan kata sandi untuk membuka cadangan terenkripsi ini.', 'error');
+                        if (btnRestore) {
+                            btnRestore.disabled = false;
+                            btnRestore.innerHTML = `
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                                <span>Pulihkan Riwayat Chat Sekarang</span>
+                            `;
+                        }
+                        if (pwInput) pwInput.focus();
+                        return;
+                    }
+
+                    if (!window.crypto || !window.crypto.subtle) {
+                        throw new Error('Enkripsi WebCrypto tidak didukung.');
+                    }
+
+                    const salt = new Uint8Array(base64ToBuffer(parsed.salt));
+                    const iv = new Uint8Array(base64ToBuffer(parsed.iv));
+                    const cipherBuffer = base64ToBuffer(parsed.ciphertext);
+
+                    const key = await deriveKeyFromPassword(password, salt, ['decrypt']);
+                    const decryptedBuffer = await crypto.subtle.decrypt(
+                        { name: 'AES-GCM', iv },
+                        key,
+                        cipherBuffer
+                    );
+
+                    const dec = new TextDecoder();
+                    const decryptedJson = JSON.parse(dec.decode(decryptedBuffer));
+                    recordsToRestore = decryptedJson.records || [];
+                } else {
+                    recordsToRestore = parsed.records || [];
+                }
+
+                if (!Array.isArray(recordsToRestore) || recordsToRestore.length === 0) {
+                    showToast('Berkas cadangan tidak memiliki data pesan yang valid.', 'error');
+                    return;
+                }
+
+                const restoredCount = await AppDB.restoreRecordsBatch(recordsToRestore);
+                const grouped = await AppDB.getAllChats(state.user ? state.user.id : null);
+                if (grouped) {
+                    state.chats = grouped;
+                    persistMessages();
+                    renderChatsList();
+                    if (state.activeContact) {
+                        renderMessages();
+                    }
+                }
+
+                showToast(`Berhasil memulihkan ${restoredCount} pesan dari cadangan!`, 'success');
+                window.closeBackupRestoreModal();
+            } catch (err) {
+                console.error('Gagal memulihkan cadangan:', err);
+                showToast('Gagal memulihkan: Kata sandi salah atau berkas rusak.', 'error');
+            } finally {
+                if (btnRestore) {
+                    btnRestore.disabled = false;
+                    btnRestore.innerHTML = `
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        <span>Pulihkan Riwayat Chat Sekarang</span>
+                    `;
+                }
+            }
+        };
+        reader.readAsText(selectedBackupFile);
     };
 
     async function uploadAttachmentFile(file) {
@@ -3183,6 +3878,7 @@
 
         window.closeChatDropdown();
         updateChatPreferencesUI();
+        window.updateActiveChatBlockState();
 
         // Focus message input
         const input = document.getElementById('messageInput');
@@ -3353,6 +4049,7 @@
         }
 
         updateChatPreferencesUI();
+        window.updateActiveChatBlockState();
 
         const input = document.getElementById('messageInput');
         if (input) input.focus();
@@ -3981,6 +4678,9 @@
         if (infoPanel) infoPanel.classList.remove('open');
         if (infoBackdrop) infoBackdrop.classList.remove('active');
 
+        window.toggleInChatSearch(false);
+        window.updateActiveChatBlockState();
+
         document.querySelectorAll('.chat-item.active, .contact-card-item.active').forEach(el => {
             el.classList.remove('active');
         });
@@ -4218,6 +4918,9 @@
     }
 
     function renderActiveMessages() {
+        const renderMessages = renderActiveMessages;
+        window.renderMessages = renderActiveMessages;
+        window.renderActiveMessages = renderActiveMessages;
         const container = document.getElementById('messagesContainer');
         if (!container || !state.activeContact) return;
 
@@ -4304,7 +5007,7 @@
 
             if (isDeleted) {
                 return `
-                    <div class="message-row ${rowClass} ${groupClass}" data-msg-id="${safeIdAttr}">
+                    <div class="message-row ${rowClass} ${groupClass}" data-msg-id="${safeIdAttr}" data-msg-uuid="${escapeHtml(msg.client_uuid || '')}">
                         <div class="msg-selection-wrap">
                             <div class="message-bubble-wrapper">
                                 <div class="message-bubble deleted">
@@ -4420,7 +5123,7 @@
                 if (state.inChatSearchQuery && !isDeleted) {
                     try {
                         const regex = new RegExp(`(${escapeRegex(state.inChatSearchQuery)})`, 'gi');
-                        safeBody = safeBody.replace(regex, '<mark class="chat-search-highlight">$1</mark>');
+                        safeBody = safeBody.replace(regex, '<mark class="search-highlight">$1</mark>');
                     } catch (e) { }
                 }
                 renderedBody = `<span class="bubble-content">${safeBody}</span>`;
@@ -4451,7 +5154,7 @@
             }
 
             return `
-                <div class="message-row ${rowClass} ${groupClass} ${selectedClass}" data-msg-id="${safeIdAttr}" ${rowOnClick}>
+                <div class="message-row ${rowClass} ${groupClass} ${selectedClass}" data-msg-id="${safeIdAttr}" data-msg-uuid="${escapeHtml(msg.client_uuid || '')}" ${rowOnClick}>
                     <div class="msg-selection-wrap">
                         ${!isMe ? checkboxHtml : ''}
                         <div class="message-bubble-wrapper">
@@ -4621,6 +5324,11 @@
     window.handleSendMessage = async function (e, explicitBody = null) {
         if (e) e.preventDefault();
         if (!state.activeContact) return;
+
+        if (!state.activeContact.is_group && state.blockedUserIds && state.blockedUserIds.has(Number(state.activeContact.id))) {
+            showToast('Anda telah memblokir kontak ini. Buka blokir untuk mengirim pesan.', 'error');
+            return;
+        }
 
         const textarea = document.getElementById('messageInput');
         const body = (explicitBody !== null ? explicitBody : (textarea ? textarea.value : '')).trim();
@@ -6880,6 +7588,11 @@
             return;
         }
 
+        if (!state.activeContact.is_group && state.blockedUserIds && state.blockedUserIds.has(Number(state.activeContact.id))) {
+            showToast('Anda telah memblokir kontak ini. Buka blokir untuk melakukan panggilan.', 'error');
+            return;
+        }
+
         if (state.activeContact.is_group) {
             await window.joinGroupVoiceChannel(state.activeContact.group_id, state.activeContact.name);
         } else {
@@ -6895,6 +7608,11 @@
 
         if (state.voice.active) {
             window.openVoiceStage();
+            return;
+        }
+
+        if (!state.activeContact.is_group && state.blockedUserIds && state.blockedUserIds.has(Number(state.activeContact.id))) {
+            showToast('Anda telah memblokir kontak ini. Buka blokir untuk melakukan panggilan.', 'error');
             return;
         }
 
@@ -7504,8 +8222,20 @@
                 window.minimizeVoiceStage();
             }
 
+            window.closeBlockedUsersModal();
+            window.closeBackupRestoreModal();
+
             if (state.editingMessageId) {
                 window.cancelEditMessage();
+            }
+        }
+
+        // Ctrl+F / Cmd+F: Buka pencarian pesan di dalam percakapan aktif
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+            if (state.activeContact) {
+                e.preventDefault();
+                window.toggleInChatSearch(true);
+                return;
             }
         }
 

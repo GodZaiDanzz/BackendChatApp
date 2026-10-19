@@ -546,19 +546,37 @@
                     </div>
                 </div>
 
-                <div class="subpanel-card">
+                <div class="subpanel-card" style="cursor: pointer;" onclick="openBlockedUsersModal()">
                     <div class="subpanel-card-row">
                         <div>
                             <div class="subpanel-card-title">Kontak Diblokir</div>
                             <div class="subpanel-card-desc">Daftar kontak yang Anda blokir</div>
                         </div>
-                        <span style="font-size: 0.8rem; color: var(--text-secondary);">0 kontak</span>
+                        <div style="display: flex; align-items: center; gap: 0.35rem;">
+                            <span id="subpanelBlockedCount" style="font-size: 0.8rem; color: var(--text-secondary);">0 kontak</span>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted);">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </div>
                     </div>
                 </div>
             </div>
 
             {{-- Subpanel 4: Chat --}}
             <div id="subpanelChat" class="subpanel-content" style="display: none;">
+                {{-- Cadangan & Pemulihan Chat Lokal --}}
+                <div class="subpanel-card" style="cursor: pointer;" onclick="openBackupRestoreModal()">
+                    <div class="subpanel-card-row">
+                        <div>
+                            <div class="subpanel-card-title">Cadangan & Pemulihan Chat</div>
+                            <div class="subpanel-card-desc">Ekspor atau pulihkan riwayat chat lokal (.zchat)</div>
+                        </div>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted);">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                </div>
+
                 <div class="subpanel-card">
                     <div class="subpanel-card-row">
                         <div>

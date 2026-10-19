@@ -63,6 +63,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/messages/star', [\App\Http\Controllers\ChatPreferenceController::class, 'toggleStar']);
     Route::post('/starred-messages/toggle', [\App\Http\Controllers\ChatPreferenceController::class, 'toggleStar']);
 
+    // Blocked Users
+    Route::get('/blocked-users', [\App\Http\Controllers\BlockController::class, 'index']);
+    Route::post('/contacts/{id}/block', [\App\Http\Controllers\BlockController::class, 'block']);
+    Route::post('/contacts/{id}/unblock', [\App\Http\Controllers\BlockController::class, 'unblock']);
+
     // Group messaging and management
     Route::get('/groups', [GroupController::class, 'index']);
     Route::post('/groups', [GroupController::class, 'store']);

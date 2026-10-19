@@ -170,6 +170,13 @@
                             </svg>
                             <span>Bersihkan Riwayat Pesan</span>
                         </button>
+                        <button type="button" id="menuItemBlockContact" class="dropdown-item danger" onclick="handleToggleBlockContact()" role="menuitem">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                            </svg>
+                            <span id="menuItemBlockContactLabel">Blokir Kontak</span>
+                        </button>
                         <button type="button" id="menuItemDeleteContact" class="dropdown-item danger" onclick="confirmDeleteContact()" role="menuitem">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -213,7 +220,17 @@
                     onkeydown="handleInChatSearchKeydown(event)"
                 >
                 <span id="inChatSearchCount" class="in-chat-search-count">0 hasil</span>
-                <button type="button" class="btn-icon-subtle" onclick="toggleInChatSearch(false)" title="Tutup pencarian" aria-label="Tutup pencarian">
+                <button type="button" id="btnInChatSearchPrev" class="btn-icon-subtle in-chat-nav-btn" onclick="prevInChatSearchMatch()" title="Pesan sebelumnya (Shift+Enter)" aria-label="Pesan sebelumnya">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="18 15 12 9 6 15"></polyline>
+                    </svg>
+                </button>
+                <button type="button" id="btnInChatSearchNext" class="btn-icon-subtle in-chat-nav-btn" onclick="nextInChatSearchMatch()" title="Pesan berikutnya (Enter)" aria-label="Pesan berikutnya">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </button>
+                <button type="button" class="btn-icon-subtle" onclick="toggleInChatSearch(false)" title="Tutup pencarian (Esc)" aria-label="Tutup pencarian">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="18" y1="6" x2="6" y2="18"></line>
                         <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -307,6 +324,18 @@
 
         {{-- Message Input Footer --}}
         <footer class="chat-input-area" style="position: relative;">
+            {{-- Blocked Contact Banner --}}
+            <div id="blockedContactBanner" class="blocked-contact-bar" style="display: none;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                </svg>
+                <span id="blockedContactBannerText">Anda telah memblokir kontak ini.</span>
+                <button type="button" id="btnBannerUnblock" class="btn-banner-unblock" onclick="handleToggleBlockContact()">
+                    Buka Blokir
+                </button>
+            </div>
+
             {{-- Hidden File Upload Input --}}
             <input type="file" id="chatFileInput" style="display: none;" accept="image/*,.pdf,.doc,.docx,.txt" onchange="handleFileSelected(event)">
 

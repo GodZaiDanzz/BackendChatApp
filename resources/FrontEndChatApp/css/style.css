@@ -3952,3 +3952,232 @@ body.streamer-mode #btnStreamerMode {
   align-items: center;
   color: var(--text-muted, #6b7280);
 }
+
+/* ==========================================================================
+   Fase 1 Component Styles: In-Chat Search, Reply Pulse & Block System
+   ========================================================================== */
+
+/* In-Chat Search Bar */
+.in-chat-search-bar {
+  background: var(--bg-surface-elevated, #202534);
+  border-bottom: 1px solid var(--border-card, #292f42);
+  padding: 8px 16px;
+  animation: slideDownInChat 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 10;
+}
+
+@keyframes slideDownInChat {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.in-chat-search-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-input, #1a1e2b);
+  border: 1px solid var(--border-subtle, #222736);
+  border-radius: var(--radius-md, 12px);
+  padding: 6px 12px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.in-chat-search-inner:focus-within {
+  border-color: var(--accent-primary, #7c3aed);
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+}
+
+.in-chat-search-inner input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary, #f3f4f6);
+  font-family: inherit;
+  font-size: 0.875rem;
+  outline: none;
+  min-width: 0;
+}
+
+.in-chat-search-inner input::placeholder {
+  color: var(--text-muted, #6b7280);
+}
+
+.in-chat-search-count {
+  font-size: 0.78rem;
+  color: var(--text-secondary, #9ca3af);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.in-chat-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary, #9ca3af);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.in-chat-nav-btn:hover:not(:disabled) {
+  background: rgba(124, 58, 237, 0.15);
+  color: #c4b5fd;
+}
+
+.in-chat-nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* In-Chat Search Highlight Marks */
+mark.search-highlight {
+  background: rgba(234, 179, 8, 0.35);
+  color: #fef08a;
+  padding: 1px 3px;
+  border-radius: 3px;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+mark.search-highlight-active {
+  background: #f59e0b;
+  color: #0f1117;
+  font-weight: 700;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.6);
+}
+
+/* Reply Highlight Pulse */
+@keyframes replyHighlightPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.65);
+  }
+  30% {
+    transform: scale(1.025);
+    box-shadow: 0 0 0 8px rgba(124, 58, 237, 0.35);
+  }
+  70% {
+    transform: scale(1.01);
+    box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.15);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(124, 58, 237, 0);
+  }
+}
+
+.reply-highlight-pulse {
+  animation: replyHighlightPulse 1.2s cubic-bezier(0.16, 1, 0.3, 1) ease-in-out;
+  border-color: #a78bfa !important;
+}
+
+/* Blocked Contact Notice Bar */
+.blocked-contact-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 18px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-md, 12px);
+  color: #fca5a5;
+  font-size: 0.85rem;
+  margin: 8px 16px 12px;
+}
+
+.blocked-contact-bar svg {
+  color: #ef4444;
+  flex-shrink: 0;
+}
+
+.btn-banner-unblock {
+  padding: 4px 12px;
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.2);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-banner-unblock:hover {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.chat-input-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+  filter: grayscale(0.6);
+}
+
+/* Blocked Users Modal List Item */
+.blocked-user-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg-surface-elevated, #202534);
+  border: 1px solid var(--border-card, #292f42);
+  border-radius: var(--radius-md, 12px);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.blocked-user-item:hover {
+  border-color: rgba(124, 58, 237, 0.3);
+}
+
+.blocked-user-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.blocked-user-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary, #f3f4f6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.blocked-user-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted, #6b7280);
+}
+
+.btn-unblock-pill {
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 8px;
+  background: rgba(124, 58, 237, 0.15);
+  border: 1px solid rgba(124, 58, 237, 0.35);
+  color: #c4b5fd;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.btn-unblock-pill:hover {
+  background: var(--accent-primary, #7c3aed);
+  border-color: var(--accent-primary, #7c3aed);
+  color: #ffffff;
+}

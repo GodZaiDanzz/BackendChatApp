@@ -56,6 +56,8 @@
     @include('components.contact-info-modal')
     @include('components.user-profile-modal')
     @include('components.settings-modals')
+    @include('components.backup-restore-modal')
+    @include('components.blocked-users-modal')
     @include('components.voice-call-overlay')
     @include('components.confirm-modal')
     @include('components.toast')
