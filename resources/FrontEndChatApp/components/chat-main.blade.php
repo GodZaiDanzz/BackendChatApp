@@ -58,13 +58,13 @@
                 </button>
 
                 {{-- Contact Avatar with Green Dot --}}
-                <div class="avatar-container" onclick="toggleRightInfoPanel()" style="cursor: pointer;" title="Lihat profil">
+                <div class="avatar-container" onclick="handleActiveChatHeaderClick()" style="cursor: pointer;" title="Lihat profil / detail">
                     <div id="activeAvatarCircle" class="avatar-circle avatar-pastel-pink">NP</div>
                     <span id="activeStatusDot" class="status-indicator-dot online" title="Online"></span>
                 </div>
 
                 {{-- Name & Status ("Aktif sekarang") --}}
-                <div class="chat-header-text" onclick="toggleRightInfoPanel()" style="cursor: pointer;" title="Lihat profil">
+                <div class="chat-header-text" onclick="handleActiveChatHeaderClick()" style="cursor: pointer;" title="Lihat profil / detail">
                     <h2 id="activeChatDisplayName" class="chat-title">Memuat...</h2>
                     <div class="chat-presence-row">
                         <span id="activeStatusSmallDot" class="presence-dot online"></span>
@@ -74,8 +74,17 @@
                 </div>
             </div>
 
-            {{-- Right Header Action Icons: Search, Phone, Video, More --}}
+            {{-- Right Header Action Icons: Search, Phone, Video, Toggle Member List (Groups), More --}}
             <div class="chat-header-actions">
+                <button type="button" id="btnToggleMemberList" class="btn-header-action" onclick="toggleRightInfoPanel()" title="Daftar Anggota" aria-label="Daftar Anggota" style="display: none;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                </button>
+
                 <button type="button" id="btnToggleInChatSearch" class="btn-header-action" onclick="toggleInChatSearch()" title="Cari pesan dalam percakapan" aria-label="Cari pesan">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="11" cy="11" r="8"></circle>
@@ -106,7 +115,7 @@
                     </button>
 
                     <div id="chatDropdownMenu" class="chat-dropdown-menu" style="display: none;" role="menu">
-                        <button type="button" class="dropdown-item" onclick="toggleRightInfoPanel(true)" role="menuitem">
+                        <button type="button" class="dropdown-item" onclick="handleDropdownInfoClick()" role="menuitem">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <circle cx="12" cy="12" r="10"></circle>
                                 <line x1="12" y1="16" x2="12" y2="12"></line>

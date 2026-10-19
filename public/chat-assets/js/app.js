@@ -1430,6 +1430,16 @@
         if (infoMuteLabel) {
             infoMuteLabel.textContent = muted ? 'Dibisukan' : 'Senyap';
         }
+
+        const groupModalMuteBtn = document.getElementById('btnGroupModalMute');
+        const groupModalMuteLabel = document.getElementById('groupModalMuteLabel');
+        if (groupModalMuteBtn) {
+            groupModalMuteBtn.classList.toggle('active', muted);
+            groupModalMuteBtn.style.color = muted ? '#ef4444' : '';
+        }
+        if (groupModalMuteLabel) {
+            groupModalMuteLabel.textContent = muted ? 'Dibisukan' : 'Senyap';
+        }
     }
 
     window.handleTogglePinCurrentChat = async function () {
@@ -2365,7 +2375,13 @@
             panel.classList.add('open');
             if (backdrop) backdrop.classList.add('active');
             if (state.activeContact) {
-                updateRightPanelMediaAndDocs(state.activeContact.id);
+                if (state.activeContact.is_group) {
+                    const groupId = Number(state.activeContact.group_id || String(state.activeContact.id).replace('group_', ''));
+                    const group = (state.groups || []).find(g => Number(g.id) === groupId) || state.activeContact;
+                    updateRightPanelForGroup(group);
+                } else {
+                    updateRightPanelMediaAndDocs(state.activeContact.id);
+                }
             }
         } else {
             panel.classList.remove('open');
@@ -2493,6 +2509,217 @@
             }).join('');
         }
     }
+
+    // Modal detail grup: Media & Dokumen populator
+    function renderGroupModalMediaAndDocs(groupId) {
+        const mediaContainer = document.getElementById('groupModalMediaGrid');
+        const docsContainer = document.getElementById('groupModalDocsList');
+        const mediaCountEl = document.getElementById('groupModalMediaCount');
+        const docsCountEl = document.getElementById('groupModalDocsCount');
+
+        if (!groupId || !mediaContainer || !docsContainer) return;
+
+        const chatKey = 'group_' + groupId;
+        const messages = state.chats[chatKey] || [];
+        const validAttachments = [];
+
+        messages.forEach(msg => {
+            if (msg.is_deleted || msg.body === 'Pesan ini telah dihapus') return;
+            if (msg.attachment && msg.attachment.url) {
+                validAttachments.push(msg.attachment);
+            } else if (msg.body && msg.body.startsWith('[Berkas:')) {
+                const match = msg.body.match(/^\[Berkas:\s*(.+?)\]$/);
+                if (match) {
+                    validAttachments.push({
+                        name: match[1],
+                        url: '',
+                        size: 0,
+                        type: ''
+                    });
+                }
+            }
+        });
+
+        const images = [];
+        const documents = [];
+
+        validAttachments.forEach(att => {
+            const name = (att.name || att.url || '').toLowerCase();
+            const type = (att.type || '').toLowerCase();
+            const isImg = type.startsWith('image/') || Boolean(name.match(/\.(jpeg|jpg|png|gif|webp|svg)$/i));
+
+            if (isImg) {
+                images.push(att);
+            } else {
+                documents.push(att);
+            }
+        });
+
+        if (mediaCountEl) mediaCountEl.textContent = images.length;
+        if (docsCountEl) docsCountEl.textContent = documents.length;
+
+        if (images.length === 0) {
+            mediaContainer.innerHTML = `
+                <div class="empty-media-note" style="grid-column: 1 / -1; padding: 0.85rem 0.5rem; text-align: center; font-size: 0.75rem; color: var(--text-muted); background: var(--bg-surface-elevated, rgba(255,255,255,0.03)); border-radius: 8px; border: 1px dashed var(--border-subtle, rgba(255,255,255,0.1));">
+                    Belum ada gambar bersama
+                </div>
+            `;
+        } else {
+            const recentImages = images.slice(-12).reverse();
+            mediaContainer.innerHTML = recentImages.map(img => {
+                const imgUrl = img.url || '';
+                const imgName = escapeHtml(img.name || 'Gambar');
+                if (!imgUrl) return '';
+                const jsSafeUrl = imgUrl.replace(/'/g, "\\'");
+                const jsSafeName = imgName.replace(/'/g, "\\'");
+                return `
+                    <button type="button" class="media-thumb-card" title="${imgName}" onclick="openMediaLightbox('${jsSafeUrl}', { name: '${jsSafeName}' })" style="background-image: url('${imgUrl}'); background-size: cover; background-position: center; border: 1px solid var(--border-card); display: block; width: 100%; cursor: pointer;">
+                    </button>
+                `;
+            }).join('');
+        }
+
+        if (documents.length === 0) {
+            docsContainer.innerHTML = `
+                <div class="empty-docs-note" style="padding: 0.85rem 0.5rem; text-align: center; font-size: 0.75rem; color: var(--text-muted); background: var(--bg-surface-elevated, rgba(255,255,255,0.03)); border-radius: 8px; border: 1px dashed var(--border-subtle, rgba(255,255,255,0.1));">
+                    Belum ada dokumen bersama (.zip, .pdf, dll)
+                </div>
+            `;
+        } else {
+            const recentDocs = documents.slice(-10).reverse();
+            docsContainer.innerHTML = recentDocs.map(doc => {
+                const docUrl = doc.url || '#';
+                const docName = escapeHtml(doc.name || 'Berkas');
+                const ext = (doc.name || '').split('.').pop().toLowerCase() || 'file';
+                const sizeText = doc.size ? formatFileSize(doc.size) : 'Dokumen';
+
+                let iconColor = '#7c3aed';
+                let iconSvg = `
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                `;
+
+                if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+                    iconColor = '#f59e0b';
+                    iconSvg = `
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                        </svg>
+                    `;
+                } else if (ext === 'pdf') {
+                    iconColor = '#ef4444';
+                } else if (['doc', 'docx', 'txt'].includes(ext)) {
+                    iconColor = '#3b82f6';
+                } else if (['xls', 'xlsx', 'csv'].includes(ext)) {
+                    iconColor = '#10b981';
+                }
+
+                return `
+                    <a href="${docUrl}" ${docUrl !== '#' ? `download="${docName}"` : ''} target="_blank" rel="noopener noreferrer" class="document-item-card" title="Buka ${docName}" style="text-decoration: none;">
+                        <div class="doc-icon-container" style="color: ${iconColor};">
+                            ${iconSvg}
+                        </div>
+                        <div class="doc-details" style="overflow: hidden; min-width: 0;">
+                            <span class="doc-name" style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${docName}</span>
+                            <span class="doc-meta">${sizeText} • ${ext.toUpperCase()}</span>
+                        </div>
+                    </a>
+                `;
+            }).join('');
+        }
+    }
+
+    // Header klik: Jika grup buka modal info grup (media/dokumen), jika kontak buka panel kanan
+    window.handleActiveChatHeaderClick = function () {
+        if (state.activeContact && (state.activeContact.is_group || state.activeContact.isGroup)) {
+            window.openGroupInfoModal();
+        } else {
+            window.toggleRightInfoPanel();
+        }
+    };
+
+    window.handleDropdownInfoClick = function () {
+        window.closeChatDropdown();
+        if (state.activeContact && (state.activeContact.is_group || state.activeContact.isGroup)) {
+            window.openGroupInfoModal();
+        } else {
+            window.toggleRightInfoPanel(true);
+        }
+    };
+
+    // Modal Informasi & Media Grup
+    window.openGroupInfoModal = function () {
+        if (!state.activeContact || !state.activeContact.is_group) return;
+        const groupId = Number(state.activeContact.group_id || String(state.activeContact.id).replace('group_', ''));
+        const group = (state.groups || []).find(g => Number(g.id) === groupId) || state.activeContact;
+
+        const modal = document.getElementById('groupInfoModal');
+        if (!modal) return;
+
+        const avatarEl = document.getElementById('groupModalAvatarCircle');
+        const nameEl = document.getElementById('groupModalName');
+        const descEl = document.getElementById('groupModalDescription');
+        const membersSubEl = document.getElementById('groupModalMembersSubtitle');
+        const btnHeaderEdit = document.getElementById('btnGroupModalEditHeader');
+        const btnEditAction = document.getElementById('btnGroupModalEditAction');
+        const btnLeaveAction = document.getElementById('btnGroupModalLeaveAction');
+        const btnDeleteAction = document.getElementById('btnGroupModalDeleteAction');
+
+        if (avatarEl) {
+            if (group.avatar) {
+                avatarEl.className = 'avatar-circle group-modal-avatar';
+                avatarEl.style.overflow = 'hidden';
+                avatarEl.innerHTML = `<img src="${escapeHtml(group.avatar)}" alt="${escapeHtml(group.name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+            } else {
+                avatarEl.className = 'avatar-circle group-modal-avatar avatar-pastel-purple';
+                avatarEl.style.overflow = 'hidden';
+                avatarEl.innerHTML = `
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                `;
+            }
+        }
+
+        if (nameEl) nameEl.textContent = group.name || 'Grup';
+        if (descEl) descEl.textContent = group.description || 'Grup Obrolan ZChat';
+        const count = group.members ? group.members.length : (group.members_count || 1);
+        if (membersSubEl) membersSubEl.textContent = `${count} anggota`;
+
+        const isAdmin = group.my_role === 'admin' || (Number(group.created_by) === Number(state.user?.id));
+        if (btnHeaderEdit) btnHeaderEdit.style.display = isAdmin ? 'inline-flex' : 'none';
+        if (btnEditAction) btnEditAction.style.display = isAdmin ? 'inline-flex' : 'none';
+        if (btnDeleteAction) btnDeleteAction.style.display = isAdmin ? 'inline-flex' : 'none';
+        if (btnLeaveAction) btnLeaveAction.style.display = 'inline-flex';
+
+        // Update status senyap modal
+        const isMuted = isChatMuted(groupId, true);
+        const muteBtn = document.getElementById('btnGroupModalMute');
+        const muteLabel = document.getElementById('groupModalMuteLabel');
+        if (muteBtn) {
+            muteBtn.classList.toggle('active', isMuted);
+            muteBtn.style.color = isMuted ? '#ef4444' : '';
+        }
+        if (muteLabel) {
+            muteLabel.textContent = isMuted ? 'Dibisukan' : 'Senyap';
+        }
+
+        renderGroupModalMediaAndDocs(groupId);
+
+        modal.classList.add('show');
+    };
+
+    window.closeGroupInfoModal = function () {
+        const modal = document.getElementById('groupInfoModal');
+        if (modal) modal.classList.remove('show');
+    };
 
     window.handleSimulatedAction = function (name) {
         showToast(`${name} sedang disiapkan.`, 'info');
@@ -4673,6 +4900,14 @@
         if (btnHeaderEdit) btnHeaderEdit.style.display = 'none';
         if (btnEditAction) btnEditAction.style.display = 'none';
 
+        // Sembunyikan Discord group sidebar, tampilkan direct contact info panel
+        const directContent = document.getElementById('directChatInfoContent');
+        const groupContent = document.getElementById('groupMembersSidebarContent');
+        if (directContent) directContent.style.display = 'block';
+        if (groupContent) groupContent.style.display = 'none';
+        const btnToggleMemberList = document.getElementById('btnToggleMemberList');
+        if (btnToggleMemberList) btnToggleMemberList.style.display = 'none';
+
         window.closeChatDropdown();
         updateChatPreferencesUI();
         window.updateActiveChatBlockState();
@@ -4769,6 +5004,10 @@
         const typingBadge = document.getElementById('activeTypingStatus');
         if (typingBadge) typingBadge.style.display = 'none';
 
+        // Tampilkan tombol toggle daftar anggota di header obrolan grup
+        const btnToggleMemberList = document.getElementById('btnToggleMemberList');
+        if (btnToggleMemberList) btnToggleMemberList.style.display = 'flex';
+
         updateRightPanelForGroup(group);
 
         document.querySelector('.app-viewport').classList.add('show-chat');
@@ -4841,101 +5080,134 @@
         if (input) input.focus();
     };
 
+    // Sidebar Kanan Khusus Grup Ala Discord (Hanya daftar member terorganisir per role)
     function updateRightPanelForGroup(group) {
-        const infoAvatar = document.getElementById('infoAvatarCircle');
-        const infoName = document.getElementById('infoDisplayName');
-        const infoUser = document.getElementById('infoUsername');
-        const infoDot = document.getElementById('infoStatusDot');
-        const groupSec = document.getElementById('infoGroupSection');
-        const groupList = document.getElementById('infoGroupMembersList');
-        const groupCount = document.getElementById('infoGroupMembersCount');
-        const btnAddMem = document.getElementById('btnOpenAddMember');
-        const btnDelContact = document.getElementById('btnDeleteContactAction');
-        const btnLeaveGrp = document.getElementById('btnLeaveGroupAction');
-        const btnDelGrp = document.getElementById('btnDeleteGroupAction');
-        const btnHeaderEdit = document.getElementById('btnHeaderEditGroup');
-        const btnEditAction = document.getElementById('btnEditGroupAction');
+        const directContent = document.getElementById('directChatInfoContent');
+        const groupContent = document.getElementById('groupMembersSidebarContent');
+        if (directContent) directContent.style.display = 'none';
+        if (groupContent) groupContent.style.display = 'flex';
 
-        if (infoAvatar) {
-            if (group.avatar) {
-                infoAvatar.className = 'avatar-circle info-avatar-large';
-                infoAvatar.style.overflow = 'hidden';
-                infoAvatar.innerHTML = `<img src="${escapeHtml(group.avatar)}" alt="${escapeHtml(group.name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
-            } else {
-                infoAvatar.className = 'avatar-circle info-avatar-large avatar-pastel-purple';
-                infoAvatar.style.overflow = 'hidden';
-                infoAvatar.innerHTML = `
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="9" cy="7" r="4"></circle>
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                    </svg>
-                `;
-            }
+        const totalBadge = document.getElementById('discordTotalMembersBadge');
+        const totalCount = group.members ? group.members.length : (group.members_count || 1);
+        if (totalBadge) totalBadge.textContent = totalCount;
+
+        const isCurrentCreator = Number(group.created_by) === Number(state.user?.id);
+        const isAdmin = group.my_role === 'admin' || isCurrentCreator;
+
+        const btnDiscordAdd = document.getElementById('btnDiscordAddMember');
+        if (btnDiscordAdd) {
+            btnDiscordAdd.style.display = isAdmin ? 'inline-flex' : 'none';
         }
-        if (infoName) infoName.textContent = group.name;
-        if (infoUser) infoUser.textContent = group.description || 'Grup Obrolan ZChat';
-        if (infoDot) infoDot.className = 'status-indicator-dot online';
-        const infoPresence = document.getElementById('infoPresenceText');
-        if (infoPresence) infoPresence.textContent = `${group.members_count || (group.members ? group.members.length : 1)} anggota`;
 
-        if (groupSec) groupSec.style.display = 'block';
-        if (btnDelContact) btnDelContact.style.display = 'none';
-        if (btnLeaveGrp) btnLeaveGrp.style.display = 'flex';
+        const allMembers = group.members || [];
+        const admins = [];
+        const regularMembers = [];
 
-        const isAdmin = group.my_role === 'admin' || (Number(group.created_by) === Number(state.user?.id));
-        if (btnDelGrp) btnDelGrp.style.display = isAdmin ? 'flex' : 'none';
-        if (btnAddMem) btnAddMem.style.display = isAdmin ? 'flex' : 'none';
-        if (btnHeaderEdit) btnHeaderEdit.style.display = isAdmin ? 'flex' : 'none';
-        if (btnEditAction) btnEditAction.style.display = isAdmin ? 'flex' : 'none';
+        allMembers.forEach(m => {
+            const isOwner = Number(m.user_id) === Number(group.created_by);
+            const isMemAdmin = m.role === 'admin';
+            if (isOwner || isMemAdmin) {
+                admins.push(m);
+            } else {
+                regularMembers.push(m);
+            }
+        });
 
-        if (groupCount) groupCount.textContent = group.members ? group.members.length : (group.members_count || 1);
+        // Sort admins: Owner paling atas, lalu urutkan nama
+        admins.sort((a, b) => {
+            const aIsOwner = Number(a.user_id) === Number(group.created_by);
+            const bIsOwner = Number(b.user_id) === Number(group.created_by);
+            if (aIsOwner && !bIsOwner) return -1;
+            if (!aIsOwner && bIsOwner) return 1;
+            return (a.display_name || a.username || '').localeCompare(b.display_name || b.username || '');
+        });
 
-        if (groupList && group.members) {
-            const isCurrentCreator = Number(group.created_by) === Number(state.user?.id);
-            groupList.innerHTML = group.members.map(m => {
-                const initial = (m.display_name || m.username || 'U').charAt(0).toUpperCase();
-                const isMe = Number(m.user_id) === Number(state.user?.id);
-                const isMemAdmin = m.role === 'admin';
-                const isTargetCreator = Number(m.user_id) === Number(group.created_by);
-                // Admin can kick members; only creator can kick another admin; creator cannot be kicked by other admins
-                const canKick = isAdmin && !isMe && (!isTargetCreator || isCurrentCreator);
-                const memAvatarHtml = m.avatar
-                    ? `<img src="${escapeHtml(m.avatar)}" alt="${escapeHtml(m.display_name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;">`
-                    : initial;
+        // Sort regular members alfabetis
+        regularMembers.sort((a, b) => (a.display_name || a.username || '').localeCompare(b.display_name || b.username || ''));
 
-                return `
-                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.45rem 0.65rem; border-radius: 8px; background: var(--bg-surface-elevated, rgba(255,255,255,0.03)); border: 1px solid var(--border-subtle, rgba(255,255,255,0.06)); font-size: 0.8125rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem; overflow: hidden; min-width: 0;">
-                            <div class="avatar-circle" style="width: 30px; height: 30px; font-size: 0.75rem; flex-shrink: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(124, 58, 237, 0.3), rgba(139, 92, 237, 0.15)); color: #c4b5fd;">${memAvatarHtml}</div>
-                            <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                <div style="font-weight: 600; color: var(--text-primary); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
-                                    ${escapeHtml(m.display_name)}${isMe ? ' <span style="color: var(--accent-primary); font-size: 0.7rem; font-weight: 500;">(Anda)</span>' : ''}
-                                </div>
-                                <div style="font-size: 0.7rem; color: var(--text-muted);">@${escapeHtml(m.username)}</div>
-                            </div>
+        function renderDiscordMemberCard(m) {
+            const isMe = Number(m.user_id) === Number(state.user?.id);
+            const isOwner = Number(m.user_id) === Number(group.created_by);
+            const isMemAdmin = m.role === 'admin';
+            const isOnline = Boolean(m.is_online);
+            const canKick = isAdmin && !isMe && (!isOwner || isCurrentCreator);
+
+            const initial = (m.display_name || m.username || 'U').charAt(0).toUpperCase();
+            const pastelClass = getPastelColorClass(m.display_name || m.username);
+            const avatarInner = m.avatar
+                ? `<img src="${escapeHtml(m.avatar)}" alt="${escapeHtml(m.display_name)}" class="discord-member-img">`
+                : `<div class="avatar-circle discord-avatar-circle ${pastelClass}">${initial}</div>`;
+
+            let roleBadgeHtml = '';
+            if (isOwner) {
+                roleBadgeHtml = `<span class="discord-badge discord-badge-owner">Owner</span>`;
+            } else if (isMemAdmin) {
+                roleBadgeHtml = `<span class="discord-badge discord-badge-admin">Admin</span>`;
+            } else {
+                roleBadgeHtml = `<span class="discord-badge discord-badge-member">Anggota</span>`;
+            }
+
+            return `
+                <div class="discord-member-card">
+                    <div class="discord-member-left">
+                        <div class="discord-avatar-wrapper">
+                            ${avatarInner}
+                            <span class="discord-status-dot ${isOnline ? 'online' : 'offline'}" title="${isOnline ? 'Online' : 'Offline'}"></span>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0;">
-                            <span style="font-size: 0.6875rem; padding: 2px 7px; border-radius: 4px; ${isMemAdmin ? 'background: rgba(124, 58, 237, 0.2); color: #a78bfa; font-weight: 600;' : 'background: rgba(255,255,255,0.06); color: var(--text-muted);'}">
-                                ${isMemAdmin ? (isTargetCreator ? 'Owner' : 'Admin') : 'Anggota'}
-                            </span>
-                            ${canKick ? `
-                                <button type="button" class="btn-kick-member" style="display: flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.12); color: #f87171; font-size: 0.6875rem; font-weight: 600; cursor: pointer; transition: all 0.15s ease;" title="Keluarkan dari grup" onclick="handleRemoveGroupMember(${m.user_id}, '${escapeHtml(m.display_name || m.username)}')">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                                        <circle cx="8.5" cy="7" r="4"></circle>
-                                        <line x1="18" y1="8" x2="23" y2="13"></line>
-                                        <line x1="23" y1="8" x2="18" y2="13"></line>
-                                    </svg>
-                                    <span>Kick</span>
-                                </button>
-                            ` : ''}
+                        <div class="discord-member-meta">
+                            <div class="discord-member-name">
+                                <span class="discord-name-text">${escapeHtml(m.display_name)}</span>
+                                ${isMe ? '<span class="discord-me-tag">(Anda)</span>' : ''}
+                            </div>
+                            <div class="discord-member-handle">@${escapeHtml(m.username)}</div>
                         </div>
                     </div>
-                `;
-            }).join('');
+                    <div class="discord-member-right">
+                        ${roleBadgeHtml}
+                        ${canKick ? `
+                            <button type="button" class="btn-discord-kick" title="Keluarkan ${escapeHtml(m.display_name || m.username)} dari grup" onclick="handleRemoveGroupMember(${m.user_id}, '${escapeHtml(m.display_name || m.username)}')">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="8.5" cy="7" r="4"></circle>
+                                    <line x1="18" y1="8" x2="23" y2="13"></line>
+                                    <line x1="23" y1="8" x2="18" y2="13"></line>
+                                </svg>
+                                <span>Kick</span>
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
         }
+
+        const adminSection = document.getElementById('discordAdminSection');
+        const adminList = document.getElementById('discordAdminList');
+        const adminCount = document.getElementById('discordAdminCount');
+
+        const memberSection = document.getElementById('discordMemberSection');
+        const memberList = document.getElementById('discordMemberList');
+        const memberCount = document.getElementById('discordMemberCount');
+
+        if (adminCount) adminCount.textContent = admins.length;
+        if (adminList) {
+            adminList.innerHTML = admins.length > 0
+                ? admins.map(renderDiscordMemberCard).join('')
+                : '<div class="discord-empty-members">Belum ada admin</div>';
+        }
+        if (adminSection) {
+            adminSection.style.display = admins.length > 0 ? 'block' : 'none';
+        }
+
+        if (memberCount) memberCount.textContent = regularMembers.length;
+        if (memberList) {
+            memberList.innerHTML = regularMembers.length > 0
+                ? regularMembers.map(renderDiscordMemberCard).join('')
+                : '<div class="discord-empty-members">Belum ada anggota biasa</div>';
+        }
+        if (memberSection) {
+            memberSection.style.display = 'block';
+        }
+
         window.closeChatDropdown();
     }
 

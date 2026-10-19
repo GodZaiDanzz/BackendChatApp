@@ -23,7 +23,7 @@ class GroupController extends Controller
         $groups = Group::whereHas('members', function ($q) use ($userId) {
             $q->where('user_id', $userId);
         })
-            ->with(['members.user:id,username,display_name,avatar', 'creator:id,username,display_name,avatar'])
+            ->with(['members.user:id,username,display_name,avatar,last_seen_at', 'creator:id,username,display_name,avatar,last_seen_at'])
             ->get()
             ->map(function ($group) use ($userId) {
                 $myMember = $group->members->firstWhere('user_id', $userId);
@@ -43,6 +43,10 @@ class GroupController extends Controller
                     'my_role'       => $myMember ? $myMember->role : 'member',
                     'members_count' => $group->members->count(),
                     'members'       => $group->members->map(function ($m) {
+                        $isOnline = false;
+                        if (!empty($m->user?->last_seen_at)) {
+                            $isOnline = $m->user->last_seen_at->gt(now()->subSeconds(45));
+                        }
                         return [
                             'user_id'      => $m->user_id,
                             'username'     => $m->user?->username,
@@ -50,6 +54,8 @@ class GroupController extends Controller
                             'avatar'       => $m->user?->avatar,
                             'role'         => $m->role,
                             'joined_at'    => $m->joined_at?->toIso8601String(),
+                            'is_online'    => $isOnline,
+                            'last_seen_at' => $m->user?->last_seen_at?->toISOString(),
                         ];
                     }),
                     'last_message'  => $lastMsg ? (function () use ($lastMsg, $group) {
@@ -255,7 +261,7 @@ class GroupController extends Controller
 
     public function show(Request $request, $id)
     {
-        $group = Group::with(['members.user:id,username,display_name,avatar', 'creator:id,username,display_name,avatar'])->findOrFail($id);
+        $group = Group::with(['members.user:id,username,display_name,avatar,last_seen_at', 'creator:id,username,display_name,avatar,last_seen_at'])->findOrFail($id);
 
         $myMember = $group->members->firstWhere('user_id', $request->user()->id);
         if (!$myMember) {
@@ -272,14 +278,22 @@ class GroupController extends Controller
             'created_at'    => $group->created_at?->toIso8601String(),
             'my_role'       => $myMember->role,
             'members_count' => $group->members->count(),
-            'members'       => $group->members->map(fn($m) => [
-                'user_id'      => $m->user_id,
-                'username'     => $m->user?->username,
-                'display_name' => $m->user?->display_name ?: $m->user?->username,
-                'avatar'       => $m->user?->avatar,
-                'role'         => $m->role,
-                'joined_at'    => $m->joined_at?->toIso8601String(),
-            ]),
+            'members'       => $group->members->map(function ($m) {
+                $isOnline = false;
+                if (!empty($m->user?->last_seen_at)) {
+                    $isOnline = $m->user->last_seen_at->gt(now()->subSeconds(45));
+                }
+                return [
+                    'user_id'      => $m->user_id,
+                    'username'     => $m->user?->username,
+                    'display_name' => $m->user?->display_name ?: $m->user?->username,
+                    'avatar'       => $m->user?->avatar,
+                    'role'         => $m->role,
+                    'joined_at'    => $m->joined_at?->toIso8601String(),
+                    'is_online'    => $isOnline,
+                    'last_seen_at' => $m->user?->last_seen_at?->toISOString(),
+                ];
+            }),
         ]);
     }
 

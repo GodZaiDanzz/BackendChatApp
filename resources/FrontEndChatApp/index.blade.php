@@ -54,6 +54,7 @@
     @include('components.add-group-member-modal')
     @include('components.edit-group-modal')
     @include('components.contact-info-modal')
+    @include('components.group-info-modal')
     @include('components.user-profile-modal')
     @include('components.settings-modals')
     @include('components.backup-restore-modal')
