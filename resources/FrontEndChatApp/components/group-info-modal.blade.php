@@ -1,5 +1,5 @@
 {{-- Group Information Modal Component --}}
-<div id="groupInfoModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="groupInfoModalTitle">
+<div id="groupInfoModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="groupInfoModalTitle" onclick="if(event.target === this) closeGroupInfoModal()">
     <div class="modal-card group-info-modal-card">
         <div class="modal-header">
             <div style="display: flex; align-items: center; gap: 0.5rem;">

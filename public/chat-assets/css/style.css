@@ -1635,7 +1635,8 @@ body.streamer-mode #btnStreamerMode {
   transition: opacity 0.15s ease;
 }
 
-.modal-overlay.active {
+.modal-overlay.active,
+.modal-overlay.show {
   opacity: 1;
   pointer-events: auto;
 }
@@ -1657,7 +1658,8 @@ body.streamer-mode #btnStreamerMode {
   transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.15s ease;
 }
 
-.modal-overlay.active .modal-card {
+.modal-overlay.active .modal-card,
+.modal-overlay.show .modal-card {
   transform: scale(1);
   opacity: 1;
 }
@@ -5858,6 +5860,8 @@ mark.search-highlight-active {
   flex-direction: column;
   overflow: hidden;
   border-radius: 14px;
+  padding: 0;
+  gap: 0;
 }
 
 .group-info-modal-body {

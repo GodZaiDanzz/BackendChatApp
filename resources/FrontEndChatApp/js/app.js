@@ -2635,7 +2635,9 @@
 
     // Header klik: Jika grup buka modal info grup (media/dokumen), jika kontak buka panel kanan
     window.handleActiveChatHeaderClick = function () {
-        if (state.activeContact && (state.activeContact.is_group || state.activeContact.isGroup)) {
+        if (!state.activeContact) return;
+        const isGroup = Boolean(state.activeContact.is_group || state.activeContact.isGroup || String(state.activeContact.id).startsWith('group_') || state.activeContact.group_id);
+        if (isGroup) {
             window.openGroupInfoModal();
         } else {
             window.toggleRightInfoPanel();
@@ -2644,7 +2646,9 @@
 
     window.handleDropdownInfoClick = function () {
         window.closeChatDropdown();
-        if (state.activeContact && (state.activeContact.is_group || state.activeContact.isGroup)) {
+        if (!state.activeContact) return;
+        const isGroup = Boolean(state.activeContact.is_group || state.activeContact.isGroup || String(state.activeContact.id).startsWith('group_') || state.activeContact.group_id);
+        if (isGroup) {
             window.openGroupInfoModal();
         } else {
             window.toggleRightInfoPanel(true);
@@ -2653,12 +2657,23 @@
 
     // Modal Informasi & Media Grup
     window.openGroupInfoModal = function () {
-        if (!state.activeContact || !state.activeContact.is_group) return;
+        if (!state.activeContact) return;
+        const isGroup = Boolean(state.activeContact.is_group || state.activeContact.isGroup || String(state.activeContact.id).startsWith('group_') || state.activeContact.group_id);
+        if (!isGroup) {
+            if (typeof window.openContactInfoModal === 'function') {
+                window.openContactInfoModal();
+            }
+            return;
+        }
+
         const groupId = Number(state.activeContact.group_id || String(state.activeContact.id).replace('group_', ''));
         const group = (state.groups || []).find(g => Number(g.id) === groupId) || state.activeContact;
 
         const modal = document.getElementById('groupInfoModal');
-        if (!modal) return;
+        if (!modal) {
+            console.error('Modal #groupInfoModal tidak ditemukan di DOM!');
+            return;
+        }
 
         const avatarEl = document.getElementById('groupModalAvatarCircle');
         const nameEl = document.getElementById('groupModalName');
@@ -2713,12 +2728,18 @@
 
         renderGroupModalMediaAndDocs(groupId);
 
+        modal.style.display = 'flex';
+        modal.classList.add('active');
         modal.classList.add('show');
     };
 
     window.closeGroupInfoModal = function () {
         const modal = document.getElementById('groupInfoModal');
-        if (modal) modal.classList.remove('show');
+        if (modal) {
+            modal.classList.remove('active');
+            modal.classList.remove('show');
+            modal.style.display = 'none';
+        }
     };
 
     window.handleSimulatedAction = function (name) {
@@ -9530,6 +9551,7 @@
                 window.minimizeVoiceStage();
             }
 
+            window.closeGroupInfoModal();
             window.closeBlockedUsersModal();
             window.closeBackupRestoreModal();
             window.closeActiveSessionsModal();
