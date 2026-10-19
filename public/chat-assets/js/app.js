@@ -5897,11 +5897,11 @@
             container.innerHTML = `
                 <div class="poll-option-row">
                     <span class="poll-option-number">1</span>
-                    <input type="text" class="form-input poll-opt-input" placeholder="Opsi 1" required maxlength="200" style="flex: 1;">
+                    <input type="text" class="form-input poll-opt-input" placeholder="Opsi 1" required maxlength="200">
                 </div>
                 <div class="poll-option-row">
                     <span class="poll-option-number">2</span>
-                    <input type="text" class="form-input poll-opt-input" placeholder="Opsi 2" required maxlength="200" style="flex: 1;">
+                    <input type="text" class="form-input poll-opt-input" placeholder="Opsi 2" required maxlength="200">
                 </div>
             `;
         }
@@ -5974,7 +5974,7 @@
         newRow.className = 'poll-option-row';
         newRow.innerHTML = `
             <span class="poll-option-number">${rows.length + 1}</span>
-            <input type="text" class="form-input poll-opt-input" placeholder="Opsi ${rows.length + 1}" required maxlength="200" style="flex: 1;">
+            <input type="text" class="form-input poll-opt-input" placeholder="Opsi ${rows.length + 1}" required maxlength="200">
         `;
         container.appendChild(newRow);
         updatePollOptionNumbers();
@@ -6369,23 +6369,23 @@
         filtered.forEach(item => {
             const isSelected = state.forwardSelectedRecipients.includes(item.key);
             const avatarHtml = item.avatar
-                ? `<img src="${item.avatar}" alt="" class="avatar-sm" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover;">`
-                : `<div class="avatar-sm" style="width: 36px; height: 36px; border-radius: 50%; background: var(--accent-gradient, #6366f1); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.85rem; color: #fff;">${item.name.charAt(0).toUpperCase()}</div>`;
+                ? `<img src="${item.avatar}" alt="" class="avatar-circle avatar-sm" style="object-fit: cover;">`
+                : `<div class="avatar-circle avatar-pastel-purple avatar-sm">${item.name.charAt(0).toUpperCase()}</div>`;
 
             const badgeHtml = item.type === 'group'
-                ? `<span class="badge" style="font-size: 0.65rem; background: rgba(99,102,241,0.15); color: var(--accent-primary); padding: 2px 6px; border-radius: 4px; font-weight: 600;">Grup</span>`
+                ? `<span class="badge badge-purple" style="font-size: 0.65rem; padding: 2px 6px;">Grup</span>`
                 : '';
 
             html += `
-                <label class="forward-recipient-item ${isSelected ? 'selected' : ''}" style="display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 0.65rem; border-radius: 8px; cursor: pointer; user-select: none; transition: background 0.15s ease;">
+                <label class="forward-recipient-item ${isSelected ? 'selected' : ''}">
                     <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1; min-width: 0;">
                         ${avatarHtml}
                         <div style="display: flex; flex-direction: column; min-width: 0; flex: 1;">
                             <div style="display: flex; align-items: center; gap: 0.4rem;">
-                                <span style="font-size: 0.825rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(item.name)}</span>
+                                <span class="forward-recipient-name">${escapeHtml(item.name)}</span>
                                 ${badgeHtml}
                             </div>
-                            <span style="font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(item.subtext)}</span>
+                            <span class="forward-recipient-type">${escapeHtml(item.subtext)}</span>
                         </div>
                     </div>
                     <input
@@ -6395,7 +6395,6 @@
                         ${isSelected ? 'checked' : ''}
                         onchange="toggleForwardRecipient('${item.key}', this.checked)"
                         aria-label="Pilih ${escapeHtml(item.name)}"
-                        style="width: 17px; height: 17px; accent-color: var(--accent-primary); cursor: pointer;"
                     >
                 </label>
             `;
