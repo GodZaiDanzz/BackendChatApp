@@ -82,6 +82,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/groups', [GroupController::class, 'index']);
     Route::post('/groups', [GroupController::class, 'store']);
     Route::post('/groups/sync', [GroupController::class, 'sync']);
+    Route::post('/groups/join-by-code', [GroupController::class, 'joinByCode']);
+    Route::post('/groups/{id}/invite-code/regenerate', [GroupController::class, 'regenerateInviteCode']);
     Route::get('/groups/{id}', [GroupController::class, 'show']);
     Route::put('/groups/{id}', [GroupController::class, 'update']);
     Route::post('/groups/{id}', [GroupController::class, 'update']);
@@ -94,6 +96,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/groups/{id}/messages/{messageId}', [GroupController::class, 'destroyMessage']);
     Route::post('/groups/{id}/messages/batch-delete', [GroupController::class, 'batchDestroyMessages']);
     Route::post('/groups/{id}/messages/ack', [GroupController::class, 'acknowledgeMessages']);
+
+    // Group Polls
+    Route::get('/groups/{id}/polls', [\App\Http\Controllers\GroupPollController::class, 'index']);
+    Route::get('/groups/{id}/polls/{pollId}', [\App\Http\Controllers\GroupPollController::class, 'show']);
+    Route::post('/groups/{id}/polls', [\App\Http\Controllers\GroupPollController::class, 'store']);
+    Route::post('/groups/{id}/polls/{pollId}/vote', [\App\Http\Controllers\GroupPollController::class, 'vote']);
+    Route::post('/groups/{id}/polls/{pollId}/close', [\App\Http\Controllers\GroupPollController::class, 'close']);
 
     // WebRTC Voice Channels and Calls
     Route::post('/voice/signal', [\App\Http\Controllers\VoiceCallController::class, 'sendSignal']);

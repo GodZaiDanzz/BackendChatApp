@@ -13,6 +13,7 @@ use App\Services\ChatEncryption;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class GroupController extends Controller
 {
@@ -38,6 +39,7 @@ class GroupController extends Controller
                     'description'   => $group->description,
                     'avatar'        => $group->avatar,
                     'group_key'     => $group->group_key,
+                    'invite_code'   => $group->invite_code ?: Str::lower(Str::random(10)),
                     'created_by'    => $group->created_by,
                     'created_at'    => $group->created_at?->toIso8601String(),
                     'my_role'       => $myMember ? $myMember->role : 'member',
@@ -119,6 +121,7 @@ class GroupController extends Controller
                 'name'        => trim($data['name']),
                 'description' => isset($data['description']) ? trim($data['description']) : null,
                 'group_key'   => $groupKey,
+                'invite_code' => Str::lower(Str::random(10)),
                 'created_by'  => $user->id,
             ]);
 
@@ -152,6 +155,7 @@ class GroupController extends Controller
             'description'   => $group->description,
             'avatar'        => $group->avatar,
             'group_key'     => $group->group_key,
+            'invite_code'   => $group->invite_code,
             'created_by'    => $group->created_by,
             'my_role'       => 'admin',
             'members_count' => $group->members->count(),
@@ -966,5 +970,86 @@ class GroupController extends Controller
         } catch (\Throwable $e) {}
 
         return response()->json(['message' => 'Status pesan grup berhasil diperbarui']);
+    }
+
+    public function regenerateInviteCode(Request $request, $id)
+    {
+        $userId = $request->user()->id;
+        $group = Group::findOrFail($id);
+        $myMember = GroupMember::where('group_id', $id)->where('user_id', $userId)->first();
+        if (!$myMember || ($myMember->role !== 'admin' && (int)$group->created_by !== (int)$userId)) {
+            return response()->json(['message' => 'Hanya admin yang dapat memperbarui tautan undangan grup'], 403);
+        }
+
+        $group->invite_code = Str::lower(Str::random(10));
+        $group->save();
+
+        return response()->json([
+            'message'     => 'Tautan undangan berhasil diperbarui',
+            'invite_code' => $group->invite_code,
+        ]);
+    }
+
+    public function joinByCode(Request $request)
+    {
+        $data = $request->validate([
+            'code' => 'required|string|max:100',
+        ]);
+
+        $code = trim(Str::lower($data['code']));
+        if (str_contains($code, '/')) {
+            $code = trim(basename($code));
+        }
+
+        $group = Group::where('invite_code', $code)->first();
+        if (!$group) {
+            return response()->json(['message' => 'Kode atau tautan undangan tidak valid atau tidak ditemukan'], 404);
+        }
+
+        $user = $request->user();
+        $existing = GroupMember::where('group_id', $group->id)->where('user_id', $user->id)->first();
+
+        if (!$existing) {
+            GroupMember::create([
+                'group_id'  => $group->id,
+                'user_id'   => $user->id,
+                'role'      => 'member',
+                'joined_at' => now(),
+            ]);
+        }
+
+        $group->load(['members.user:id,username,display_name,avatar,last_seen_at', 'creator:id,username,display_name,avatar,last_seen_at']);
+
+        return response()->json([
+            'message'        => $existing ? 'Anda sudah menjadi anggota grup ini' : 'Berhasil bergabung dengan grup!',
+            'already_member' => (bool)$existing,
+            'group'          => [
+                'id'            => $group->id,
+                'name'          => $group->name,
+                'description'   => $group->description,
+                'avatar'        => $group->avatar,
+                'group_key'     => $group->group_key,
+                'invite_code'   => $group->invite_code,
+                'created_by'    => $group->created_by,
+                'my_role'       => $existing ? $existing->role : 'member',
+                'members_count' => $group->members->count(),
+                'members'       => $group->members->map(function ($m) {
+                    $isOnline = false;
+                    if (!empty($m->user?->last_seen_at)) {
+                        $isOnline = $m->user->last_seen_at->gt(now()->subSeconds(45));
+                    }
+                    return [
+                        'user_id'      => $m->user_id,
+                        'username'     => $m->user?->username,
+                        'display_name' => $m->user?->display_name ?: $m->user?->username,
+                        'avatar'       => $m->user?->avatar,
+                        'role'         => $m->role,
+                        'joined_at'    => $m->joined_at?->toIso8601String(),
+                        'is_online'    => $isOnline,
+                        'last_seen_at' => $m->user?->last_seen_at?->toISOString(),
+                    ];
+                }),
+            ],
+        ]);
     }
 }

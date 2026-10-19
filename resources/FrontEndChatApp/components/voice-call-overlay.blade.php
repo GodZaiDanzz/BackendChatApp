@@ -110,6 +110,18 @@
                 <span id="stageCameraLabel">Kamera</span>
             </button>
 
+            {{-- Screen Share Toggle (Shown during active call) --}}
+            <button type="button" id="btnStageToggleScreenShare" onclick="toggleScreenShare()" class="btn-outline-action" style="display: none; align-items: center; gap: 0.5rem; padding: 0.65rem 1.1rem; border-radius: 9999px;" title="Bagikan Layar">
+                <span id="stageScreenShareIcon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                        <line x1="8" y1="21" x2="16" y2="21"></line>
+                        <line x1="12" y1="17" x2="12" y2="21"></line>
+                    </svg>
+                </span>
+                <span id="stageScreenShareLabel">Bagi Layar</span>
+            </button>
+
             {{-- Deafen Toggle --}}
             <button type="button" id="btnStageToggleDeafen" onclick="toggleVoiceDeafen()" class="btn-outline-action" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.65rem 1.1rem; border-radius: 9999px;" title="Matikan / Nyalakan Suara Masuk">
                 <span id="stageDeafenIcon">

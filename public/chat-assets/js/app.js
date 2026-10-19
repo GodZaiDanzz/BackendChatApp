@@ -252,6 +252,16 @@
         pinnedMessages: {},
         currentPinnedIndex: 0,
         activeSessions: [],
+        polls: {},
+        mentionState: {
+            active: false,
+            query: '',
+            selectedIndex: 0,
+            matches: [],
+            triggerIndex: -1
+        },
+        forwardingMessage: null,
+        forwardSelectedRecipients: new Set(),
         voiceNote: {
             isRecording: false,
             mediaRecorder: null,
@@ -287,6 +297,8 @@
             localStream: null,
             isMuted: false,
             isDeafened: false,
+            isScreenSharing: false,
+            screenStream: null,
             peerConnections: {},
             remoteStreams: {},
             audioElements: {},
@@ -2726,6 +2738,16 @@
             muteLabel.textContent = isMuted ? 'Dibisukan' : 'Senyap';
         }
 
+        // Tampilkan kode undangan grup
+        const inviteDisplayEl = document.getElementById('groupModalInviteCodeDisplay');
+        if (inviteDisplayEl) {
+            inviteDisplayEl.textContent = group.invite_code || '-';
+        }
+        const btnRegenerate = document.getElementById('btnRegenerateInviteCode');
+        if (btnRegenerate) {
+            btnRegenerate.style.display = isAdmin ? 'inline-flex' : 'none';
+        }
+
         renderGroupModalMediaAndDocs(groupId);
 
         modal.style.display = 'flex';
@@ -2739,6 +2761,61 @@
             modal.classList.remove('active');
             modal.classList.remove('show');
             modal.style.display = 'none';
+        }
+    };
+
+    window.copyGroupInviteLink = function () {
+        if (!state.activeContact) return;
+        const groupId = Number(state.activeContact.group_id || state.activeContact.id);
+        const group = (state.groups || []).find(g => Number(g.id) === groupId) || state.activeContact;
+        const code = group.invite_code;
+        if (!code) {
+            showToast('Kode undangan tidak tersedia untuk grup ini.', 'error');
+            return;
+        }
+        const origin = window.location.origin;
+        const inviteLink = `${origin}/join/${code}`;
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(inviteLink).then(() => {
+                showToast('Tautan undangan grup berhasil disalin ke papan klip!', 'success');
+            }).catch(() => {
+                prompt('Salin tautan undangan grup di bawah ini:', inviteLink);
+            });
+        } else {
+            prompt('Salin tautan undangan grup di bawah ini:', inviteLink);
+        }
+    };
+
+    window.handleRegenerateInviteCode = async function () {
+        if (!state.activeContact) return;
+        const groupId = Number(state.activeContact.group_id || state.activeContact.id);
+        const confirmed = await showConfirmModal({
+            title: 'Perbarui Kode Undangan?',
+            message: 'Tautan dan kode undangan lama tidak akan dapat digunakan lagi setelah kode baru dibuat. Lanjutkan?',
+            confirmText: 'Buat Baru',
+            cancelText: 'Batal',
+            type: 'warning',
+            icon: 'refresh'
+        });
+        if (!confirmed) return;
+
+        try {
+            const res = await apiRequest(`/groups/${groupId}/invite-code/regenerate`, {
+                method: 'POST'
+            });
+            if (res && res.invite_code) {
+                state.activeContact.invite_code = res.invite_code;
+                const targetGroup = (state.groups || []).find(g => Number(g.id) === groupId);
+                if (targetGroup) targetGroup.invite_code = res.invite_code;
+
+                const displayEl = document.getElementById('groupModalInviteCodeDisplay');
+                if (displayEl) displayEl.textContent = res.invite_code;
+
+                showToast('Kode undangan baru berhasil dibuat!', 'success');
+            }
+        } catch (err) {
+            showToast('Gagal memperbarui kode undangan: ' + err.message, 'error');
         }
     };
 
@@ -4929,6 +5006,12 @@
         const btnToggleMemberList = document.getElementById('btnToggleMemberList');
         if (btnToggleMemberList) btnToggleMemberList.style.display = 'none';
 
+        const btnCreatePoll = document.getElementById('btnCreatePoll');
+        if (btnCreatePoll) btnCreatePoll.style.display = 'none';
+        const mentionBox = document.getElementById('mentionAutocompleteBox');
+        if (mentionBox) mentionBox.style.display = 'none';
+        state.mentionState.active = false;
+
         window.closeChatDropdown();
         updateChatPreferencesUI();
         window.updateActiveChatBlockState();
@@ -5028,6 +5111,15 @@
         // Tampilkan tombol toggle daftar anggota di header obrolan grup
         const btnToggleMemberList = document.getElementById('btnToggleMemberList');
         if (btnToggleMemberList) btnToggleMemberList.style.display = 'flex';
+
+        // Tampilkan tombol Buat Polling Grup
+        const btnCreatePoll = document.getElementById('btnCreatePoll');
+        if (btnCreatePoll) btnCreatePoll.style.display = 'inline-flex';
+
+        // Ambil polling untuk grup ini
+        if (typeof fetchGroupPolls === 'function') {
+            fetchGroupPolls(groupId);
+        }
 
         updateRightPanelForGroup(group);
 
@@ -5771,6 +5863,762 @@
         }
     };
 
+    /* ==========================================================================
+       GROUP POLLS (POLLING / VOTING)
+       ========================================================================== */
+    window.fetchGroupPolls = async function (groupId) {
+        if (!groupId) return;
+        try {
+            const res = await apiRequest(`/groups/${groupId}/polls`);
+            if (res && res.data && Array.isArray(res.data)) {
+                res.data.forEach(poll => {
+                    state.polls[poll.id] = poll;
+                });
+                renderActiveMessages();
+            }
+        } catch (err) {
+            console.error('Gagal mengambil data polling grup:', err);
+        }
+    };
+
+    window.openCreatePollModal = function () {
+        if (!state.activeContact || !state.activeContact.is_group) {
+            showToast('Fitur polling hanya tersedia di dalam obrolan grup.', 'warning');
+            return;
+        }
+        const modal = document.getElementById('createPollModal');
+        if (!modal) return;
+
+        const questionInput = document.getElementById('pollQuestionInput');
+        if (questionInput) questionInput.value = '';
+
+        const container = document.getElementById('pollOptionsContainer');
+        if (container) {
+            container.innerHTML = `
+                <div class="poll-option-row">
+                    <span class="poll-option-number">1</span>
+                    <input type="text" class="form-input poll-opt-input" placeholder="Opsi 1" required maxlength="200" style="flex: 1;">
+                </div>
+                <div class="poll-option-row">
+                    <span class="poll-option-number">2</span>
+                    <input type="text" class="form-input poll-opt-input" placeholder="Opsi 2" required maxlength="200" style="flex: 1;">
+                </div>
+            `;
+        }
+
+        const multipleCheck = document.getElementById('pollMultipleAnswers');
+        if (multipleCheck) multipleCheck.checked = false;
+
+        updatePollOptionNumbers();
+        modal.classList.remove('hidden');
+        if (questionInput) questionInput.focus();
+    };
+
+    window.closeCreatePollModal = function () {
+        const modal = document.getElementById('createPollModal');
+        if (modal) modal.classList.add('hidden');
+    };
+
+    function updatePollOptionNumbers() {
+        const container = document.getElementById('pollOptionsContainer');
+        if (!container) return;
+        const rows = container.querySelectorAll('.poll-option-row');
+        const countLabel = document.getElementById('pollOptionCountLabel');
+        if (countLabel) countLabel.textContent = `${rows.length}/6 Opsi`;
+
+        const addBtn = document.getElementById('btnAddPollOption');
+        if (addBtn) addBtn.style.display = rows.length >= 6 ? 'none' : 'flex';
+
+        rows.forEach((row, idx) => {
+            const numSpan = row.querySelector('.poll-option-number');
+            if (numSpan) numSpan.textContent = idx + 1;
+
+            const input = row.querySelector('.poll-opt-input');
+            if (input) input.placeholder = `Opsi ${idx + 1}`;
+
+            let removeBtn = row.querySelector('.btn-remove-poll-opt');
+            if (rows.length > 2) {
+                if (!removeBtn) {
+                    removeBtn = document.createElement('button');
+                    removeBtn.type = 'button';
+                    removeBtn.className = 'btn-icon btn-remove-poll-opt';
+                    removeBtn.title = 'Hapus opsi';
+                    removeBtn.setAttribute('aria-label', `Hapus opsi ${idx + 1}`);
+                    removeBtn.innerHTML = `
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    `;
+                    removeBtn.onclick = function () {
+                        removePollOptionRow(removeBtn);
+                    };
+                    row.appendChild(removeBtn);
+                }
+            } else if (removeBtn) {
+                removeBtn.remove();
+            }
+        });
+    }
+
+    window.addPollOptionRow = function () {
+        const container = document.getElementById('pollOptionsContainer');
+        if (!container) return;
+        const rows = container.querySelectorAll('.poll-option-row');
+        if (rows.length >= 6) {
+            showToast('Maksimal 6 opsi polling diperbolehkan.', 'warning');
+            return;
+        }
+
+        const newRow = document.createElement('div');
+        newRow.className = 'poll-option-row';
+        newRow.innerHTML = `
+            <span class="poll-option-number">${rows.length + 1}</span>
+            <input type="text" class="form-input poll-opt-input" placeholder="Opsi ${rows.length + 1}" required maxlength="200" style="flex: 1;">
+        `;
+        container.appendChild(newRow);
+        updatePollOptionNumbers();
+
+        const input = newRow.querySelector('.poll-opt-input');
+        if (input) input.focus();
+    };
+
+    window.removePollOptionRow = function (btn) {
+        const row = btn.closest('.poll-option-row');
+        if (row) {
+            row.remove();
+            updatePollOptionNumbers();
+        }
+    };
+
+    window.submitCreatePoll = async function () {
+        if (!state.activeContact || !state.activeContact.is_group) {
+            showToast('Grup tidak aktif.', 'error');
+            return;
+        }
+        const groupId = state.activeContact.id || state.activeContact.group_id;
+        const questionInput = document.getElementById('pollQuestionInput');
+        const question = questionInput ? questionInput.value.trim() : '';
+
+        if (!question) {
+            showToast('Pertanyaan polling wajib diisi.', 'error');
+            return;
+        }
+
+        const container = document.getElementById('pollOptionsContainer');
+        const inputs = container ? container.querySelectorAll('.poll-opt-input') : [];
+        const options = [];
+        inputs.forEach(inp => {
+            const val = inp.value.trim();
+            if (val) options.push(val);
+        });
+
+        if (options.length < 2) {
+            showToast('Minimal 2 opsi pilihan harus diisi.', 'error');
+            return;
+        }
+
+        const multipleCheck = document.getElementById('pollMultipleAnswers');
+        const isMultiple = multipleCheck ? multipleCheck.checked : false;
+
+        const submitBtn = document.getElementById('btnSubmitCreatePoll');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span>Membuat...</span>';
+        }
+
+        try {
+            const res = await apiRequest(`/groups/${groupId}/polls`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    question: question,
+                    options: options,
+                    is_multiple_choice: isMultiple
+                })
+            });
+
+            if (res && res.data) {
+                state.polls[res.data.id] = res.data;
+            }
+
+            closeCreatePollModal();
+            showToast('Polling berhasil dibuat!', 'success');
+        } catch (err) {
+            showToast('Gagal membuat polling: ' + (err.message || 'Terjadi kesalahan'), 'error');
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<span>Kirim Polling</span>';
+            }
+        }
+    };
+
+    window.renderPollCardHtml = function (pollId, isMe, msg) {
+        const poll = state.polls ? state.polls[pollId] : null;
+
+        if (!poll) {
+            if (!state.pollsFetching) state.pollsFetching = {};
+            if (!state.pollsFetching[pollId]) {
+                state.pollsFetching[pollId] = true;
+                const grpId = msg.group_id || (state.activeContact ? state.activeContact.id : null);
+                if (grpId) {
+                    apiRequest(`/groups/${grpId}/polls/${pollId}`).then(res => {
+                        if (res && res.data) {
+                            state.polls[pollId] = res.data;
+                            renderActiveMessages();
+                        }
+                    }).catch(() => {}).finally(() => {
+                        delete state.pollsFetching[pollId];
+                    });
+                }
+            }
+            return `
+                <div class="poll-card poll-card-loading" style="padding: 1rem; text-align: center; color: var(--text-muted); font-size: 0.8125rem;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin">
+                            <line x1="12" y1="2" x2="12" y2="6"></line>
+                            <line x1="12" y1="18" x2="12" y2="22"></line>
+                            <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                            <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                            <line x1="2" y1="12" x2="6" y2="12"></line>
+                            <line x1="18" y1="12" x2="22" y2="12"></line>
+                            <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                            <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+                        </svg>
+                        <span>Memuat data polling...</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        const isClosed = poll.status === 'closed';
+        const totalVotes = poll.total_votes || (poll.options || []).reduce((acc, opt) => acc + (opt.votes_count || 0), 0);
+        const currentUserId = state.user ? state.user.id : null;
+        const isCreator = poll.creator_id === currentUserId;
+        const myRole = state.activeContact ? (state.activeContact.role || 'member') : 'member';
+        const canClose = !isClosed && (isCreator || myRole === 'admin' || myRole === 'creator');
+
+        let optionsHtml = '';
+        (poll.options || []).forEach(opt => {
+            const votesCount = opt.votes_count || 0;
+            const pct = totalVotes > 0 ? Math.round((votesCount / totalVotes) * 100) : 0;
+            const hasVoted = Boolean(opt.has_voted);
+            const optClass = `poll-option-item ${hasVoted ? 'voted' : ''} ${isClosed ? 'closed' : ''}`;
+            const clickHandler = isClosed ? '' : `onclick="handleVotePoll(${poll.group_id}, ${poll.id}, ${opt.id})"`;
+            const keydownHandler = isClosed ? '' : `onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();handleVotePoll(${poll.group_id}, ${poll.id}, ${opt.id});}"`;
+
+            const iconHtml = hasVoted
+                ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="color: var(--accent-primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"></polyline></svg>`
+                : (poll.is_multiple_choice
+                    ? `<span class="poll-checkbox-indicator"></span>`
+                    : `<span class="poll-radio-indicator"></span>`);
+
+            optionsHtml += `
+                <div class="${optClass}"
+                     tabindex="${isClosed ? '-1' : '0'}"
+                     role="button"
+                     aria-pressed="${hasVoted ? 'true' : 'false'}"
+                     aria-label="Pilih opsi: ${escapeHtml(opt.option_text)}. ${votesCount} suara, ${pct} persen"
+                     ${clickHandler}
+                     ${keydownHandler}>
+                    <div class="poll-bar-fill" style="width: ${pct}%;"></div>
+                    <div class="poll-option-content">
+                        <div class="poll-opt-text-wrap">
+                            ${iconHtml}
+                            <span class="poll-opt-text">${escapeHtml(opt.option_text)}</span>
+                        </div>
+                        <div class="poll-opt-meta">
+                            <span class="poll-opt-pct">${pct}%</span>
+                            <span class="poll-opt-count">(${votesCount})</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        const closeBtnHtml = canClose ? `
+            <button type="button" class="btn-close-poll" onclick="handleClosePoll(${poll.group_id}, ${poll.id})" aria-label="Tutup polling ini" title="Tutup polling">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                </svg>
+                <span>Tutup Polling</span>
+            </button>
+        ` : '';
+
+        return `
+            <div class="poll-card ${isClosed ? 'poll-card-closed' : ''}" role="region" aria-label="Polling: ${escapeHtml(poll.question)}">
+                <div class="poll-header">
+                    <div class="poll-header-title">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="poll-icon">
+                            <line x1="18" y1="20" x2="18" y2="10"></line>
+                            <line x1="12" y1="20" x2="12" y2="4"></line>
+                            <line x1="6" y1="20" x2="6" y2="14"></line>
+                        </svg>
+                        <h4 class="poll-question">${escapeHtml(poll.question)}</h4>
+                    </div>
+                    <div class="poll-badges">
+                        ${isClosed ? '<span class="poll-badge badge-closed">Selesai</span>' : ''}
+                        <span class="poll-badge">${poll.is_multiple_choice ? 'Pilihan Ganda' : 'Pilihan Tunggal'}</span>
+                    </div>
+                </div>
+
+                <div class="poll-options-list">
+                    ${optionsHtml}
+                </div>
+
+                <div class="poll-footer">
+                    <span class="poll-total-votes" aria-live="polite">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        <span>${totalVotes} suara total</span>
+                    </span>
+                    ${closeBtnHtml}
+                </div>
+            </div>
+        `;
+    };
+
+    window.handleVotePoll = async function (groupId, pollId, optionId) {
+        const poll = state.polls ? state.polls[pollId] : null;
+        if (poll && poll.status === 'closed') {
+            showToast('Polling telah ditutup.', 'info');
+            return;
+        }
+
+        try {
+            const res = await apiRequest(`/groups/${groupId}/polls/${pollId}/vote`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    option_ids: [optionId]
+                })
+            });
+
+            if (res && res.data) {
+                state.polls[pollId] = res.data;
+                renderActiveMessages();
+            }
+        } catch (err) {
+            showToast('Gagal memberikan suara: ' + (err.message || 'Terjadi kesalahan'), 'error');
+        }
+    };
+
+    window.handleClosePoll = async function (groupId, pollId) {
+        const confirmed = await showConfirmModal({
+            title: 'Tutup Polling?',
+            message: 'Anggota grup tidak akan dapat memberikan suara lagi setelah polling ditutup. Lanjutkan?',
+            confirmText: 'Tutup Polling',
+            cancelText: 'Batal',
+            type: 'warning',
+            icon: 'lock'
+        });
+        if (!confirmed) return;
+
+        try {
+            const res = await apiRequest(`/groups/${groupId}/polls/${pollId}/close`, {
+                method: 'POST'
+            });
+
+            if (res && res.data) {
+                state.polls[pollId] = res.data;
+                renderActiveMessages();
+                showToast('Polling berhasil ditutup.', 'info');
+            }
+        } catch (err) {
+            showToast('Gagal menutup polling: ' + (err.message || 'Terjadi kesalahan'), 'error');
+        }
+    };
+
+    /* ==========================================================================
+       FORWARD MESSAGES (TERUSKAN PESAN)
+       ========================================================================== */
+    window.openForwardModal = function (msgId, event) {
+        if (event) event.stopPropagation();
+
+        const msg = (state.activeMessages || []).find(m => String(m.id || m.client_uuid) === String(msgId));
+        if (!msg) {
+            showToast('Pesan tidak ditemukan untuk diteruskan.', 'error');
+            return;
+        }
+
+        state.forwardingMessage = msg;
+        state.forwardSelectedRecipients = [];
+
+        const modal = document.getElementById('forwardMessageModal');
+        if (!modal) return;
+
+        const previewEl = document.getElementById('forwardPreviewText');
+        if (previewEl) {
+            let snippet = '';
+            if (msg.body && !msg.body.startsWith('[Polling:')) {
+                snippet = msg.body;
+            } else if (msg.attachment) {
+                let att = null;
+                try {
+                    att = typeof msg.attachment === 'string' ? JSON.parse(msg.attachment) : msg.attachment;
+                } catch (e) {
+                    att = null;
+                }
+                if (att && att.type === 'poll') {
+                    snippet = '[Polling Grup]';
+                } else if (att && (att.type === 'image' || att.url)) {
+                    snippet = '📷 ' + (att.original_name || 'Gambar');
+                } else if (att && (att.type === 'document' || att.original_name)) {
+                    snippet = '📄 ' + (att.original_name || 'Dokumen');
+                } else if (att && att.type === 'audio') {
+                    snippet = '🎤 Pesan Suara';
+                } else {
+                    snippet = '[Lampiran Media]';
+                }
+            } else {
+                snippet = '(Pesan kosong)';
+            }
+            previewEl.textContent = snippet.length > 100 ? snippet.substring(0, 100) + '...' : snippet;
+        }
+
+        const searchInput = document.getElementById('forwardSearchInput');
+        if (searchInput) searchInput.value = '';
+
+        renderForwardRecipientsList('');
+        updateForwardSelectedCount();
+
+        modal.classList.remove('hidden');
+        if (searchInput) searchInput.focus();
+    };
+
+    window.closeForwardModal = function () {
+        const modal = document.getElementById('forwardMessageModal');
+        if (modal) modal.classList.add('hidden');
+        state.forwardingMessage = null;
+        state.forwardSelectedRecipients = [];
+    };
+
+    window.handleForwardSearchInput = function (e) {
+        const query = e.target.value.trim().toLowerCase();
+        renderForwardRecipientsList(query);
+    };
+
+    function renderForwardRecipientsList(query) {
+        const container = document.getElementById('forwardRecipientsList');
+        if (!container) return;
+
+        const allItems = [];
+
+        (state.contacts || []).forEach(contact => {
+            const name = contact.name || contact.username || 'Kontak';
+            const username = contact.username || '';
+            const phone = contact.phone || '';
+            const key = `user_${contact.id}`;
+            allItems.push({
+                key: key,
+                id: contact.id,
+                type: 'contact',
+                name: name,
+                subtext: username ? `@${username}` : (phone || 'Kontak Pribadi'),
+                avatar: contact.avatar || null,
+                searchStr: `${name} ${username} ${phone}`.toLowerCase()
+            });
+        });
+
+        (state.groups || []).forEach(group => {
+            const name = group.name || 'Grup';
+            const key = `group_${group.id}`;
+            allItems.push({
+                key: key,
+                id: group.id,
+                type: 'group',
+                name: name,
+                subtext: `${group.members_count || (group.members ? group.members.length : 0)} anggota`,
+                avatar: group.avatar || null,
+                searchStr: `${name}`.toLowerCase()
+            });
+        });
+
+        const filtered = query
+            ? allItems.filter(item => item.searchStr.includes(query))
+            : allItems;
+
+        if (filtered.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 2rem 1rem; color: var(--text-muted); font-size: 0.8125rem;">
+                    Tidak ada kontak atau grup yang cocok.
+                </div>
+            `;
+            return;
+        }
+
+        let html = '';
+        filtered.forEach(item => {
+            const isSelected = state.forwardSelectedRecipients.includes(item.key);
+            const avatarHtml = item.avatar
+                ? `<img src="${item.avatar}" alt="" class="avatar-sm" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover;">`
+                : `<div class="avatar-sm" style="width: 36px; height: 36px; border-radius: 50%; background: var(--accent-gradient, #6366f1); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.85rem; color: #fff;">${item.name.charAt(0).toUpperCase()}</div>`;
+
+            const badgeHtml = item.type === 'group'
+                ? `<span class="badge" style="font-size: 0.65rem; background: rgba(99,102,241,0.15); color: var(--accent-primary); padding: 2px 6px; border-radius: 4px; font-weight: 600;">Grup</span>`
+                : '';
+
+            html += `
+                <label class="forward-recipient-item ${isSelected ? 'selected' : ''}" style="display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 0.65rem; border-radius: 8px; cursor: pointer; user-select: none; transition: background 0.15s ease;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1; min-width: 0;">
+                        ${avatarHtml}
+                        <div style="display: flex; flex-direction: column; min-width: 0; flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                <span style="font-size: 0.825rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(item.name)}</span>
+                                ${badgeHtml}
+                            </div>
+                            <span style="font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(item.subtext)}</span>
+                        </div>
+                    </div>
+                    <input
+                        type="checkbox"
+                        class="forward-recipient-checkbox"
+                        value="${item.key}"
+                        ${isSelected ? 'checked' : ''}
+                        onchange="toggleForwardRecipient('${item.key}', this.checked)"
+                        aria-label="Pilih ${escapeHtml(item.name)}"
+                        style="width: 17px; height: 17px; accent-color: var(--accent-primary); cursor: pointer;"
+                    >
+                </label>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    window.toggleForwardRecipient = function (key, isChecked) {
+        if (isChecked) {
+            if (!state.forwardSelectedRecipients.includes(key)) {
+                state.forwardSelectedRecipients.push(key);
+            }
+        } else {
+            state.forwardSelectedRecipients = state.forwardSelectedRecipients.filter(k => k !== key);
+        }
+        updateForwardSelectedCount();
+
+        const container = document.getElementById('forwardRecipientsList');
+        if (container) {
+            const chk = container.querySelector(`input[value="${key}"]`);
+            if (chk) {
+                const label = chk.closest('.forward-recipient-item');
+                if (label) {
+                    if (isChecked) label.classList.add('selected');
+                    else label.classList.remove('selected');
+                }
+            }
+        }
+    };
+
+    function updateForwardSelectedCount() {
+        const count = state.forwardSelectedRecipients.length;
+        const countLabel = document.getElementById('forwardSelectedCountLabel');
+        if (countLabel) {
+            countLabel.textContent = `${count} dipilih`;
+        }
+        const submitBtn = document.getElementById('btnSubmitForward');
+        if (submitBtn) {
+            submitBtn.disabled = count === 0;
+        }
+    }
+
+    window.submitForwardMessage = async function () {
+        const msg = state.forwardingMessage;
+        if (!msg) {
+            showToast('Tidak ada pesan untuk diteruskan.', 'error');
+            return;
+        }
+        const recipients = [...state.forwardSelectedRecipients];
+        if (recipients.length === 0) {
+            showToast('Pilih minimal satu penerima pesan.', 'warning');
+            return;
+        }
+
+        const submitBtn = document.getElementById('btnSubmitForward');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span>Meneruskan...</span>';
+        }
+
+        let successCount = 0;
+        const rawBody = msg.body || '';
+
+        let forwardAttachment = null;
+        if (msg.attachment) {
+            if (typeof msg.attachment === 'string') {
+                try {
+                    forwardAttachment = JSON.parse(msg.attachment);
+                } catch (e) {
+                    forwardAttachment = {};
+                }
+            } else {
+                forwardAttachment = { ...msg.attachment };
+            }
+        }
+        if (!forwardAttachment) forwardAttachment = {};
+        forwardAttachment.is_forwarded = true;
+
+        for (const targetKey of recipients) {
+            try {
+                const clientUuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+                    ? crypto.randomUUID()
+                    : 'uuid-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+
+                if (targetKey.startsWith('user_')) {
+                    const targetUserId = Number(targetKey.replace('user_', ''));
+                    const hexKey = getConversationKeyForContact(targetUserId);
+                    const encryptedBody = await encryptMessageBody(rawBody, hexKey);
+
+                    const savedMsg = await apiRequest('/messages', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            client_uuid: clientUuid,
+                            receiver_id: targetUserId,
+                            body: encryptedBody,
+                            attachment: forwardAttachment,
+                            reply_to: null
+                        })
+                    });
+
+                    if (savedMsg && savedMsg.id) {
+                        if (!state.chats[targetUserId]) state.chats[targetUserId] = [];
+                        state.chats[targetUserId].push({
+                            id: savedMsg.id,
+                            client_uuid: clientUuid,
+                            sender_id: state.user.id,
+                            receiver_id: targetUserId,
+                            body: rawBody,
+                            attachment: forwardAttachment,
+                            reply_to: null,
+                            reactions: {},
+                            status: 'sent',
+                            created_at: new Date().toISOString()
+                        });
+                        successCount++;
+                    }
+                } else if (targetKey.startsWith('group_')) {
+                    const targetGroupId = Number(targetKey.replace('group_', ''));
+                    const targetGroup = (state.groups || []).find(g => Number(g.id) === targetGroupId);
+                    const hexKey = targetGroup ? targetGroup.group_key : null;
+                    const encryptedBody = hexKey ? await encryptMessageBody(rawBody, hexKey) : rawBody;
+
+                    const savedMsg = await apiRequest(`/groups/${targetGroupId}/messages`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            client_uuid: clientUuid,
+                            body: encryptedBody,
+                            attachment: forwardAttachment,
+                            reply_to: null
+                        })
+                    });
+
+                    if (savedMsg && savedMsg.id) {
+                        const chatKey = `group_${targetGroupId}`;
+                        if (!state.chats[chatKey]) state.chats[chatKey] = [];
+                        state.chats[chatKey].push({
+                            id: savedMsg.id,
+                            client_uuid: clientUuid,
+                            sender_id: state.user.id,
+                            group_id: targetGroupId,
+                            body: rawBody,
+                            attachment: forwardAttachment,
+                            reply_to: null,
+                            reactions: {},
+                            status: 'sent',
+                            created_at: new Date().toISOString()
+                        });
+                        successCount++;
+                    }
+                }
+            } catch (err) {
+                console.error(`Gagal meneruskan pesan ke ${targetKey}:`, err);
+            }
+        }
+
+        closeForwardModal();
+        if (successCount > 0) {
+            persistMessages();
+            renderActiveMessages();
+            renderChatsList();
+            showToast(`Pesan berhasil diteruskan ke ${successCount} obrolan.`, 'success');
+        } else {
+            showToast('Gagal meneruskan pesan ke penerima yang dipilih.', 'error');
+        }
+    };
+
+    /* ==========================================================================
+       JOIN GROUP VIA INVITE CODE / LINK
+       ========================================================================== */
+    window.openJoinGroupModal = function () {
+        const modal = document.getElementById('joinGroupModal');
+        if (!modal) return;
+        const input = document.getElementById('joinGroupCodeInput');
+        if (input) input.value = '';
+        modal.classList.remove('hidden');
+        if (input) input.focus();
+    };
+
+    window.closeJoinGroupModal = function () {
+        const modal = document.getElementById('joinGroupModal');
+        if (modal) modal.classList.add('hidden');
+    };
+
+    window.submitJoinGroupByCode = async function () {
+        const input = document.getElementById('joinGroupCodeInput');
+        if (!input) return;
+        let rawVal = input.value.trim();
+        if (!rawVal) {
+            showToast('Silakan masukkan kode atau tautan undangan.', 'warning');
+            return;
+        }
+
+        let inviteCode = rawVal;
+        const joinIdx = rawVal.indexOf('/join/');
+        if (joinIdx !== -1) {
+            inviteCode = rawVal.substring(joinIdx + 6).split(/[?#/]/)[0];
+        }
+        inviteCode = inviteCode.trim();
+
+        if (!inviteCode) {
+            showToast('Format kode undangan tidak valid.', 'error');
+            return;
+        }
+
+        const submitBtn = document.getElementById('btnSubmitJoinGroup');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span>Bergabung...</span>';
+        }
+
+        try {
+            const res = await apiRequest('/groups/join-by-code', {
+                method: 'POST',
+                body: JSON.stringify({
+                    invite_code: inviteCode
+                })
+            });
+
+            closeJoinGroupModal();
+            showToast(res.message || 'Berhasil bergabung dengan grup!', 'success');
+            await fetchGroups();
+
+            if (res.data && res.data.id) {
+                selectGroup(res.data.id);
+            }
+        } catch (err) {
+            showToast('Gagal bergabung dengan grup: ' + (err.message || 'Kode undangan tidak valid'), 'error');
+        } finally {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<span>Gabung Grup</span>';
+            }
+        }
+    };
+
     window.closeActiveChat = function () {
         if (state.isSelectionMode) window.exitSelectMessagesMode();
         window.closeChatDropdown();
@@ -5794,6 +6642,12 @@
 
         const pinnedBanner = document.getElementById('pinnedMessageBanner');
         if (pinnedBanner) pinnedBanner.style.display = 'none';
+
+        const btnCreatePoll = document.getElementById('btnCreatePoll');
+        if (btnCreatePoll) btnCreatePoll.style.display = 'none';
+        const mentionBox = document.getElementById('mentionAutocompleteBox');
+        if (mentionBox) mentionBox.style.display = 'none';
+        state.mentionState.active = false;
 
         document.querySelectorAll('.chat-item.active, .contact-card-item.active').forEach(el => {
             el.classList.remove('active');
@@ -6308,8 +7162,45 @@
             }
 
             let renderedBody = '';
-            const isPlaceholderBody = att && msg.body && (msg.body === `[Berkas: ${att.name}]` || msg.body.startsWith('[Berkas:') || msg.body.startsWith('[Pesan Suara'));
-            if (!isPlaceholderBody && msg.body) {
+            let pollCardHtml = '';
+            let hasMentionMe = false;
+
+            const isForwarded = Boolean(msg.is_forwarded || (att && att.is_forwarded));
+            const forwardedBadgeHtml = isForwarded ? `
+                <div class="msg-forwarded-badge">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15 17 20 12 15 7"></polyline>
+                        <path d="M4 18v-2a4 4 0 0 1 4-4h12"></path>
+                    </svg>
+                    <span>Diteruskan</span>
+                </div>
+            ` : '';
+
+            // Cek apakah pesan ini adalah polling grup
+            let pollId = null;
+            if (att && (att.type === 'poll' || att.poll_id)) {
+                pollId = Number(att.poll_id);
+            } else if (msg.body && msg.body.startsWith('[Polling:')) {
+                if (att && att.poll_id) {
+                    pollId = Number(att.poll_id);
+                } else {
+                    const matchPoll = msg.body.match(/^\[Polling:\s*(.+?)\]$/);
+                    // Jika ada polling di state dengan pertanyaan cocok
+                    if (matchPoll) {
+                        const foundPoll = Object.values(state.polls || {}).find(p => p.question === matchPoll[1]);
+                        if (foundPoll) pollId = Number(foundPoll.id);
+                    }
+                }
+            }
+
+            if (pollId && !isDeleted) {
+                if (typeof renderPollCardHtml === 'function') {
+                    pollCardHtml = renderPollCardHtml(pollId, isMe, msg);
+                }
+            }
+
+            const isPlaceholderBody = att && msg.body && (msg.body === `[Berkas: ${att.name}]` || msg.body.startsWith('[Berkas:') || msg.body.startsWith('[Pesan Suara') || (pollCardHtml && msg.body.startsWith('[Polling:')));
+            if (!isPlaceholderBody && msg.body && !pollCardHtml) {
                 let safeBody = escapeHtml(msg.body).replace(/\n/g, '<br>');
                 if (state.inChatSearchQuery && !isDeleted) {
                     try {
@@ -6317,6 +7208,17 @@
                         safeBody = safeBody.replace(regex, '<mark class="search-highlight">$1</mark>');
                     } catch (e) { }
                 }
+
+                // Mention @username highlight
+                if (isGroup && !isDeleted) {
+                    const myUsername = (state.user?.username || '').toLowerCase();
+                    safeBody = safeBody.replace(/@([a-zA-Z0-9_]+)/g, (fullMatch, uName) => {
+                        const isMeMentioned = uName.toLowerCase() === myUsername || uName.toLowerCase() === 'all';
+                        if (isMeMentioned) hasMentionMe = true;
+                        return `<span class="mention-tag ${isMeMentioned ? 'mention-me' : ''}">@${escapeHtml(uName)}</span>`;
+                    });
+                }
+
                 renderedBody = `<span class="bubble-content">${safeBody}</span>`;
             }
 
@@ -6344,15 +7246,19 @@
                 groupSenderHtml = `<div class="group-msg-sender">${escapeHtml(sName)}</div>`;
             }
 
+            const mentionRowClass = hasMentionMe ? 'has-mention-me' : '';
+
             return dateDividerHtml + `
-                <div class="message-row ${rowClass} ${groupClass} ${selectedClass}" data-msg-id="${safeIdAttr}" data-msg-uuid="${escapeHtml(msg.client_uuid || '')}" ${rowOnClick}>
+                <div class="message-row ${rowClass} ${groupClass} ${selectedClass} ${mentionRowClass}" data-msg-id="${safeIdAttr}" data-msg-uuid="${escapeHtml(msg.client_uuid || '')}" ${rowOnClick}>
                     <div class="msg-selection-wrap">
                         ${!isMe ? checkboxHtml : ''}
                         <div class="message-bubble-wrapper">
                             <div class="message-bubble" ondblclick="startReplyMessage('${safeIdAttr}')" title="${state.isSelectionMode ? 'Klik untuk memilih/membatalkan' : 'Klik 2x untuk membalas'}">
+                                ${forwardedBadgeHtml}
                                 ${groupSenderHtml}
                                 ${quoteHtml}
                                 ${attachmentHtml}
+                                ${pollCardHtml}
                                 ${renderedBody}
                                 ${isEdited ? '<span class="edited-label">(diedit)</span>' : ''}
                                 <span class="bubble-meta">
@@ -6372,6 +7278,12 @@
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <polyline points="9 17 4 12 9 7"></polyline>
                                         <path d="M20 18v-2a4 4 0 0 0-4-4H4"></path>
+                                    </svg>
+                                </button>
+                                <button type="button" class="btn-msg-action" onclick="openForwardModal('${safeIdAttr}', event)" title="Teruskan pesan" aria-label="Teruskan pesan">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="15 17 20 12 15 7"></polyline>
+                                        <path d="M4 18v-2a4 4 0 0 1 4-4h12"></path>
                                     </svg>
                                 </button>
                                 <button type="button" class="btn-msg-action ${msg.is_starred ? 'active' : ''}" onclick="handleToggleStarMessage('${safeIdAttr}')" title="${msg.is_starred ? 'Hapus bintang' : 'Bintangi pesan'}" aria-label="Bintang pesan">
@@ -6429,6 +7341,36 @@
     }
 
     window.handleMessageKeydown = function (e) {
+        if (state.mentionState && state.mentionState.active) {
+            const box = document.getElementById('mentionAutocompleteBox');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                state.mentionState.selectedIndex = (state.mentionState.selectedIndex + 1) % state.mentionState.matches.length;
+                updateMentionSelectionUI();
+                return;
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                state.mentionState.selectedIndex = (state.mentionState.selectedIndex - 1 + state.mentionState.matches.length) % state.mentionState.matches.length;
+                updateMentionSelectionUI();
+                return;
+            }
+            if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault();
+                const selected = state.mentionState.matches[state.mentionState.selectedIndex];
+                if (selected) {
+                    window.selectMentionMember(selected.username);
+                }
+                return;
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                if (box) box.style.display = 'none';
+                state.mentionState.active = false;
+                return;
+            }
+        }
+
         if (e.key === 'Escape' && state.editingMessageId) {
             e.preventDefault();
             window.cancelEditMessage();
@@ -6439,6 +7381,40 @@
             e.preventDefault();
             handleSendMessage(e);
         }
+    };
+
+    function updateMentionSelectionUI() {
+        const box = document.getElementById('mentionAutocompleteBox');
+        if (!box) return;
+        const items = box.querySelectorAll('.mention-autocomplete-item');
+        items.forEach((item, idx) => {
+            const isSel = idx === state.mentionState.selectedIndex;
+            item.classList.toggle('active', isSel);
+            item.setAttribute('aria-selected', isSel);
+            if (isSel) {
+                item.scrollIntoView({ block: 'nearest' });
+            }
+        });
+    }
+
+    window.selectMentionMember = function (username) {
+        const input = document.getElementById('messageInput');
+        const box = document.getElementById('mentionAutocompleteBox');
+        if (!input) return;
+
+        const val = input.value;
+        const triggerIdx = state.mentionState.triggerIndex;
+        if (triggerIdx !== -1) {
+            const cursor = input.selectionStart || val.length;
+            const before = val.slice(0, triggerIdx);
+            const after = val.slice(cursor);
+            input.value = `${before}@${username} ${after}`;
+            const newCursor = triggerIdx + username.length + 2;
+            input.setSelectionRange(newCursor, newCursor);
+        }
+        if (box) box.style.display = 'none';
+        state.mentionState.active = false;
+        input.focus();
     };
 
     function clearMyTypingState() {
@@ -6454,6 +7430,65 @@
 
     window.handleMessageInput = function (e) {
         if (!state.activeContact) return;
+
+        // Mention autocomplete detection in group chat
+        if (state.activeContact.is_group) {
+            const input = document.getElementById('messageInput');
+            const box = document.getElementById('mentionAutocompleteBox');
+            if (input && box) {
+                const val = input.value;
+                const cursor = input.selectionStart || 0;
+                const textBeforeCursor = val.slice(0, cursor);
+                const match = textBeforeCursor.match(/(?:^|\s)@([a-zA-Z0-9_]*)$/);
+
+                if (match) {
+                    const query = match[1].toLowerCase();
+                    const currentGroupId = Number(state.activeContact.group_id);
+                    const currentGroup = (state.groups || []).find(g => Number(g.id) === currentGroupId);
+                    const members = (currentGroup && currentGroup.members) ? currentGroup.members : (state.activeContact.members || []);
+
+                    const filtered = members.filter(m => {
+                        const u = (m.username || '').toLowerCase();
+                        const d = (m.display_name || '').toLowerCase();
+                        return u.includes(query) || d.includes(query);
+                    });
+
+                    if (filtered.length > 0) {
+                        state.mentionState.active = true;
+                        state.mentionState.query = query;
+                        state.mentionState.matches = filtered;
+                        state.mentionState.selectedIndex = Math.min(state.mentionState.selectedIndex, filtered.length - 1);
+                        state.mentionState.triggerIndex = textBeforeCursor.lastIndexOf('@');
+
+                        box.innerHTML = filtered.map((m, idx) => {
+                            const isSel = idx === state.mentionState.selectedIndex;
+                            const initial = (m.display_name || m.username || 'U').charAt(0).toUpperCase();
+                            const pastelClass = getPastelColorClass(m.display_name || m.username);
+                            const avatarInner = m.avatar
+                                ? `<img src="${escapeHtml(m.avatar)}" alt="${escapeHtml(m.display_name)}" style="width: 26px; height: 26px; border-radius: 50%; object-fit: cover;">`
+                                : `<div class="avatar-circle ${pastelClass}" style="width: 26px; height: 26px; font-size: 0.7rem;">${initial}</div>`;
+
+                            return `
+                                <div class="mention-autocomplete-item ${isSel ? 'active' : ''}" role="option" aria-selected="${isSel}" onclick="selectMentionMember('${escapeHtml(m.username)}')">
+                                    ${avatarInner}
+                                    <div>
+                                        <div class="mention-item-name">${escapeHtml(m.display_name)}</div>
+                                        <div class="mention-item-handle">@${escapeHtml(m.username)}</div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                        box.style.display = 'block';
+                    } else {
+                        box.style.display = 'none';
+                        state.mentionState.active = false;
+                    }
+                } else {
+                    box.style.display = 'none';
+                    state.mentionState.active = false;
+                }
+            }
+        }
 
         const now = Date.now();
         if (now - state.lastTypingSentAt > 2000) {
@@ -7793,6 +8828,18 @@
                 const msg = data.message || data;
                 await handleUpdatedGroupMessage(msg);
             });
+
+            const onGroupPollUpdated = (data) => {
+                const poll = data.poll || data;
+                if (poll && poll.id) {
+                    state.polls[poll.id] = poll;
+                    if (state.activeContact && state.activeContact.is_group && Number(state.activeContact.group_id) === Number(poll.group_id)) {
+                        renderActiveMessages();
+                    }
+                }
+            };
+            channel.bind('group.poll.updated', onGroupPollUpdated);
+            channel.bind('.group.poll.updated', onGroupPollUpdated);
 
             channel.bind('message.sent', async (data) => {
                 const msg = data.message || data;
@@ -9142,6 +10189,15 @@
         }
         hideVoiceDock();
 
+        if (state.voice.isScreenSharing && typeof window.stopScreenShare === 'function') {
+            window.stopScreenShare();
+        }
+        const screenBtn = document.getElementById('btnStageToggleScreenShare');
+        if (screenBtn) {
+            screenBtn.style.display = 'none';
+            screenBtn.classList.remove('active');
+        }
+
         const currentCallUuid = state.voice.callUuid;
         const currentTargetId = state.voice.targetUserId;
         const currentSeconds = state.voice.callSeconds || 0;
@@ -9324,8 +10380,114 @@
                 if (vidContainer) vidContainer.style.display = 'none';
                 if (camBtn) camBtn.style.display = 'none';
             }
+
+            const screenBtn = document.getElementById('btnStageToggleScreenShare');
+            if (screenBtn) screenBtn.style.display = 'inline-flex';
         }
         hideVoiceDock();
+    };
+
+    window.toggleScreenShare = async function () {
+        if (!state.voice.active) {
+            showToast('Anda harus berada dalam panggilan untuk membagikan layar.', 'info');
+            return;
+        }
+
+        if (state.voice.isScreenSharing) {
+            window.stopScreenShare();
+            return;
+        }
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+            showToast('Peramban web Anda belum mendukung fitur berbagi layar.', 'error');
+            return;
+        }
+
+        try {
+            const screenStream = await navigator.mediaDevices.getDisplayMedia({
+                video: { cursor: 'always' },
+                audio: false
+            });
+
+            const screenTrack = screenStream.getVideoTracks()[0];
+            if (!screenTrack) return;
+
+            state.voice.screenStream = screenStream;
+            state.voice.isScreenSharing = true;
+
+            // Replace track di setiap peer connection
+            for (const pid in state.voice.peerConnections) {
+                const pc = state.voice.peerConnections[pid];
+                const senders = pc.getSenders();
+                const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+                if (videoSender) {
+                    videoSender.replaceTrack(screenTrack);
+                } else {
+                    try { pc.addTrack(screenTrack, screenStream); } catch (e) { }
+                }
+            }
+
+            // Tampilkan stream layar di video lokal / container jika ada
+            const localVid = document.getElementById('localVideoElement');
+            if (localVid) {
+                localVid.srcObject = screenStream;
+                localVid.play().catch(() => {});
+            }
+
+            const btn = document.getElementById('btnStageToggleScreenShare');
+            if (btn) {
+                btn.classList.add('active');
+                btn.title = 'Hentikan Berbagi Layar';
+            }
+
+            screenTrack.onended = () => {
+                window.stopScreenShare();
+            };
+
+            showToast('Berbagi layar diaktifkan', 'success');
+        } catch (err) {
+            if (err.name !== 'NotAllowedError') {
+                console.error('Screen sharing error:', err);
+                showToast('Gagal membagikan layar: ' + err.message, 'error');
+            }
+        }
+    };
+
+    window.stopScreenShare = function () {
+        if (state.voice.screenStream) {
+            state.voice.screenStream.getTracks().forEach(t => {
+                try { t.stop(); } catch (e) { }
+            });
+            state.voice.screenStream = null;
+        }
+        state.voice.isScreenSharing = false;
+
+        const camTrack = state.voice.localStream ? state.voice.localStream.getVideoTracks()[0] : null;
+        for (const pid in state.voice.peerConnections) {
+            const pc = state.voice.peerConnections[pid];
+            const senders = pc.getSenders();
+            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+            if (videoSender) {
+                if (camTrack) {
+                    videoSender.replaceTrack(camTrack);
+                } else {
+                    try { pc.removeTrack(videoSender); } catch (e) { }
+                }
+            }
+        }
+
+        const localVid = document.getElementById('localVideoElement');
+        if (localVid) {
+            localVid.srcObject = camTrack ? state.voice.localStream : null;
+            if (camTrack) localVid.play().catch(() => {});
+        }
+
+        const btn = document.getElementById('btnStageToggleScreenShare');
+        if (btn) {
+            btn.classList.remove('active');
+            btn.title = 'Bagi Layar';
+        }
+        showToast('Berbagi layar dihentikan', 'info');
     };
 
     window.minimizeVoiceStage = function () {

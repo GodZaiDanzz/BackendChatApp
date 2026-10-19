@@ -11,6 +11,7 @@ class Group extends Model
         'description',
         'avatar',
         'group_key',
+        'invite_code',
         'created_by',
     ];
 
@@ -34,5 +35,10 @@ class Group extends Model
     public function messages()
     {
         return $this->hasMany(GroupMessage::class);
+    }
+
+    public function polls()
+    {
+        return $this->hasMany(GroupPoll::class);
     }
 }

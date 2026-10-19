@@ -87,6 +87,35 @@
                 </div>
             </div>
 
+            {{-- Tautan Undangan Grup --}}
+            <div class="info-section" style="margin-bottom: 1.1rem;">
+                <div class="info-section-header">
+                    <span class="info-section-title">Tautan Undangan Grup</span>
+                </div>
+                <div class="group-invite-box">
+                    <div class="group-invite-content">
+                        <span id="groupModalInviteCodeDisplay" class="group-invite-code-text">-</span>
+                        <span class="group-invite-hint">Gunakan kode ini untuk mengundang anggota baru</span>
+                    </div>
+                    <div class="group-invite-actions">
+                        <button type="button" class="btn-copy-invite" onclick="copyGroupInviteLink()" title="Salin tautan undangan" aria-label="Salin Tautan">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                            <span>Salin</span>
+                        </button>
+                        <button type="button" id="btnRegenerateInviteCode" class="btn-icon-subtle" onclick="handleRegenerateInviteCode()" title="Perbarui kode undangan" aria-label="Perbarui Kode" style="display: none;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="23 4 23 10 17 10"></polyline>
+                                <polyline points="1 20 1 14 7 14"></polyline>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             {{-- Media Bersama Section --}}
             <div class="info-section">
                 <div class="info-section-header">
