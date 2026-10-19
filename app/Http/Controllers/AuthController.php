@@ -235,7 +235,7 @@ class AuthController extends Controller
     {
         $user = $request->user();
         if ($user && \Illuminate\Support\Facades\Schema::hasColumn('users', 'last_seen_at')) {
-            $user->update(['last_seen_at' => null]);
+            $user->update(['last_seen_at' => now()->subMinute()]);
         }
         $user->currentAccessToken()->delete();
 

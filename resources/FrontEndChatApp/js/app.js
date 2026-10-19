@@ -466,8 +466,183 @@
     // Helper: Format Timestamp
     function formatTime(isoString) {
         if (!isoString) return '';
-        const date = new Date(isoString);
+        const date = new Date(typeof isoString === 'string' ? isoString.replace(' ', 'T') : isoString);
+        if (isNaN(date.getTime())) return '';
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // Helper: Ambil key tanggal lokal YYYY-MM-DD
+    function getMessageDateKey(dateInput) {
+        if (!dateInput) return '';
+        const d = new Date(typeof dateInput === 'string' ? dateInput.replace(' ', 'T') : dateInput);
+        if (isNaN(d.getTime())) return '';
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    // Helper: Format Pemisah Tanggal ala WhatsApp (HARI INI, KEMARIN, 18 OKTOBER 2026)
+    function formatMessageDateDivider(dateInput) {
+        if (!dateInput) return 'HARI INI';
+        const d = new Date(typeof dateInput === 'string' ? dateInput.replace(' ', 'T') : dateInput);
+        if (isNaN(d.getTime())) return 'HARI INI';
+
+        const now = new Date();
+        const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        const yesterdayKey = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+
+        const msgKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+        if (msgKey === todayKey) {
+            return 'HARI INI';
+        }
+        if (msgKey === yesterdayKey) {
+            return 'KEMARIN';
+        }
+
+        const day = d.getDate();
+        const months = [
+            'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+            'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+        ];
+        const monthName = months[d.getMonth()] || '';
+        const year = d.getFullYear();
+
+        return `${day} ${monthName} ${year}`.toUpperCase();
+    }
+
+    // Helper: Format status Terakhir Dilihat ala WhatsApp
+    function formatLastSeen(lastSeenAt, isOnline) {
+        if (isOnline) return 'online';
+        if (!lastSeenAt) return 'Offline';
+
+        const d = new Date(typeof lastSeenAt === 'string' ? lastSeenAt.replace(' ', 'T') : lastSeenAt);
+        if (isNaN(d.getTime())) return 'Offline';
+
+        const now = new Date();
+        const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        const yesterdayKey = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+
+        const seenKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        const timeStr = `${hours}:${minutes}`;
+
+        if (seenKey === todayKey) {
+            return `terakhir dilihat hari ini pukul ${timeStr}`;
+        }
+        if (seenKey === yesterdayKey) {
+            return `terakhir dilihat kemarin pukul ${timeStr}`;
+        }
+
+        const day = d.getDate();
+        const months = [
+            'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+            'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'
+        ];
+        const monthName = months[d.getMonth()] || '';
+
+        if (d.getFullYear() === now.getFullYear()) {
+            return `terakhir dilihat ${day} ${monthName} pukul ${timeStr}`;
+        } else {
+            const year = d.getFullYear();
+            return `terakhir dilihat ${day}/${String(d.getMonth() + 1).padStart(2, '0')}/${year} pukul ${timeStr}`;
+        }
+    }
+
+    // Helper: Format ringkas status kontak untuk daftar sidebar
+    function formatLastSeenShort(lastSeenAt, isOnline) {
+        if (isOnline) return 'Online';
+        if (!lastSeenAt) return 'Offline';
+
+        const d = new Date(typeof lastSeenAt === 'string' ? lastSeenAt.replace(' ', 'T') : lastSeenAt);
+        if (isNaN(d.getTime())) return 'Offline';
+
+        const now = new Date();
+        const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        const yesterdayKey = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+
+        const seenKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        const timeStr = `${hours}:${minutes}`;
+
+        if (seenKey === todayKey) {
+            return timeStr;
+        }
+        if (seenKey === yesterdayKey) {
+            return 'Kemarin';
+        }
+
+        const day = d.getDate();
+        const months = [
+            'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+            'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'
+        ];
+        const monthName = months[d.getMonth()] || '';
+
+        return `${day} ${monthName}`;
+    }
+
+    // Helper: Perbarui indikator dan teks status kontak/grup aktif di header dan panel kanan
+    function updateActiveUserOnlineStatus(target) {
+        if (!target) return;
+        const isGroup = Boolean(target.is_group || target.isGroup);
+        const dot = document.getElementById('activeStatusDot');
+        const smallDot = document.getElementById('activeStatusSmallDot');
+        const statusLabel = document.getElementById('activeUserOnlineStatus');
+
+        if (isGroup) {
+            if (dot) {
+                dot.className = 'status-indicator-dot online';
+                dot.title = 'Grup Aktif';
+            }
+            if (smallDot) {
+                smallDot.className = 'presence-dot online';
+                smallDot.style.display = 'none';
+            }
+            if (statusLabel) {
+                statusLabel.className = 'user-status-text';
+                statusLabel.textContent = `${target.members_count || (target.members ? target.members.length : 1)} anggota`;
+            }
+            return;
+        }
+
+        const isOnline = Boolean(target.is_online);
+        if (dot) {
+            dot.className = `status-indicator-dot ${isOnline ? 'online' : 'offline'}`;
+            dot.title = isOnline ? 'Online' : 'Offline';
+        }
+        if (smallDot) {
+            smallDot.className = `presence-dot ${isOnline ? 'online' : 'offline'}`;
+            smallDot.style.display = isOnline ? 'inline-block' : 'none';
+        }
+        if (statusLabel) {
+            statusLabel.className = `user-status-text ${isOnline ? 'online' : 'offline'}`;
+            statusLabel.textContent = formatLastSeen(target.last_seen_at, isOnline);
+        }
+
+        // Sinkronisasi status di panel info kanan jika kontak yang sama terbuka
+        const infoDot = document.getElementById('infoStatusDot');
+        if (infoDot) {
+            infoDot.className = `status-indicator-dot ${isOnline ? 'online' : 'offline'}`;
+        }
+        const infoPresence = document.getElementById('infoPresenceText');
+        if (infoPresence && state.activeContact && !state.activeContact.is_group && Number(state.activeContact.id) === Number(target.id)) {
+            infoPresence.textContent = formatLastSeen(target.last_seen_at, isOnline);
+        }
     }
 
     // Helper: Pastel Avatar Colors matching reference
@@ -1173,22 +1348,12 @@
                 }
             });
 
-            // Sinkronisasi status online kontak yang sedang aktif di chat window
-            if (state.activeContact) {
-                const freshActive = state.contacts.find(c => c.id === state.activeContact.id);
+            // Sinkronisasi status online & last seen kontak yang sedang aktif di chat window
+            if (state.activeContact && !state.activeContact.is_group) {
+                const freshActive = state.contacts.find(c => Number(c.id) === Number(state.activeContact.id));
                 if (freshActive) {
-                    state.activeContact = freshActive;
-                    const isOnline = Boolean(freshActive.is_online);
-                    const dot = document.getElementById('activeStatusDot');
-                    const statusLabel = document.getElementById('activeUserOnlineStatus');
-                    if (dot) {
-                        dot.className = `status-indicator-dot ${isOnline ? 'online' : 'offline'}`;
-                        dot.title = isOnline ? 'Online' : 'Offline';
-                    }
-                    if (statusLabel) {
-                        statusLabel.className = `user-status-text ${isOnline ? 'online' : 'offline'}`;
-                        statusLabel.textContent = isOnline ? 'Online' : 'Offline';
-                    }
+                    state.activeContact = { ...state.activeContact, ...freshActive };
+                    updateActiveUserOnlineStatus(state.activeContact);
                 }
             }
 
@@ -1452,6 +1617,7 @@
             const initial = (contact.display_name || contact.username).charAt(0).toUpperCase();
             const isActive = state.activeContact && state.activeContact.id === contact.id ? 'active' : '';
             const isOnline = Boolean(contact.is_online);
+            const statusLabelText = isOnline ? 'Online' : (contact.last_seen_at ? formatLastSeenShort(contact.last_seen_at, false) : 'Offline');
             const avatarHtml = contact.avatar
                 ? `<img src="${escapeHtml(contact.avatar)}" alt="${escapeHtml(contact.display_name)}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;">`
                 : initial;
@@ -1465,7 +1631,7 @@
                     <div class="list-item-content">
                         <div class="list-item-header">
                             <span class="list-item-title">${escapeHtml(contact.display_name)}</span>
-                            <span class="user-status-text ${isOnline ? 'online' : 'offline'}">${isOnline ? 'Online' : 'Offline'}</span>
+                            <span class="user-status-text ${isOnline ? 'online' : 'offline'}">${statusLabelText}</span>
                         </div>
                         <div class="list-item-preview" style="display: flex; align-items: center; justify-content: space-between;">
                             <span>@${escapeHtml(contact.username)}</span>
@@ -4410,22 +4576,9 @@
             }
         }
 
-        const dot = document.getElementById('activeStatusDot');
-        const smallDot = document.getElementById('activeStatusSmallDot');
-        const statusLabel = document.getElementById('activeUserOnlineStatus');
-        const typingBadge = document.getElementById('activeTypingStatus');
+        updateActiveUserOnlineStatus(contact);
 
-        if (dot) {
-            dot.className = `status-indicator-dot ${isOnline ? 'online' : 'offline'}`;
-            dot.title = isOnline ? 'Online' : 'Offline';
-        }
-        if (smallDot) {
-            smallDot.className = `presence-dot ${isOnline ? 'online' : 'offline'}`;
-        }
-        if (statusLabel) {
-            statusLabel.className = `user-status-text ${isOnline ? 'online' : 'offline'}`;
-            statusLabel.textContent = isOnline ? 'Aktif sekarang' : 'Offline';
-        }
+        const typingBadge = document.getElementById('activeTypingStatus');
         if (typingBadge) {
             typingBadge.style.display = isTyping ? 'flex' : 'none';
         }
@@ -4440,6 +4593,7 @@
         const infoName = document.getElementById('infoDisplayName');
         const infoUser = document.getElementById('infoUsername');
         const infoDot = document.getElementById('infoStatusDot');
+        const infoPresence = document.getElementById('infoPresenceText');
         if (infoAvatar) {
             if (contact.avatar) {
                 infoAvatar.className = 'avatar-circle info-avatar-large';
@@ -4455,6 +4609,9 @@
         if (infoUser) infoUser.textContent = contact.email || `@${contact.username}`;
         if (infoDot) {
             infoDot.className = `status-indicator-dot ${isOnline ? 'online' : 'offline'}`;
+        }
+        if (infoPresence) {
+            infoPresence.textContent = formatLastSeen(contact.last_seen_at, isOnline);
         }
 
         // Responsive mobile view
@@ -4608,20 +4765,8 @@
             }
         }
 
-        const dot = document.getElementById('activeStatusDot');
-        const smallDot = document.getElementById('activeStatusSmallDot');
-        const statusLabel = document.getElementById('activeUserOnlineStatus');
+        updateActiveUserOnlineStatus(state.activeContact);
         const typingBadge = document.getElementById('activeTypingStatus');
-
-        if (dot) {
-            dot.className = 'status-indicator-dot online';
-            dot.title = 'Grup Aktif';
-        }
-        if (smallDot) smallDot.className = 'presence-dot online';
-        if (statusLabel) {
-            statusLabel.className = 'user-status-text online';
-            statusLabel.textContent = `${group.members_count || (group.members ? group.members.length : 1)} anggota`;
-        }
         if (typingBadge) typingBadge.style.display = 'none';
 
         updateRightPanelForGroup(group);
@@ -4732,6 +4877,8 @@
         if (infoName) infoName.textContent = group.name;
         if (infoUser) infoUser.textContent = group.description || 'Grup Obrolan ZChat';
         if (infoDot) infoDot.className = 'status-indicator-dot online';
+        const infoPresence = document.getElementById('infoPresenceText');
+        if (infoPresence) infoPresence.textContent = `${group.members_count || (group.members ? group.members.length : 1)} anggota`;
 
         if (groupSec) groupSec.style.display = 'block';
         if (btnDelContact) btnDelContact.style.display = 'none';
@@ -5468,7 +5615,7 @@
             statusTextEl.textContent = isOnline ? 'Online' : 'Offline';
         }
         if (presenceEl) {
-            presenceEl.textContent = isOnline ? 'Sedang Aktif Sekarang' : 'Sedang Tidak Aktif';
+            presenceEl.textContent = isOnline ? 'Sedang Aktif Sekarang' : (contact.last_seen_at ? formatLastSeen(contact.last_seen_at, false) : 'Sedang Tidak Aktif');
         }
         const phoneEl = document.getElementById('contactModalPhoneText');
         if (phoneEl) {
@@ -5614,6 +5761,11 @@
         if (!prevMsg || !currMsg) return false;
         if (Number(prevMsg.sender_id) !== Number(currMsg.sender_id)) return false;
 
+        // Jangan pernah satukan pesan jika berbeda tanggal kalender
+        if (getMessageDateKey(prevMsg.created_at) !== getMessageDateKey(currMsg.created_at)) {
+            return false;
+        }
+
         const prevTime = parseMessageTime(prevMsg.created_at);
         const currTime = parseMessageTime(currMsg.created_at);
         const diffMinutes = Math.abs((currTime - prevTime) / (1000 * 60));
@@ -5665,16 +5817,12 @@
             </div>
         `;
 
-        const dateDividerHtml = `
-            <div class="date-divider">
-                <span class="date-divider-text">HARI INI</span>
-            </div>
-        `;
-
         const currentChatKey = state.activeContact ? state.activeContact.id : null;
         const currentPinnedList = currentChatKey ? (state.pinnedMessages[currentChatKey] || []) : [];
 
-        container.innerHTML = encryptionBannerHtml + dateDividerHtml + messages.map((msg, idx) => {
+        let lastRenderedDateKey = null;
+
+        const messagesHtml = messages.map((msg, idx) => {
             const isMe = Boolean(state.user && msg.sender_id === state.user.id);
             const rowClass = isMe ? 'me' : 'other';
             const timeText = formatTime(msg.created_at);
@@ -5685,6 +5833,19 @@
             const isPinned = Boolean(msg.id && currentPinnedList.some(p => Number(p.message_id) === Number(msg.id)));
             const msgIdentifier = msg.id ? String(msg.id) : (msg.client_uuid || '');
             const safeIdAttr = escapeHtml(msgIdentifier);
+
+            // Pisahkan chat setiap tanggal seperti WhatsApp (HARI INI, KEMARIN, 18 OKTOBER 2026, dll.)
+            const msgDateKey = getMessageDateKey(msg.created_at) || getMessageDateKey(new Date());
+            let dateDividerHtml = '';
+            if (msgDateKey !== lastRenderedDateKey) {
+                lastRenderedDateKey = msgDateKey;
+                const dividerText = formatMessageDateDivider(msg.created_at || new Date());
+                dateDividerHtml = `
+                    <div class="date-divider">
+                        <span class="date-divider-text">${dividerText}</span>
+                    </div>
+                `;
+            }
 
             const isSelected = state.isSelectionMode && state.selectedMessageIds.has(safeIdAttr);
             const selectedClass = isSelected ? 'selected' : '';
@@ -5715,7 +5876,7 @@
             ` : '';
 
             if (isDeleted) {
-                return `
+                return dateDividerHtml + `
                     <div class="message-row ${rowClass} ${groupClass}" data-msg-id="${safeIdAttr}" data-msg-uuid="${escapeHtml(msg.client_uuid || '')}">
                         <div class="msg-selection-wrap">
                             <div class="message-bubble-wrapper">
@@ -5890,7 +6051,7 @@
                 groupSenderHtml = `<div class="group-msg-sender">${escapeHtml(sName)}</div>`;
             }
 
-            return `
+            return dateDividerHtml + `
                 <div class="message-row ${rowClass} ${groupClass} ${selectedClass}" data-msg-id="${safeIdAttr}" data-msg-uuid="${escapeHtml(msg.client_uuid || '')}" ${rowOnClick}>
                     <div class="msg-selection-wrap">
                         ${!isMe ? checkboxHtml : ''}
@@ -5956,6 +6117,8 @@
                 </div>
             `;
         }).join('');
+
+        container.innerHTML = encryptionBannerHtml + messagesHtml;
 
         if (state.isSelectionMode || !wasNearBottom) {
             container.scrollTop = prevScrollTop;
@@ -6058,6 +6221,7 @@
                     const statusLabel = document.getElementById('activeUserOnlineStatus');
                     if (typingBadge) typingBadge.style.display = 'none';
                     if (statusLabel) statusLabel.style.display = 'inline';
+                    updateActiveUserOnlineStatus(state.activeContact);
                 }
                 renderChatsList();
             }, 3500);

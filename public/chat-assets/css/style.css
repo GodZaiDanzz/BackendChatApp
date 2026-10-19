@@ -784,7 +784,15 @@ body.streamer-mode #btnStreamerMode {
 }
 
 .presence-dot.offline {
-  background-color: var(--text-muted);
+  display: none;
+}
+
+.user-status-text {
+  font-size: 0.76rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .user-status-text.online {
@@ -794,7 +802,7 @@ body.streamer-mode #btnStreamerMode {
 
 .user-status-text.offline {
   color: var(--text-muted);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .chat-header-actions {
@@ -914,24 +922,29 @@ body.streamer-mode #btnStreamerMode {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
-  margin: 0.5rem 0 0.85rem;
-}
-
-.date-divider::before,
-.date-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background-color: var(--border-subtle);
+  margin: 1.15rem auto 0.85rem;
+  width: 100%;
+  pointer-events: none;
+  user-select: none;
+  position: relative;
+  z-index: 2;
 }
 
 .date-divider-text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 11px;
-  font-weight: 700;
-  color: var(--text-muted);
-  letter-spacing: 0.05em;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
   text-transform: uppercase;
+  background-color: var(--bg-surface-elevated);
+  padding: 4px 13px;
+  border-radius: 9999px;
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(8px);
 }
 
 /* Message Row & Bubbles (WhatsApp-style Clustering & Matte Finish) */

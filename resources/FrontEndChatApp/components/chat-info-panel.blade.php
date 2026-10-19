@@ -30,6 +30,7 @@
                 </button>
             </div>
             <p id="infoUsername" class="info-profile-handle">@kontak</p>
+            <p id="infoPresenceText" class="info-profile-status" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.2rem; margin-bottom: 0; text-align: center;">Online</p>
 
             {{-- 3 Quick Action Round Buttons: Telepon, Video, Senyap --}}
             <div class="info-quick-actions-row">
