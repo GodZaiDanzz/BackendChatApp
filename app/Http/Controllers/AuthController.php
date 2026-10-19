@@ -133,7 +133,9 @@ class AuthController extends Controller
         $user->save();
 
         // Terbitkan token akses login
-        $token = $user->createToken('web')->plainTextToken;
+        $deviceInfo = \App\Http\Controllers\SessionController::parseDeviceName($request->userAgent());
+        $tokenName = $request->input('device_name') ?: $deviceInfo['friendly_name'];
+        $token = $user->createToken($tokenName)->plainTextToken;
 
         return response()->json([
             'status'  => 'verified',
@@ -217,8 +219,11 @@ class AuthController extends Controller
             ], 403);
         }
 
+        $deviceInfo = \App\Http\Controllers\SessionController::parseDeviceName($request->userAgent());
+        $tokenName = $request->input('device_name') ?: $deviceInfo['friendly_name'];
+
         return response()->json([
-            'token' => $user->createToken('web')->plainTextToken,
+            'token' => $user->createToken($tokenName)->plainTextToken,
             'user'  => $user,
         ]);
     }

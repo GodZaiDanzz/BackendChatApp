@@ -68,6 +68,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/contacts/{id}/block', [\App\Http\Controllers\BlockController::class, 'block']);
     Route::post('/contacts/{id}/unblock', [\App\Http\Controllers\BlockController::class, 'unblock']);
 
+    // Pinned Chat Messages
+    Route::get('/pinned-messages', [\App\Http\Controllers\PinnedMessageController::class, 'index']);
+    Route::post('/pinned-messages/toggle', [\App\Http\Controllers\PinnedMessageController::class, 'toggle']);
+    Route::post('/pinned-messages/unpin', [\App\Http\Controllers\PinnedMessageController::class, 'unpin']);
+
+    // Active Sessions & Multi-Device Management
+    Route::get('/auth/sessions', [\App\Http\Controllers\SessionController::class, 'index']);
+    Route::delete('/auth/sessions/{id}', [\App\Http\Controllers\SessionController::class, 'destroy']);
+    Route::post('/auth/sessions/revoke-others', [\App\Http\Controllers\SessionController::class, 'revokeOthers']);
+
     // Group messaging and management
     Route::get('/groups', [GroupController::class, 'index']);
     Route::post('/groups', [GroupController::class, 'store']);

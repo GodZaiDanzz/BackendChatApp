@@ -59,6 +59,7 @@
     @include('components.backup-restore-modal')
     @include('components.blocked-users-modal')
     @include('components.media-lightbox-modal')
+    @include('components.active-sessions-modal')
     @include('components.voice-call-overlay')
     @include('components.confirm-modal')
     @include('components.toast')

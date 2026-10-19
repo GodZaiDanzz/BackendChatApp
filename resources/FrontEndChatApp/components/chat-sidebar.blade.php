@@ -481,6 +481,18 @@
                     </div>
                 </div>
 
+                <div class="subpanel-card" style="cursor: pointer;" onclick="openActiveSessionsModal()">
+                    <div class="subpanel-card-row">
+                        <div>
+                            <div class="subpanel-card-title" style="color: #a78bfa;">Sesi Aktif & Multi-Perangkat</div>
+                            <div class="subpanel-card-desc">Kelola perangkat terhubung dan keluar dari sesi lain</div>
+                        </div>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </div>
+                </div>
+
                 <div class="subpanel-card" style="cursor: pointer;" onclick="openSettingsSubpanel('profile')">
                     <div class="subpanel-card-row">
                         <div>

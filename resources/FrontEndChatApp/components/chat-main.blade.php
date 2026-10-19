@@ -239,6 +239,45 @@
             </div>
         </div>
 
+        {{-- Pinned Message Banner (Telegram/WhatsApp style strip) --}}
+        <div id="pinnedMessageBanner" class="pinned-message-banner" style="display: none;" role="region" aria-label="Pesan Tersemat">
+            <div class="pinned-indicator-bar"></div>
+            <div class="pinned-icon-wrapper" aria-hidden="true">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="17" x2="12" y2="22"></line>
+                    <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a1 1 0 0 0 0-2H8a1 1 0 0 0 0 2h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z"></path>
+                </svg>
+            </div>
+            <div class="pinned-content" onclick="jumpToCurrentPinnedMessage()" role="button" tabindex="0" title="Klik untuk loncat ke pesan tersemat">
+                <div class="pinned-title-row">
+                    <span id="pinnedBannerTitle" class="pinned-title">Pesan Tersemat</span>
+                    <span id="pinnedBannerCounter" class="pinned-counter" style="display: none;">1 dari 1</span>
+                </div>
+                <div class="pinned-snippet-row">
+                    <span id="pinnedBannerAuthor" class="pinned-author">Pengirim:</span>
+                    <span id="pinnedBannerSnippet" class="pinned-snippet">Isi pesan tersemat...</span>
+                </div>
+            </div>
+            <div class="pinned-actions">
+                <button type="button" id="btnPinnedPrev" class="btn-icon-subtle pinned-nav-btn" onclick="cyclePinnedMessage(-1)" title="Pesan tersemat sebelumnya" aria-label="Pesan tersemat sebelumnya" style="display: none;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="18 15 12 9 6 15"></polyline>
+                    </svg>
+                </button>
+                <button type="button" id="btnPinnedNext" class="btn-icon-subtle pinned-nav-btn" onclick="cyclePinnedMessage(1)" title="Pesan tersemat berikutnya" aria-label="Pesan tersemat berikutnya" style="display: none;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </button>
+                <button type="button" class="btn-icon-subtle pinned-unpin-btn" onclick="unpinCurrentMessage()" title="Lepas sematan pesan" aria-label="Lepas sematan pesan">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
         {{-- Message Stream Loading Skeleton --}}
         <div id="chatLoadingSkeleton" class="chat-skeleton-container" style="display: none;" aria-hidden="true">
             <div class="skeleton-row other">

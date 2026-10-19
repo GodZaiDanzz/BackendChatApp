@@ -249,6 +249,9 @@
         callLogs: [],
         pinnedChats: { direct: new Set(), group: new Set() },
         mutedChats: { direct: new Set(), group: new Set() },
+        pinnedMessages: {},
+        currentPinnedIndex: 0,
+        activeSessions: [],
         voiceNote: {
             isRecording: false,
             mediaRecorder: null,
@@ -3753,6 +3756,295 @@
         }, { passive: false });
     }
 
+    // ==========================================
+    // Pinned Messages Controller (Fase 3)
+    // ==========================================
+
+    window.loadPinnedMessages = async function (contactId, isGroup = false) {
+        if (!contactId) return;
+        const chatType = isGroup ? 'group' : 'direct';
+        const rawTargetId = isGroup && String(contactId).startsWith('group_')
+            ? String(contactId).replace('group_', '')
+            : contactId;
+
+        try {
+            const res = await apiRequest(`/pinned-messages?chat_type=${chatType}&target_id=${rawTargetId}`);
+            if (res && Array.isArray(res.pinned_messages)) {
+                state.pinnedMessages[contactId] = res.pinned_messages;
+                state.currentPinnedIndex = 0;
+            } else {
+                state.pinnedMessages[contactId] = [];
+            }
+        } catch (e) {
+            console.warn('Gagal memuat pesan tersemat:', e);
+            state.pinnedMessages[contactId] = state.pinnedMessages[contactId] || [];
+        }
+
+        renderPinnedMessageBanner();
+    };
+
+    window.renderPinnedMessageBanner = function () {
+        const banner = document.getElementById('pinnedMessageBanner');
+        if (!banner) return;
+
+        if (!state.activeContact) {
+            banner.style.display = 'none';
+            return;
+        }
+
+        const chatKey = state.activeContact.id;
+        const pinnedList = state.pinnedMessages[chatKey] || [];
+
+        if (pinnedList.length === 0) {
+            banner.style.display = 'none';
+            return;
+        }
+
+        banner.style.display = 'flex';
+
+        if (state.currentPinnedIndex >= pinnedList.length) state.currentPinnedIndex = 0;
+        if (state.currentPinnedIndex < 0) state.currentPinnedIndex = pinnedList.length - 1;
+
+        const current = pinnedList[state.currentPinnedIndex];
+        const counterEl = document.getElementById('pinnedBannerCounter');
+        const prevBtn = document.getElementById('btnPinnedPrev');
+        const nextBtn = document.getElementById('btnPinnedNext');
+        const authorEl = document.getElementById('pinnedBannerAuthor');
+        const snippetEl = document.getElementById('pinnedBannerSnippet');
+
+        if (pinnedList.length > 1) {
+            if (counterEl) {
+                counterEl.style.display = 'inline-block';
+                counterEl.textContent = `${state.currentPinnedIndex + 1} dari ${pinnedList.length}`;
+            }
+            if (prevBtn) prevBtn.style.display = 'inline-flex';
+            if (nextBtn) nextBtn.style.display = 'inline-flex';
+        } else {
+            if (counterEl) counterEl.style.display = 'none';
+            if (prevBtn) prevBtn.style.display = 'none';
+            if (nextBtn) nextBtn.style.display = 'none';
+        }
+
+        if (authorEl) {
+            authorEl.textContent = `${current.sender_name || 'Pengguna'}:`;
+        }
+
+        if (snippetEl) {
+            let text = current.body_snippet || '';
+            if (!text && current.has_attachment) {
+                const attIcon = current.attachment_type === 'image' ? '📷 Foto' : (current.attachment_type === 'video' ? '🎬 Video' : (current.attachment_type === 'audio' ? '🎵 Pesan Suara' : '📎 Berkas'));
+                text = attIcon;
+            }
+            snippetEl.textContent = text || 'Pesan tersemat';
+        }
+    };
+
+    window.cyclePinnedMessage = function (delta) {
+        if (!state.activeContact) return;
+        const chatKey = state.activeContact.id;
+        const pinnedList = state.pinnedMessages[chatKey] || [];
+        if (pinnedList.length <= 1) return;
+
+        state.currentPinnedIndex = (state.currentPinnedIndex + delta + pinnedList.length) % pinnedList.length;
+        renderPinnedMessageBanner();
+    };
+
+    window.jumpToCurrentPinnedMessage = function () {
+        if (!state.activeContact) return;
+        const chatKey = state.activeContact.id;
+        const pinnedList = state.pinnedMessages[chatKey] || [];
+        if (pinnedList.length === 0) return;
+
+        const current = pinnedList[state.currentPinnedIndex];
+        if (current) {
+            window.scrollToMessage(current.message_id || current.client_uuid);
+        }
+    };
+
+    window.togglePinMessage = async function (msgIdentifier) {
+        if (!state.activeContact) return;
+        const isGroup = Boolean(state.activeContact.is_group);
+        const chatKey = state.activeContact.id;
+        const rawTargetId = isGroup && String(chatKey).startsWith('group_')
+            ? String(chatKey).replace('group_', '')
+            : chatKey;
+        const msgs = state.chats[chatKey] || [];
+        const msg = msgs.find(m => String(m.id) === String(msgIdentifier) || (m.client_uuid && String(m.client_uuid) === String(msgIdentifier)));
+
+        if (!msg || !msg.id) {
+            showToast('Pesan belum tersinkronisasi ke server', 'info');
+            return;
+        }
+
+        try {
+            const res = await apiRequest('/pinned-messages/toggle', 'POST', {
+                chat_type: isGroup ? 'group' : 'direct',
+                target_id: rawTargetId,
+                message_id: msg.id
+            });
+
+            if (res && res.pinned_messages) {
+                state.pinnedMessages[chatKey] = res.pinned_messages;
+                state.currentPinnedIndex = 0;
+                renderPinnedMessageBanner();
+                renderActiveMessages();
+                showToast(res.is_pinned ? 'Pesan berhasil disematkan' : 'Sematan pesan dilepas', 'success');
+            }
+        } catch (e) {
+            console.error('Gagal menyematkan pesan:', e);
+            showToast('Gagal mengubah status sematan pesan', 'error');
+        }
+    };
+
+    window.unpinCurrentMessage = async function () {
+        if (!state.activeContact) return;
+        const chatKey = state.activeContact.id;
+        const pinnedList = state.pinnedMessages[chatKey] || [];
+        if (pinnedList.length === 0) return;
+
+        const current = pinnedList[state.currentPinnedIndex];
+        if (current && current.message_id) {
+            window.togglePinMessage(current.message_id);
+        }
+    };
+
+    // ==========================================
+    // Active Sessions & Multi-Device Controller (Fase 3)
+    // ==========================================
+
+    window.openActiveSessionsModal = async function () {
+        const modal = document.getElementById('activeSessionsModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+        }
+        await loadActiveSessions();
+    };
+
+    window.closeActiveSessionsModal = function () {
+        const modal = document.getElementById('activeSessionsModal');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.classList.remove('active');
+        }
+    };
+
+    window.loadActiveSessions = async function () {
+        const loadingEl = document.getElementById('activeSessionsLoading');
+        const listEl = document.getElementById('activeSessionsList');
+        if (!listEl) return;
+
+        if (loadingEl) loadingEl.style.display = 'flex';
+
+        try {
+            const res = await apiRequest('/auth/sessions');
+            if (res && Array.isArray(res.sessions)) {
+                state.activeSessions = res.sessions;
+                renderActiveSessionsList();
+            }
+        } catch (e) {
+            console.error('Gagal memuat daftar sesi:', e);
+            listEl.innerHTML = `
+                <div class="empty-state" style="padding: 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+                    Gagal memuat sesi aktif. Silakan coba beberapa saat lagi.
+                </div>
+            `;
+        } finally {
+            if (loadingEl) loadingEl.style.display = 'none';
+        }
+    };
+
+    function renderActiveSessionsList() {
+        const listEl = document.getElementById('activeSessionsList');
+        if (!listEl) return;
+
+        const sessions = state.activeSessions || [];
+        if (sessions.length === 0) {
+            listEl.innerHTML = `
+                <div class="empty-state" style="padding: 2rem 1rem; text-align: center; color: var(--text-muted); font-size: 0.85rem;">
+                    Tidak ada sesi aktif ditemukan.
+                </div>
+            `;
+            return;
+        }
+
+        listEl.innerHTML = sessions.map(s => {
+            const isCurrent = Boolean(s.is_current);
+            const iconSvg = s.device_type === 'mobile'
+                ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>`
+                : (s.device_type === 'tablet'
+                    ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>`
+                    : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>`);
+
+            const badgeHtml = isCurrent
+                ? `<span class="session-badge-current">
+                     <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981;"></span>
+                     Perangkat Ini (Aktif)
+                   </span>`
+                : `<span style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(s.last_used_at)}</span>`;
+
+            const actionBtn = isCurrent
+                ? ''
+                : `<button type="button" class="session-btn-revoke" onclick="revokeSession(${s.id}, '${escapeHtml(s.name).replace(/'/g, "\\'")}')" title="Keluarkan perangkat ini">
+                     Keluarkan
+                   </button>`;
+
+            return `
+                <div class="session-card-item ${isCurrent ? 'is-current' : ''}">
+                    <div class="session-icon-box" aria-hidden="true">
+                        ${iconSvg}
+                    </div>
+                    <div class="session-info-main">
+                        <div class="session-title-row">
+                            <span class="session-title">${escapeHtml(s.name)}</span>
+                            ${badgeHtml}
+                        </div>
+                        <div class="session-meta-row">
+                            <span>Dibuat: ${escapeHtml(s.created_at || 'Baru saja')}</span>
+                            ${!isCurrent ? `<span>• Terakhir aktif: ${escapeHtml(s.last_used_at)}</span>` : ''}
+                        </div>
+                    </div>
+                    ${actionBtn}
+                </div>
+            `;
+        }).join('');
+    }
+
+    window.revokeSession = async function (id, deviceName) {
+        if (!id) return;
+        try {
+            const res = await apiRequest(`/auth/sessions/${id}`, 'DELETE');
+            if (res) {
+                showToast(`Sesi "${deviceName || 'Perangkat'}" telah dikeluarkan.`, 'info');
+                await loadActiveSessions();
+            }
+        } catch (e) {
+            console.error('Gagal mengeluarkan sesi:', e);
+            showToast('Gagal mengeluarkan sesi perangkat.', 'error');
+        }
+    };
+
+    window.confirmRevokeOtherSessions = function () {
+        openConfirmModal(
+            'Keluar dari Semua Perangkat Lain?',
+            'Anda akan tetap masuk di perangkat ini, namun seluruh sesi aplikasi atau browser lain yang terhubung akan segera dihentikan.',
+            async () => {
+                try {
+                    const res = await apiRequest('/auth/sessions/revoke-others', 'POST');
+                    if (res) {
+                        showToast(res.message || 'Semua sesi perangkat lain telah dikeluarkan.', 'success');
+                        await loadActiveSessions();
+                    }
+                } catch (e) {
+                    console.error('Gagal mengeluarkan sesi lain:', e);
+                    showToast('Gagal mengeluarkan sesi perangkat lain.', 'error');
+                }
+            },
+            'Ya, Keluarkan Semua',
+            'Batal'
+        );
+    };
+
     async function uploadAttachmentFile(file) {
         const formData = new FormData();
         formData.append('file', file);
@@ -4191,6 +4483,7 @@
             renderContactsList();
             renderChatsList();
             updateRightPanelMediaAndDocs(contact.id);
+            loadPinnedMessages(contact.id, false);
         } catch (err) {
             console.error('Error rendering active chat messages:', err);
         } finally {
@@ -4376,6 +4669,7 @@
             renderActiveMessages();
             renderChatsList();
             updateRightPanelMediaAndDocs(chatKey);
+            loadPinnedMessages(groupId, true);
         } catch (err) {
             console.error('Error render pesan grup:', err);
         } finally {
@@ -5021,6 +5315,9 @@
         window.toggleInChatSearch(false);
         window.updateActiveChatBlockState();
 
+        const pinnedBanner = document.getElementById('pinnedMessageBanner');
+        if (pinnedBanner) pinnedBanner.style.display = 'none';
+
         document.querySelectorAll('.chat-item.active, .contact-card-item.active').forEach(el => {
             el.classList.remove('active');
         });
@@ -5306,6 +5603,9 @@
             </div>
         `;
 
+        const currentChatKey = state.activeContact ? state.activeContact.id : null;
+        const currentPinnedList = currentChatKey ? (state.pinnedMessages[currentChatKey] || []) : [];
+
         container.innerHTML = encryptionBannerHtml + dateDividerHtml + messages.map((msg, idx) => {
             const isMe = Boolean(state.user && msg.sender_id === state.user.id);
             const rowClass = isMe ? 'me' : 'other';
@@ -5314,6 +5614,7 @@
             const statusMarker = isMe ? renderStatusCheck(msg.status, isGroup) : '';
             const isDeleted = Boolean(msg.is_deleted) || msg.body === 'Pesan ini telah dihapus';
             const isEdited = Boolean(msg.is_edited) && !isDeleted;
+            const isPinned = Boolean(msg.id && currentPinnedList.some(p => Number(p.message_id) === Number(msg.id)));
             const msgIdentifier = msg.id ? String(msg.id) : (msg.client_uuid || '');
             const safeIdAttr = escapeHtml(msgIdentifier);
 
@@ -5554,6 +5855,12 @@
                                 <button type="button" class="btn-msg-action ${msg.is_starred ? 'active' : ''}" onclick="handleToggleStarMessage('${safeIdAttr}')" title="${msg.is_starred ? 'Hapus bintang' : 'Bintangi pesan'}" aria-label="Bintang pesan">
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="${msg.is_starred ? '#f59e0b' : 'none'}" stroke="${msg.is_starred ? '#f59e0b' : 'currentColor'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                                    </svg>
+                                </button>
+                                <button type="button" class="btn-msg-action ${isPinned ? 'active' : ''}" onclick="togglePinMessage('${safeIdAttr}')" title="${isPinned ? 'Lepas sematan' : 'Sematkan pesan'}" aria-label="Sematkan pesan">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="${isPinned ? '#a78bfa' : 'none'}" stroke="${isPinned ? '#a78bfa' : 'currentColor'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="12" y1="17" x2="12" y2="22"></line>
+                                        <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.76V6h1a1 1 0 0 0 0-2H8a1 1 0 0 0 0 2h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z"></path>
                                     </svg>
                                 </button>
                                 <button type="button" class="btn-msg-action" onclick="toggleMessageReaction('${safeIdAttr}', '👍')" title="Suka" aria-label="Suka">👍</button>
@@ -7027,6 +7334,19 @@
 
             channel.bind('group.message.status', onGroupMessageStatus);
             channel.bind('.group.message.status', onGroupMessageStatus);
+
+            const onPinnedUpdated = (data) => {
+                const info = data.message || data;
+                if (!info) return;
+                const chatKey = info.chat_type === 'group' ? ('group_' + info.target_id) : info.target_id;
+                state.pinnedMessages[chatKey] = info.pinned_messages || [];
+                if (state.activeContact && (state.activeContact.id === chatKey || String(state.activeContact.id) === String(info.target_id))) {
+                    renderPinnedMessageBanner();
+                    renderActiveMessages();
+                }
+            };
+            channel.bind('message.pinned_updated', onPinnedUpdated);
+            channel.bind('.message.pinned_updated', onPinnedUpdated);
 
             const onVoiceSignal = async (rawSignal) => {
                 let signal = rawSignal;
@@ -8708,6 +9028,7 @@
 
             window.closeBlockedUsersModal();
             window.closeBackupRestoreModal();
+            window.closeActiveSessionsModal();
 
             if (state.editingMessageId) {
                 window.cancelEditMessage();
